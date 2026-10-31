@@ -61,6 +61,7 @@
     "./digit-roll": "./src/digit-roll.ts",
     "./rolling-price": "./src/rolling-price.tsx",
     "./error-message": "./src/error-message.ts",
+    "./features/servers/FreeAddServerDialog": "./src/features/servers/FreeAddServerDialog.tsx",
     "./features/account/AccountLogin": "./src/features/account/AccountLogin.tsx",
     "./features/account/LanguageWheel": "./src/features/account/LanguageWheel.tsx",
     "./features/account/AccountUpdateIsland": "./src/features/account/AccountUpdateIsland.tsx",

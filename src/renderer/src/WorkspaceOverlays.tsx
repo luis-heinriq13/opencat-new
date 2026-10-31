@@ -34,13 +34,13 @@ import type { ServerStorageOptions } from "./features/files/ServerStoragePanel";
 import { useSetup } from "./features/onboarding/onboarding-context";
 import { useRemoteDesktop } from "./features/remote-desktop/remote-desktop-context";
 import { desktopScheduleSource } from "./features/schedule/schedule-port";
-import { AddServerOverlay } from "./features/servers/AddServerOverlay";
 import {
   createdRoutines,
   HostedServerUpsell,
   hostedUpsellRoutineCreated,
 } from "./features/servers/hosted-server-upsell-controller";
 import { mcpToolRuntimeNote } from "./features/servers/mcp-servers";
+import { FreeAddServerDialog } from "@openbot/ui/features/servers/FreeAddServerDialog";
 import { useServerActions } from "./features/servers/server-actions";
 import { remoteMcpSignIn, serverCanAdminister, serverSupportsCapability } from "./features/servers/server-capabilities";
 import { useServerSelection } from "./features/servers/server-selection";
@@ -242,9 +242,8 @@ function CreateLocalServer() {
 
 /** A hosted server: the plans, the payment, then the setup. */
 function AddServer() {
-  const { servers, addServerOpen, addServerEntryPoint, setAddServerOpen, setJoinServerOpen } = useServers();
-  const { select, createLocal } = useServerActions();
-  const { openAppSettings } = useSettings();
+  const { addServerOpen, setAddServerOpen, setJoinServerOpen } = useServers();
+  const { createLocal } = useServerActions();
   const onCreateLocal =
     createLocal &&
     (() => {
@@ -253,24 +252,17 @@ function AddServer() {
     });
 
   return (
-    <AddServerOverlay
+    <FreeAddServerDialog
       open={addServerOpen()}
-      entryPoint={addServerEntryPoint() ?? undefined}
-      calls={appPort().hostedServers}
-      license={appPort().license}
-      servers={servers()}
       onClose={() => setAddServerOpen(false)}
-      onOpenServer={(serverId) => {
-        setAddServerOpen(false);
-        void select(serverId);
-      }}
-      onContactUs={() => void appPort().openExternal("hosted-server-contact")}
+      onCreateLocal={onCreateLocal}
       onJoinWithInvite={() => {
         setAddServerOpen(false);
         setJoinServerOpen(true);
       }}
-      onCreateLocal={onCreateLocal}
-      onManageServers={() => openAppSettings(null, "hosted-servers")}
+      onOpenSelfHostGuide={() =>
+        void appPort().openUrl("https://github.com/nightly-labs/openbot/blob/main/docs/self-hosted-server.md")
+      }
     />
   );
 }
