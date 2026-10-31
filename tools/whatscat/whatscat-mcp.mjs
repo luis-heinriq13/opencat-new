@@ -4,7 +4,7 @@
 // `--panel` abre só o painel local: QR code, conversas liberadas e permissão de envio.
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -87,6 +87,25 @@ let cachedConnection = null;
 async function connection() {
   await ensureService();
   if (cachedConnection) return cachedConnection;
+  // O painel e os agentes são processos separados e precisam da mesma conexão: o envio é por conexão.
+  const lock = `${CONNECTION_FILE}.lock`;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch {
+      if (attempt >= 40) rmSync(lock, { recursive: true, force: true });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  try {
+    return await savedOrNewConnection();
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+async function savedOrNewConnection() {
   try {
     const saved = JSON.parse(readFileSync(CONNECTION_FILE, "utf8"));
     if (typeof saved.id === "string") {
