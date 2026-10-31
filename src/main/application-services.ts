@@ -2911,9 +2911,10 @@ export async function createApplicationServices({
     logger.warn(`OpenBot updates are disabled because the application version is not valid SemVer: ${currentVersion}`);
   }
   let updateAdapter: UpdateAdapter = createDisabledUpdateAdapter();
-  let updaterEnabled = updatesEnabled;
+  // Fork: official updates would replace this build. New versions arrive through our own merge routine.
+  let updaterEnabled = false;
   let updaterCacheDirectory: string | undefined;
-  if (updatesEnabled && hostedInstaller) {
+  if (updaterEnabled && hostedInstaller) {
     updateAdapter = new HostedUpdateAdapter({
       currentVersion,
       arch: process.arch,
