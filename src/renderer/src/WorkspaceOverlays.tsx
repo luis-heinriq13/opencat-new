@@ -13,6 +13,7 @@ import { isAgentAccount } from "@openbot/ui/components/provider-accounts";
 import type { AcpRegistrySettingsApi } from "@openbot/ui/features/custom-providers/AcpRegistrySettings";
 import type { CustomAgentSettingsApi } from "@openbot/ui/features/custom-providers/CustomAgentSettings";
 import { providerDiagnosticsText } from "@openbot/ui/features/provider-diagnostics/provider-diagnostics";
+import { FreeAddServerDialog } from "@openbot/ui/features/servers/FreeAddServerDialog";
 import { LeaveServerDialog } from "@openbot/ui/features/servers/LeaveServerDialog";
 import { RestartServerDialog } from "@openbot/ui/features/servers/RestartServerDialog";
 import type { HostedSiteDeleteResult } from "@openbot/ui/features/settings/stores/hosted-sites-store";
@@ -40,7 +41,6 @@ import {
   hostedUpsellRoutineCreated,
 } from "./features/servers/hosted-server-upsell-controller";
 import { mcpToolRuntimeNote } from "./features/servers/mcp-servers";
-import { FreeAddServerDialog } from "@openbot/ui/features/servers/FreeAddServerDialog";
 import { useServerActions } from "./features/servers/server-actions";
 import { remoteMcpSignIn, serverCanAdminister, serverSupportsCapability } from "./features/servers/server-capabilities";
 import { useServerSelection } from "./features/servers/server-selection";
@@ -261,7 +261,9 @@ function AddServer() {
         setJoinServerOpen(true);
       }}
       onOpenSelfHostGuide={() =>
-        void appPort().openUrl("https://github.com/nightly-labs/openbot/blob/main/docs/self-hosted-server.md")
+        void appPort().openUrl(
+          "https://github.com/luis-heinriq13/opencat/blob/fork/atualizado/docs/self-hosted-server.md",
+        )
       }
     />
   );
