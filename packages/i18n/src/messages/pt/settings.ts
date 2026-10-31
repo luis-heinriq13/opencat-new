@@ -6,6 +6,8 @@ export const messages = {
   "settings.language.description": "O OpenBot mostra menus, botões e mensagens neste idioma.",
   "settings.language.system": "Padrão do sistema",
   "settings.appearance.title": "Aparência",
+  "settings.appearance.sidebarPages.title": "Páginas na barra lateral",
+  "settings.appearance.sidebarPages.description": "Mostra rotinas, agenda, tarefas, skills e uso na barra lateral, como no Tucano.",
   "settings.appearance.theme.title": "Tema",
   "settings.appearance.theme.description": "Cores claras ou escuras. “Sistema” segue o ajuste do seu dispositivo.",
   "settings.appearance.theme.system": "Sistema",

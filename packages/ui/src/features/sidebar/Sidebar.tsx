@@ -21,6 +21,8 @@ export function Sidebar(props: SidebarProps) {
           <SidebarViewSwitch />
         </Show>
 
+        <Show when={!props.compact}>{props.topNav}</Show>
+
         <SidebarNav />
 
         <Show when={!props.compact}>{props.footer}</Show>

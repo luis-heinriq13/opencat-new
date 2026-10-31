@@ -7,6 +7,8 @@ export const messages = defineMessages("settings", {
   "settings.language.system": "System default",
   // The logo color setting, General tab.
   "settings.appearance.title": "Appearance",
+  "settings.appearance.sidebarPages.title": "Pages in the sidebar",
+  "settings.appearance.sidebarPages.description": "Shows routines, schedule, tasks, skills, and usage in the sidebar, as in Tucano.",
   "settings.appearance.theme.title": "Theme",
   "settings.appearance.theme.description": "Light or dark colors. System follows the setting of your device.",
   "settings.appearance.theme.system": "System",
