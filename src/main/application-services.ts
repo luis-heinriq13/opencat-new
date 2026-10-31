@@ -236,7 +236,12 @@ import {
   sendComputerUseHighlightPlacement,
   showMainWindow,
 } from "./main-window";
-import { DATA_SKILL_SLUG, ManagedSkillService, SKILL_CREATOR_SKILL_SLUG } from "./managed-skill-service";
+import {
+  CAVEMAN_SKILL_SLUG,
+  DATA_SKILL_SLUG,
+  ManagedSkillService,
+  SKILL_CREATOR_SKILL_SLUG,
+} from "./managed-skill-service";
 import { McpHostSignIns } from "./mcp-host-sign-ins";
 import { McpOAuthProxySettingsFile } from "./mcp-oauth-proxy-store";
 import {
@@ -1046,6 +1051,15 @@ export async function createApplicationServices({
     undefined,
     DATA_SKILL_SLUG,
   );
+  const cavemanSkill = new ManagedSkillService(
+    app.isPackaged
+      ? join(process.resourcesPath, "managed-skills", "caveman", "SKILL.md")
+      : resolve(__dirname, "../../resources/managed-skills/caveman/SKILL.md"),
+    undefined,
+    undefined,
+    CAVEMAN_SKILL_SLUG,
+  );
+  await Effect.runPromise(cavemanSkill.syncAll(store.list()));
   await Effect.runPromise(managedSkills.syncAll(store.list()));
   await Effect.runPromise(skillCreator.syncAll(store.list()));
   await Effect.runPromise(dataSkill.syncAll(store.list()));
@@ -1718,6 +1732,7 @@ export async function createApplicationServices({
         yield* managedSkills.syncAgent(agent);
         yield* skillCreator.syncAgent(agent);
         yield* dataSkill.syncAgent(agent);
+        yield* cavemanSkill.syncAgent(agent);
       }),
     hostedSites: {
       list: () => hostedSites.list().pipe(toHostedSiteOperationFailed),

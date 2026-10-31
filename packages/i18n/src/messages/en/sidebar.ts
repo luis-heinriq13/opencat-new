@@ -15,6 +15,8 @@ export const messages = defineMessages("sidebar", {
   "sidebar.new.menuWithChannel": "New agent, channel or section",
   "sidebar.markAllRead": "Mark all as read",
   "sidebar.topbar.openSettings": "Open settings for {name}",
+  "sidebar.tucano.approvals": "Approvals",
+  "sidebar.tucano.memory": "Agent memory",
   "sidebar.tucano.agents": "Agents",
   "sidebar.tucano.routines": "Routines",
   "sidebar.tucano.schedule": "Schedule",

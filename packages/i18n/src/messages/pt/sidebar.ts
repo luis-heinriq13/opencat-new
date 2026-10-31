@@ -16,6 +16,8 @@ export const messages = {
   "sidebar.new.menuWithChannel": "Novo agente, canal ou seção",
   "sidebar.markAllRead": "Marcar tudo como lido",
   "sidebar.topbar.openSettings": "Abrir configurações de {name}",
+  "sidebar.tucano.approvals": "Aprovações",
+  "sidebar.tucano.memory": "Memória do agente",
   "sidebar.tucano.agents": "Agentes",
   "sidebar.tucano.routines": "Rotinas",
   "sidebar.tucano.schedule": "Agenda",

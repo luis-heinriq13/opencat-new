@@ -6,7 +6,7 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "packages/i18n/src/messages"
 for path in ROOT.rglob("*.ts"):
     text = path.read_text()
-    new = re.sub(r'OpenBot(?!["\w]*":)(?![\w/-])', "OpenCat", text)
+    new = re.sub(r'OpenBot(?!["\w]*":)(?![\w/])', "OpenCat", text)
     if new != text:
         path.write_text(new)
 
@@ -22,6 +22,8 @@ VISIBLE = {
     "src/main/browser-picture-in-picture.ts": ['title: "OpenBot Browser"'],
     "src/main/index.ts": ['new Notification({ title: "OpenBot"'],
     "src/main/loopback-callback-server.ts": ["<title>OpenBot</title>"],
+    "packages/ui/src/features/settings/stores/updates-store.ts": ["`OpenBot v$"],
+    "src/renderer/src/platform.tsx": ['name: "OpenBot"'],
 }
 for rel, snippets in VISIBLE.items():
     path = REPO / rel

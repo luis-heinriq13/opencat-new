@@ -214,6 +214,16 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
     }),
   );
 
+  /** OpenCat: the agents that wait for an approval in their own chat. */
+  const approvalsByAgent = createMemo(() =>
+    Object.fromEntries(
+      Object.entries(
+        agentThreadAttention({ agents: agentList(), pendingPrompts: pendingPrompts(), approvals: approvals() })
+          .pendingApprovals,
+      ).filter(([, approval]) => approval !== undefined),
+    ),
+  );
+
   /* A wait in a channel thread goes to the channel instead. Selecting the channel opens the view
    * that answers it. */
   const channelWaits = createMemo(() => {
@@ -242,7 +252,17 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
 
   return (
     <Sidebar
-      topNav={layout.sidebarStyle() === "tucano" ? <TucanoSidebarNav /> : undefined}
+      topNav={
+        layout.sidebarStyle() === "tucano" ? (
+          <TucanoSidebarNav
+            approvals={Object.keys(approvalsByAgent()).length}
+            onOpenApprovals={() => {
+              const [first] = Object.keys(approvalsByAgent());
+              if (first) selectAgent(first);
+            }}
+          />
+        ) : undefined
+      }
       channels={visibleChannels()}
       deletedChannels={channelsListed() ? channels.state.channels.filter((channel) => channel.archived) : []}
       activeChannelId={channels.state.selectedId}
