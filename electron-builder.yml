@@ -48,6 +48,9 @@ extraResources:
   # `openbot-cli.mjs` runs tasks on agents through the Local scripts API; see docs/automation.md.
   - from: resources/cli
     to: cli
+  # OpenCat: the WhatsApp servers, built by tools/whatscat/build.sh.
+  - from: resources/whatscat
+    to: whatscat
   # `cpu-limit.cjs` makes os.cpus() follow the CPU limit for the Node programs of agents on a server.
   - from: resources/agent-runtime
     to: agent-runtime

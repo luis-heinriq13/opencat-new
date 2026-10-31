@@ -37,6 +37,102 @@ export function createPluginAppConfig(app: MarketplacePluginApp): McpServerConfi
   };
 }
 
+const WHATSAPP_OFICIAL: MarketplacePluginDetail = {
+  id: "plugin-whatsapp-oficial",
+  slug: "whatsapp-oficial",
+  name: "WhatsApp Business (API oficial)",
+  tagline: "API oficial da Meta. A opção segura para empresa.",
+  description:
+    "Atendimento pelo WhatsApp com a API oficial da Meta. É a opção segura para empresa e para produção.\n\nO que é: a Cloud API do WhatsApp Business. A conta não corre risco de banimento por usar a integração, desde que siga as regras da Meta.\nO que pede: conta na Meta for Developers, número próprio verificado, token de acesso e ID do número. A Meta cobra por modelo enviado.\nLimites da Meta: fora da janela de 24 horas, só com modelo aprovado.\nHoje este app envia mensagens e lista modelos. Para receber mensagens, aponte o webhook da Meta para uma rotina de webhook do OpenCat; o passo a passo está em docs/whatscat.md.\nFunciona em servidor: precisa só de Node.js e dos dois valores acima.",
+  category: "productivity",
+  creatorName: "OpenCat",
+  iconUrl: "https://www.whatsapp.com/favicon.ico",
+  version: "1.0.0",
+  prompts: [
+    { id: "prompt-status", text: "Qual é a qualidade do nosso número no WhatsApp?" },
+    { id: "prompt-templates", text: "Liste os modelos aprovados do WhatsApp." },
+  ],
+  apps: [
+    {
+      id: "app-whatsapp-oficial",
+      name: "WhatsApp Business",
+      description: "Envia mensagens e modelos pela Cloud API da Meta, com um servidor local.",
+      iconUrl: "https://www.whatsapp.com/favicon.ico",
+      server: {
+        name: "whatsapp-oficial",
+        transport: "stdio",
+        command: "~/.opencat/whatscat/whatsapp-oficial-mcp.mjs",
+        args: [],
+        auth: [
+          {
+            id: "whatsapp-token",
+            kind: "key",
+            label: "Token e número",
+            fields: [
+              {
+                id: "token",
+                label: "Token de acesso",
+                env: "WHATSAPP_TOKEN",
+                hint: "Na Meta for Developers, crie um token permanente de usuário do sistema com a permissão whatsapp_business_messaging.",
+              },
+              {
+                id: "phone",
+                label: "ID do número de telefone",
+                env: "WHATSAPP_PHONE_NUMBER_ID",
+                hint: "Em WhatsApp > Configuração da API. É o ID, não o número.",
+              },
+            ],
+            docsUrl: "https://developers.facebook.com/docs/whatsapp/cloud-api/get-started",
+            docsLabel: "Como obter",
+          },
+        ],
+      },
+    },
+  ],
+  websiteUrl: "https://developers.facebook.com/docs/whatsapp/cloud-api",
+  privacyPolicyUrl: "https://www.whatsapp.com/legal/business-policy",
+  termsUrl: "https://www.whatsapp.com/legal/business-terms",
+  skills: [],
+  installs: 0,
+  featured: true,
+  updatedAt: "2026-09-30T00:00:00.000Z",
+  shareUrl: "https://openbot.run/plugins/whatsapp-oficial",
+};
+
+const WHATSCAT: MarketplacePluginDetail = {
+  id: "plugin-whatscat",
+  slug: "whatscat",
+  name: "WhatsCat (não oficial)",
+  tagline: "Seu WhatsApp por QR code. Risco de banimento.",
+  description:
+    'Lê e responde pelo seu WhatsApp, em um computador só seu. Use para testar ou para uso pessoal.\n\nO que é: conecta por QR code, como o WhatsApp Web, com um motor não oficial.\nO que pede: instalar, abrir o painel, ler o QR code, escolher as conversas e, se quiser, ligar o envio. Grátis. Precisa de Node.js e, por enquanto, de um Mac com Apple Silicon.\nRisco: não é oficial e viola os termos do WhatsApp. A conta pode ser banida, mesmo com os cuidados abaixo. Não use no número principal da empresa nem para envio em massa.\nCuidados: o envio começa desligado, há pausa de 20 a 40 segundos entre mensagens, limite de 30 por hora e 150 por dia, e os dados ficam neste computador.\nPara atendimento de empresa, use "WhatsApp Business (API oficial)".',
+  category: "productivity",
+  creatorName: "OpenCat",
+  iconUrl: "https://www.whatsapp.com/favicon.ico",
+  version: "1.0.0",
+  prompts: [
+    { id: "prompt-status", text: "O WhatsCat está conectado?" },
+    { id: "prompt-unread", text: "Resuma as conversas de hoje no WhatsApp." },
+  ],
+  apps: [
+    {
+      id: "app-whatscat",
+      name: "WhatsCat",
+      description: "Lê e envia pelo seu WhatsApp, com limites de envio, por um servidor local.",
+      iconUrl: "https://www.whatsapp.com/favicon.ico",
+      server: { name: "whatscat", transport: "stdio", command: "~/.opencat/whatscat/whatscat-mcp.mjs", args: [] },
+    },
+  ],
+  websiteUrl: "https://github.com/luis-heinriq13/local_whatsapp_mcp",
+  privacyPolicyUrl: "https://www.whatsapp.com/legal/privacy-policy",
+  termsUrl: "https://www.whatsapp.com/legal/terms-of-service",
+  skills: [],
+  installs: 0,
+  featured: true,
+  updatedAt: "2026-09-30T00:00:00.000Z",
+  shareUrl: "https://openbot.run/plugins/whatscat",
+};
+
 const AAVE: MarketplacePluginDetail = {
   id: "plugin-aave",
   slug: "aave",
@@ -1375,6 +1471,8 @@ const COMPOSIO: MarketplacePluginDetail = {
 };
 
 export const MARKETPLACE_PLUGINS: MarketplacePluginDetail[] = [
+  WHATSAPP_OFICIAL,
+  WHATSCAT,
   AAVE,
   CANVA,
   LINEAR,

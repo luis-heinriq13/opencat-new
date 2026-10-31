@@ -67,3 +67,6 @@ keys
 
 # Persistent local development identity and migration recovery.
 .openbot/
+
+# OpenCat: gerado por tools/whatscat/build.sh
+/resources/whatscat/

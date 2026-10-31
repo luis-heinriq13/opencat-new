@@ -115,6 +115,7 @@ export const messages = {
   "chat.waits.actions": "Mais ações: {note}",
   "chat.waits.showRequest": "Mostrar a solicitação",
   "chat.waits.cancel": "Cancelar a espera",
+  "chat.marker.modelSwitchRepeated": "({count} trocas seguidas)",
   "chat.marker.status.queued": "Na fila",
   "chat.marker.status.inProgress": "Em andamento",
   "chat.marker.status.needsAttention": "Precisa de atenção",

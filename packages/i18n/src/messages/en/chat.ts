@@ -114,6 +114,7 @@ export const messages = defineMessages("chat", {
   "chat.waits.actions": "More actions: {note}",
   "chat.waits.showRequest": "Show the request",
   "chat.waits.cancel": "Cancel the wait",
+  "chat.marker.modelSwitchRepeated": "({count} switches in a row)",
   "chat.marker.status.queued": "Queued",
   "chat.marker.status.inProgress": "In progress",
   "chat.marker.status.needsAttention": "Needs attention",

@@ -3,6 +3,18 @@
   "catalogVersion": "v1",
   "plugins": [
     {
+      "slug": "whatsapp-oficial",
+      "version": "1.0.0",
+      "featured": true,
+      "detailSha256": "021eec26ed5e334cf0badf8b27aef4ab40737503669b4582f49a303a7e18ca2f"
+    },
+    {
+      "slug": "whatscat",
+      "version": "1.0.0",
+      "featured": true,
+      "detailSha256": "2117a198144428fc19d35cf7d1ce0a14f97f56c463fbd53fd054cb77983dc288"
+    },
+    {
       "slug": "aave",
       "version": "1.0.0",
       "featured": true,

@@ -1303,6 +1303,7 @@ export const IPC_ENDPOINTS = {
   auth: {
     getState: request<undefined, CentralAuthState>()("auth:get-state"),
     retry: request<undefined, CentralAuthState>()("auth:retry"),
+    useWithoutAccount: request<undefined, CentralAuthState>()("auth:use-without-account"),
     requestEmailCode: request<string, CentralAuthState>()("auth:request-email-code"),
     verifyEmailCode: request<VerifyEmailCodeInput, CentralAuthState>()("auth:verify-email-code"),
     updateName: request<string, CentralAuthState>()("auth:update-name"),

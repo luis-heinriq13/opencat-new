@@ -1,0 +1,55 @@
+{
+  "slug": "whatsapp-oficial",
+  "name": "WhatsApp Business (API oficial)",
+  "tagline": "API oficial da Meta. A opção segura para empresa.",
+  "description": "Atendimento pelo WhatsApp com a API oficial da Meta. É a opção segura para empresa e para produção.\n\nO que é: a Cloud API do WhatsApp Business. A conta não corre risco de banimento por usar a integração, desde que siga as regras da Meta.\nO que pede: conta na Meta for Developers, número próprio verificado, token de acesso e ID do número. A Meta cobra por modelo enviado.\nLimites da Meta: fora da janela de 24 horas, só com modelo aprovado.\nHoje este app envia mensagens e lista modelos. Para receber mensagens, aponte o webhook da Meta para uma rotina de webhook do OpenCat; o passo a passo está em docs/whatscat.md.\nFunciona em servidor: precisa só de Node.js e dos dois valores acima.",
+  "category": "productivity",
+  "creatorName": "OpenCat",
+  "iconUrl": "https://www.whatsapp.com/favicon.ico",
+  "version": "1.0.0",
+  "prompts": [
+    { "id": "prompt-status", "text": "Qual é a qualidade do nosso número no WhatsApp?" },
+    { "id": "prompt-templates", "text": "Liste os modelos aprovados do WhatsApp." }
+  ],
+  "apps": [
+    {
+      "id": "app-whatsapp-oficial",
+      "name": "WhatsApp Business",
+      "description": "Envia mensagens e modelos pela Cloud API da Meta, com um servidor local.",
+      "iconUrl": "https://www.whatsapp.com/favicon.ico",
+      "server": {
+        "name": "whatsapp-oficial",
+        "transport": "stdio",
+        "command": "~/.opencat/whatscat/whatsapp-oficial-mcp.mjs",
+        "args": [],
+        "auth": [
+          {
+            "id": "whatsapp-token",
+            "kind": "key",
+            "label": "Token e número",
+            "fields": [
+              {
+                "id": "token",
+                "label": "Token de acesso",
+                "env": "WHATSAPP_TOKEN",
+                "hint": "Na Meta for Developers, crie um token permanente de usuário do sistema com a permissão whatsapp_business_messaging."
+              },
+              {
+                "id": "phone",
+                "label": "ID do número de telefone",
+                "env": "WHATSAPP_PHONE_NUMBER_ID",
+                "hint": "Em WhatsApp > Configuração da API. É o ID, não o número."
+              }
+            ],
+            "docsUrl": "https://developers.facebook.com/docs/whatsapp/cloud-api/get-started",
+            "docsLabel": "Como obter"
+          }
+        ]
+      }
+    }
+  ],
+  "websiteUrl": "https://developers.facebook.com/docs/whatsapp/cloud-api",
+  "privacyPolicyUrl": "https://www.whatsapp.com/legal/business-policy",
+  "termsUrl": "https://www.whatsapp.com/legal/business-terms",
+  "skills": []
+}

@@ -24,6 +24,7 @@ export interface AccountPort {
     | "revokeMobileConnectLink"
     | "updateAvatar"
     | "updateName"
+    | "useWithoutAccount"
     | "verifyEmailCode"
   >;
 }

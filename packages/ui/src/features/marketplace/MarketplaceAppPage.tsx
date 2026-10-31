@@ -43,6 +43,9 @@ import {
 import { type MarketplaceScope, serverAddress } from "./marketplace-view";
 import { PluginIcon } from "./PluginIcon";
 
+/** Main opens the WhatsCat panel for this address instead of a browser. */
+const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
+
 type PluginApp = Extract<MarketplaceApp, { kind: "plugin" }>;
 type ConnectorApp = Extract<MarketplaceApp, { kind: "connector" }>;
 type CustomApp = Extract<MarketplaceApp, { kind: "custom" }>;
@@ -94,6 +97,11 @@ function PluginAppPage(props: { scope: MarketplaceScope; app: PluginApp }) {
             <Link2 aria-hidden="true" />
             {t("plugin.copyLink")}
           </Button>
+          <Show when={plugin().slug === "whatscat" && model().canConnectApps()}>
+            <Button type="button" variant="outline" size="sm" onClick={() => model().openUrl(WHATSCAT_PANEL_URL)}>
+              {t("marketplace.whatscat.openPanel")}
+            </Button>
+          </Show>
           {/* With more than one app, each app's row signs in again: the header cannot say which. */}
           <Show when={!refused() || plugin().apps.length === 1}>
             <AppAction scope={props.scope} app={props.app} size="sm" variant="default" />

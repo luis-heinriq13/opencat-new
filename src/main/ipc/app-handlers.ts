@@ -16,6 +16,7 @@ import {
   GROK_BOT_EXPORT_URL,
 } from "@openbot/contracts/ipc";
 import { analyticsOnByDefault } from "@openbot/telemetry";
+import { openWhatsCatPanel, WHATSCAT_PANEL_URL } from "../opencat-bundled-apps";
 import { app, type BrowserWindow, dialog, type OpenDialogOptions } from "electron";
 import { version as developmentVersion } from "../../../package.json";
 import type { AgentService } from "../../backend/agent-service";
@@ -259,7 +260,9 @@ export function appIpcHandlers({
         return state;
       }),
       openExternal: payloadHandler(parseExternalDestination, (parsed) => openLink(EXTERNAL_DESTINATIONS[parsed])),
-      openUrl: payloadHandler(stringPayload("URL", INPUT_LIMITS.browserUrl), (url) => openHttpLink(url, openLink)),
+      openUrl: payloadHandler(stringPayload("URL", INPUT_LIMITS.browserUrl), (url) =>
+        url === WHATSCAT_PANEL_URL ? openWhatsCatPanel() : openHttpLink(url, openLink),
+      ),
       getExternalLinkPreference: handler(() => externalLinkPreference.get()),
       setExternalLinkPreference: payloadHandler(parseExternalLinkPreference, (parsed) =>
         runCauseEffect(externalLinkPreference.set(parsed)),

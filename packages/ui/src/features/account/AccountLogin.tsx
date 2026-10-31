@@ -18,6 +18,8 @@ interface AccountLoginProps {
   onRequestEmailCode: (email: string) => Promise<void>;
   onVerifyEmailCode: (challengeId: string, code: string) => Promise<void>;
   onReset: () => Promise<void>;
+  /** OpenCat: leaves this screen with no account. The web app has no such choice. */
+  onUseWithoutAccount?: () => Promise<void>;
   /** A choice under the send button, such as the analytics box of the web app. */
   consent?: JSX.Element;
   /** Fine print under the lock line, such as the Terms of Service notice of the web app. */
@@ -369,6 +371,28 @@ export function AccountLogin(props: AccountLoginProps) {
     }
   }
 
+  const withoutAccountButton = () => (
+    <Show when={props.onUseWithoutAccount}>
+      {(useWithoutAccount) => (
+        <>
+          <Button
+            variant="ghost"
+            type="button"
+            class="account-login-primary"
+            onClick={() =>
+              void useWithoutAccount()().catch((error: unknown) =>
+                showActionError(error, t("account.login.withoutAccountFailed"), false),
+              )
+            }
+          >
+            {t("account.login.withoutAccount")}
+          </Button>
+          <p class="account-login-local-data">{t("account.login.withoutAccountDetail")}</p>
+        </>
+      )}
+    </Show>
+  );
+
   return (
     <main class="account-login-screen">
       <div class="account-login-shell">
@@ -449,6 +473,7 @@ export function AccountLogin(props: AccountLoginProps) {
                     {t("common.connecting")}
                   </Show>
                 </Button>
+                {withoutAccountButton()}
               </>
             )}
           </Show>
@@ -535,6 +560,7 @@ export function AccountLogin(props: AccountLoginProps) {
                         : t("account.login.sendingCode")}
                     </Show>
                   </Button>
+                  {withoutAccountButton()}
                   {props.consent}
                   <div class="account-login-footer">
                     {/* The account is for sign-in only. A new user asks what leaves the computer. */}

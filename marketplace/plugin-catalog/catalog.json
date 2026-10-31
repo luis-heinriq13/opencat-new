@@ -3,6 +3,8 @@
   "catalogVersion": "v1",
   "updatedAt": "2026-09-30T00:00:00.000Z",
   "order": [
+    "whatsapp-oficial",
+    "whatscat",
     "aave",
     "canva",
     "linear",
@@ -34,5 +36,12 @@
     "resend",
     "composio"
   ],
-  "featured": ["aave", "canva", "notion", "figma"]
+  "featured": [
+    "whatsapp-oficial",
+    "whatscat",
+    "aave",
+    "canva",
+    "notion",
+    "figma"
+  ]
 }

@@ -83,6 +83,7 @@ export const messages = {
   "marketplace.app.partialTitle": "{name} não está completo",
   "marketplace.app.partialDescription":
     "Alguns apps ou habilidades não estão instalados. Reconectar instala esses itens.",
+  "marketplace.whatscat.openPanel": "Abrir painel (QR code)",
   "marketplace.app.notConnected": "Não conectado",
   "marketplace.app.custom": "Servidor MCP",
   "marketplace.app.githubTagline": "Repositórios, issues e pull requests",

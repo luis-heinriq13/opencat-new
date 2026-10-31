@@ -1,3 +1,4 @@
+import { installBundledApps } from "./opencat-bundled-apps";
 import { join, resolve } from "node:path";
 import { parseInviteUrl, selfHostedApiOrigin } from "@openbot/contracts/invite-links";
 import {
@@ -1159,6 +1160,9 @@ if (!hasSingleInstanceLock) {
     .then(async () => {
       // Startup marks for `dev:bench`, which reads them over the inspector. They change nothing.
       performance.mark("openbot:when-ready");
+      void installBundledApps().catch((error: unknown) =>
+        logger.warn("Unable to install the bundled apps:", toLogValue(error)),
+      );
       // Set the Dock icon before `dock.show()` below. A development build runs the stock Electron.app,
       // so until this call its Dock tile shows the Electron logo.
       if (process.platform === "darwin" && !localServerChild) app.dock?.setIcon(appIconPath);

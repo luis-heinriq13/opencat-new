@@ -916,6 +916,8 @@ function markerLabel(
   sourceText: (text: string) => string,
 ): string {
   if (marker.kind === "unavailable") return marker.label;
+  if (marker.kind === "model-switch" && marker.repeated)
+    return `${sourceText(marker.text)} ${t("chat.marker.modelSwitchRepeated", { count: marker.repeated })}`;
   if (
     marker.kind === "model-switch" ||
     marker.kind === "channel-change" ||

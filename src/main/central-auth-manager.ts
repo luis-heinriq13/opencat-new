@@ -160,6 +160,9 @@ export type VerifiedRemoteSessionTicket = Pick<
   clientPublicKey: string;
 };
 
+/** A reserved domain: no mail can reach it, and no real account can have it. */
+const LOCAL_USER_EMAIL = "local@opencat.invalid";
+
 export class CentralAuthManager extends EventEmitter<CentralAuthEvents> {
   readonly #options: Required<CentralAuthManagerOptions>;
   readonly #transport: Layer.Layer<CentralAuthTransport>;
@@ -1392,6 +1395,9 @@ export class CentralAuthManager extends EventEmitter<CentralAuthEvents> {
       logger.warn("The stored account session was not read: secure storage is unavailable.");
     }
     if (!this.#sessionToken) {
+      // No account here: the user chose to use this computer alone, so no network call decides it.
+      const localUser = yield* this.#readLocalUser();
+      if (localUser) return this.#setState({ status: "signed_in", user: localUser });
       yield* this.#startupRequestEffect("/health/live", { method: "GET" }, decodeRecordHealth);
       return this.#setState({ status: "signed_out" });
     }
@@ -1411,6 +1417,43 @@ export class CentralAuthManager extends EventEmitter<CentralAuthEvents> {
       ),
     );
   });
+
+  get #localUserPath(): string {
+    return `${this.#options.storagePath}.local-user`;
+  }
+
+  /** The user of this computer when no account is signed in. A file that cannot be read counts as none. */
+  #readLocalUser(): Effect.Effect<CentralAuthUser | null> {
+    const path = this.#localUserPath;
+    return Effect.gen(function* () {
+      const text = yield* authCall(() => readFile(path, "utf8"));
+      return yield* authDecode(() => decodeCentralAuthUser(JSON.parse(text)));
+    }).pipe(Effect.orElseSucceed(() => null));
+  }
+
+  #writeLocalUser(user: CentralAuthUser): Effect.Effect<void, CentralAuthOperationError> {
+    return authCall(() => writeFile(this.#localUserPath, JSON.stringify(user), { mode: 0o600 }));
+  }
+
+  /** OpenCat: use this computer without an account. The features that need the account service stay off. */
+  readonly useWithoutAccount = Effect.fn("CentralAuth.useWithoutAccount")(
+    function* (
+      this: CentralAuthManager,
+    ): Effect.fn.Return<CentralAuthState, CentralAuthOperationError, CentralAuthTransport> {
+      if (this.#state.status === "signed_in") return this.#state;
+      const user: CentralAuthUser = {
+        id: `local-${randomUUID()}`,
+        email: LOCAL_USER_EMAIL,
+        name: "Usuário local",
+        avatarUrl: null,
+        analyticsEnabled: false,
+      };
+      yield* this.#writeLocalUser(user);
+      this.#emailCodeRequest = null;
+      return this.#setState({ status: "signed_in", user });
+    },
+    (operation) => this.#owned(operation),
+  ).bind(this);
 
   readonly requestEmailCode = Effect.fn("CentralAuth.requestEmailCode")(
     function* (this: CentralAuthManager, email: string) {
@@ -1656,6 +1699,7 @@ export class CentralAuthManager extends EventEmitter<CentralAuthEvents> {
           // Local logout must still remove the session from this device.
         }
       }
+      yield* authCall(() => rm(this.#localUserPath, { force: true }));
       yield* this.#clearStoredSessionEffect();
       return this.#setState({ status: "signed_out" });
     },
@@ -1705,6 +1749,11 @@ export class CentralAuthManager extends EventEmitter<CentralAuthEvents> {
       name: string,
     ): Effect.fn.Return<CentralAuthState, CentralAuthOperationError, CentralAuthTransport> {
       const sessionToken = this.#sessionToken;
+      if (!sessionToken && this.#state.status === "signed_in") {
+        const user = { ...this.#state.user, name };
+        yield* this.#writeLocalUser(user);
+        return this.#setState({ status: "signed_in", user });
+      }
       if (!sessionToken)
         return yield* new CentralAuthOperationError({
           cause: new AuthApiError(401, "unauthorized", sourceText("error.auth.signInRequired")),

@@ -810,6 +810,7 @@ const openbotApi: OpenBotDesktopApi = {
   auth: bridgeGroup(IPC_ENDPOINTS.auth, {
     getState: decodeCentralAuthState,
     retry: decodeCentralAuthState,
+    useWithoutAccount: decodeCentralAuthState,
     requestEmailCode: decodeCentralAuthState,
     verifyEmailCode: decodeCentralAuthState,
     updateName: decodeCentralAuthState,

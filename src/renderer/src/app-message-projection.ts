@@ -183,7 +183,17 @@ export function toAgentMessages(
       continue;
     }
     if (message.author !== "assistant" || message.itemType !== "commentary") {
-      result.push(convert(message, index));
+      const row = convert(message, index);
+      const previous = result.at(-1);
+      if (previous && row.actionMarker?.kind === "model-switch" && previous.actionMarker?.kind === "model-switch") {
+        // A run of model switches reads as one row: the newest note and how many it stands for.
+        result[result.length - 1] = {
+          ...row,
+          actionMarker: { ...row.actionMarker, repeated: (previous.actionMarker.repeated ?? 1) + 1 },
+        };
+        continue;
+      }
+      result.push(row);
       continue;
     }
 

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>WhatsCat</title>
+<style>
+  :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
+  body { margin: 0 auto; max-width: 520px; padding: 24px; line-height: 1.45; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .box { border: 1px solid #8884; border-radius: 10px; padding: 14px; margin: 14px 0; }
+  .aviso { border-color: #d97706; }
+  #qr { background: #fff; border-radius: 8px; padding: 10px; width: 260px; margin: 10px auto; }
+  button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #8886; background: transparent; cursor: pointer; }
+  button.main { background: #16a34a; border-color: #16a34a; color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  small { opacity: .75; }
+</style>
+</head>
+<body>
+<h1>WhatsCat</h1>
+<small>Seu WhatsApp nos agentes do OpenCat. Os dados ficam neste computador.</small>
+
+<div class="box aviso">
+  <strong>Esta opção não é oficial.</strong> Ela viola os termos do WhatsApp, e a conta pode ser banida, mesmo com os limites abaixo. Para atendimento de empresa, use a opção "WhatsApp Business (API oficial)" da loja. Não faça envio em massa.
+  <p><label><input type="checkbox" id="risco"> Entendi o risco e quero usar esta conta.</label></p>
+</div>
+
+<div class="box">
+  <strong id="situacao">Carregando…</strong>
+  <div id="detalhe"><small></small></div>
+  <div id="qr" hidden></div>
+  <p id="instrucao" hidden>No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho. Aponte a câmera para o código.</p>
+  <button class="main" id="conectar" disabled>Conectar WhatsApp</button>
+  <button id="desconectar" hidden>Desconectar</button>
+</div>
+
+<div class="box" id="escopo-box" hidden>
+  <strong>Conversas liberadas</strong>
+  <p><small>Os agentes só veem as conversas liberadas. Por enquanto, a liberação é de todas as conversas.</small></p>
+  <button id="escopo">Liberar todas as conversas</button>
+</div>
+
+<div class="box" id="envio-box" hidden>
+  <strong>Envio de mensagens</strong>
+  <p><small>Começa desligado. Com ele desligado, os agentes só leem.</small></p>
+  <label><input type="checkbox" id="envio"> Permitir que os agentes enviem</label>
+  <p><small id="limites"></small></p>
+</div>
+
+<p id="erro" role="alert" style="color:#dc2626"></p>
+
+<script>
+  const base = location.pathname.replace(/\/$/, "");
+  const $ = (id) => document.getElementById(id);
+  async function post(path, body) {
+    const response = await fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const value = await response.json();
+    if (!response.ok) throw new Error(value.error || "Falhou.");
+    return value;
+  }
+  function failure(error) { $("erro").textContent = error.message; }
+  const NAMES = { connected: "Conectado", disconnected: "Desconectado", linking: "Leia o QR code", connecting: "Conectando", syncing: "Sincronizando", logging_in: "Aguardando o QR code", reconnecting: "Reconectando" };
+  async function refresh() {
+    try {
+      const response = await fetch(base + "/estado");
+      const state = await response.json();
+      if (!response.ok) throw new Error(state.error || "Falhou.");
+      $("erro").textContent = "";
+      $("situacao").textContent = NAMES[state.situacao] || state.situacao;
+      $("qr").hidden = !state.qr;
+      $("instrucao").hidden = !state.qr;
+      if (state.qr) $("qr").innerHTML = state.qr;
+      $("conectar").hidden = state.conectado || Boolean(state.qr);
+      $("conectar").disabled = !$("risco").checked;
+      $("desconectar").hidden = !state.conectado;
+      $("escopo-box").hidden = !state.conectado || state.escopo !== "initial";
+      $("envio-box").hidden = !state.conectado || state.escopo === "initial";
+      $("envio").checked = state.envio;
+      $("limites").textContent = "Usado: " + state.limites.lastHour + " de " + state.limites.perHour + " por hora, " + state.limites.lastDay + " de " + state.limites.perDay + " por dia. Há uma pausa de 20 a 40 segundos entre os envios.";
+    } catch (error) { failure(error); }
+  }
+  $("risco").addEventListener("change", refresh);
+  $("conectar").addEventListener("click", () => post("/conectar").then(refresh, failure));
+  $("desconectar").addEventListener("click", () => post("/desconectar").then(refresh, failure));
+  $("escopo").addEventListener("click", () => post("/escopo-todas").then(refresh, failure));
+  $("envio").addEventListener("change", (event) => post("/envio", { ligado: event.target.checked }).then(refresh, failure));
+  refresh();
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

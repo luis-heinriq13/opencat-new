@@ -68,6 +68,7 @@ export function createMockAuth(options: MockAuthOptions, { emit }: MockRuntime) 
   const auth: OpenBotDesktopApi["auth"] = {
     getState: async () => clone(authState),
     retry: async () => clone(authState),
+    useWithoutAccount: async () => clone(authState),
     requestEmailCode: async (email) => {
       authState = {
         status: "code_sent",

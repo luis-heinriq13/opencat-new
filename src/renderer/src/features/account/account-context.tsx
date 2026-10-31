@@ -182,6 +182,10 @@ const Auth = createSimpleContext({
       }
     }
 
+    async function useWithoutAccount(): Promise<void> {
+      applyCentralAuthState(await accountPort().auth.useWithoutAccount());
+    }
+
     async function updateAccountAvatar(image: AvatarImageInput | null): Promise<void> {
       applyCentralAuthState(await accountPort().auth.updateAvatar(image));
     }
@@ -309,6 +313,7 @@ const Auth = createSimpleContext({
       retryCentralAccount,
       verifyEmailCode,
       logoutCentralAccount,
+      useWithoutAccount,
       updateAccountName,
       updateAccountAvatar,
       createMobileConnect,
