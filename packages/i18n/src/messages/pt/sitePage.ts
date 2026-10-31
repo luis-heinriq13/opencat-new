@@ -118,7 +118,7 @@ export const messages = {
   "sitePage.marketplace.emptySkillsQuery": "Nenhuma habilidade corresponde a “{query}”.",
   "sitePage.marketplace.emptyApps": "Nenhum app corresponde.",
   "sitePage.marketplace.breadcrumb": "Navegação estrutural",
-  "sitePage.marketplace.addToOpenBot": "Adicionar ao OpenBot",
+  "sitePage.marketplace.addToOpenBot": "Adicionar ao OpenCat",
   "sitePage.marketplace.addFromApp": "{name} é adicionado de dentro do OpenBot. Baixe o app e abra este link de novo.",
   "sitePage.marketplace.downloadFor": "Baixar para {platform}",
   "sitePage.marketplace.copyLink": "Copiar link",

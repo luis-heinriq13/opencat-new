@@ -82,7 +82,7 @@ export const messages = {
   "onboarding.choice.subscriptionDetail": "ChatGPT, Claude ou Grok",
   "onboarding.choice.startFreeInstead": "Prefiro começar grátis",
   "onboarding.consent.notice": "Ao continuar, você aceita os {terms} e declara ter lido a {privacy}.",
-  "onboarding.consent.analyticsTitle": "Ajude a melhorar o OpenBot",
+  "onboarding.consent.analyticsTitle": "Ajude a melhorar o OpenCat",
   "onboarding.consent.analyticsDetail": "Compartilhe quais recursos você usa. Nunca seus chats, arquivos ou prompts.",
   "onboarding.consent.thanksTitle": "Obrigado! A equipe fica te devendo uma.",
   "onboarding.consent.thanksToast": "Obrigado por ajudar a melhorar o OpenBot 💜",
