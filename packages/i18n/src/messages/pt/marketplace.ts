@@ -24,14 +24,14 @@ export const messages = {
   "marketplace.description.apps": "Conecte as ferramentas e os serviços com que seus agentes trabalham.",
   "marketplace.description.agents": "Agentes prontos, com instruções e habilidades próprias.",
   "marketplace.description.skills": "Instruções que ensinam a um agente uma tarefa ou uma ferramenta.",
-  "marketplace.plugins.missing": "Este plugin não está no catálogo do OpenCat.",
+  "marketplace.plugins.missing": "Este plugin não está no catálogo do OpenBot.",
   "marketplace.agents.loadingDetail": "Carregando detalhes do agente…",
   "marketplace.agents.skills": "Habilidades",
   "marketplace.agents.routines": "Rotinas",
   "marketplace.agents.routineActive": "Ativa",
   "marketplace.agents.routineInactive": "Inativa",
   "marketplace.skill.loading": "Carregando habilidade",
-  "marketplace.try.readFailed": "O OpenCat não conseguiu ler as habilidades deste agente. Tente novamente.",
+  "marketplace.try.readFailed": "O OpenBot não conseguiu ler as habilidades deste agente. Tente novamente.",
   "marketplace.try.enable": "Ative esta habilidade nas configurações do agente para testá-la.",
   "marketplace.try.repair": "Repare esta habilidade nas configurações do agente para testá-la.",
   "marketplace.try.update": "Atualize esta habilidade para testar esta versão.",
@@ -117,10 +117,10 @@ export const messages = {
   "marketplace.app.automation.description":
     "O macOS mostra um pedido para cada app. Um app fechado abre por um momento e depois fecha.",
   "marketplace.app.automation.request": "Pedir acesso",
-  "marketplace.app.automation.allowed": "Agora o OpenCat pode controlar todos os apps da Apple.",
+  "marketplace.app.automation.allowed": "Agora o OpenBot pode controlar todos os apps da Apple.",
   "marketplace.app.automation.refused":
-    "O macOS não deu acesso a {apps}. Permita o OpenCat em Ajustes do Sistema › Privacidade e Segurança › Automação.",
-  "marketplace.app.automation.failed": "O OpenCat não conseguiu perguntar ao macOS sobre {apps}. Tente de novo.",
+    "O macOS não deu acesso a {apps}. Permita o OpenBot em Ajustes do Sistema › Privacidade e Segurança › Automação.",
+  "marketplace.app.automation.failed": "O OpenBot não conseguiu perguntar ao macOS sobre {apps}. Tente de novo.",
   "marketplace.app.automation.app.calendar": "Calendário",
   "marketplace.app.automation.app.contacts": "Contatos",
   "marketplace.app.automation.app.mail": "Mail",
@@ -189,7 +189,7 @@ export const messages = {
   "marketplace.plugin.figma.prompt.assets": "Extraia os ícones de marketing em 2x para o pacote do app.",
   "marketplace.plugin.paper.tagline": "Canvas de design construído em HTML e CSS",
   "marketplace.plugin.paper.description":
-    "O Paper permite que agentes leiam e escrevam o arquivo de design aberto no Paper Desktop: inspecionar artboards, seleções, estilos computados, JSX e tokens, e criar ou mudar frames, textos e estilos. Instale o Paper Desktop, abra-o uma vez e abra um arquivo antes de começar. O OpenCat inicia a CLI do Paper que o Paper Desktop instala. O Paper não precisa de chave. As ferramentas de escrita alteram o arquivo aberto, então revise cada escrita antes de aprová-la.",
+    "O Paper permite que agentes leiam e escrevam o arquivo de design aberto no Paper Desktop: inspecionar artboards, seleções, estilos computados, JSX e tokens, e criar ou mudar frames, textos e estilos. Instale o Paper Desktop, abra-o uma vez e abra um arquivo antes de começar. O OpenBot inicia a CLI do Paper que o Paper Desktop instala. O Paper não precisa de chave. As ferramentas de escrita alteram o arquivo aberto, então revise cada escrita antes de aprová-la.",
   "marketplace.plugin.paper.app":
     "Lê e escreve o arquivo aberto do Paper Desktop, através do servidor MCP local que a CLI do Paper retransmite. Precisa do Paper Desktop com um arquivo aberto.",
   "marketplace.plugin.paper.prompt.implement":
@@ -199,7 +199,7 @@ export const messages = {
   "marketplace.plugin.paper.prompt.tokens": "Liste os design tokens do arquivo Paper aberto e compare com nosso tema.",
   "marketplace.plugin.appleApps.tagline": "Mail, Calendário e mais no seu Mac",
   "marketplace.plugin.appleApps.description":
-    "Apple apps permite que agentes usem Mail, Calendário, Contatos, Lembretes, Notas, Mensagens e Safari neste Mac. Funciona somente no macOS. O OpenCat inicia o mcp-icloud, um servidor da comunidade que não é feito pela Apple nem pelo OpenCat. O servidor controla os apps com AppleScript, neste computador, e não precisa de conta nem de chave. Na instalação, o OpenCat pode pedir ao macOS acesso a todos esses apps de uma vez, com um pedido para cada app. Se você não fizer isso, o macOS pergunta na primeira vez que um agente usa um app. Para mudar isso depois, abra Ajustes do Sistema › Privacidade e Segurança › Automação. Os agentes podem enviar e-mails e iMessages, e alterar ou excluir eventos, contatos e lembretes, então revise cada gravação antes de aprová-la. O que as ferramentas leem, como o texto dos e-mails, vai para o provedor do modelo do agente.",
+    "Apple apps permite que agentes usem Mail, Calendário, Contatos, Lembretes, Notas, Mensagens e Safari neste Mac. Funciona somente no macOS. O OpenBot inicia o mcp-icloud, um servidor da comunidade que não é feito pela Apple nem pelo OpenBot. O servidor controla os apps com AppleScript, neste computador, e não precisa de conta nem de chave. Na instalação, o OpenBot pode pedir ao macOS acesso a todos esses apps de uma vez, com um pedido para cada app. Se você não fizer isso, o macOS pergunta na primeira vez que um agente usa um app. Para mudar isso depois, abra Ajustes do Sistema › Privacidade e Segurança › Automação. Os agentes podem enviar e-mails e iMessages, e alterar ou excluir eventos, contatos e lembretes, então revise cada gravação antes de aprová-la. O que as ferramentas leem, como o texto dos e-mails, vai para o provedor do modelo do agente.",
   "marketplace.plugin.appleApps.app":
     "Mail, Calendário, Contatos, Lembretes, Notas, Mensagens e Safari, pelo servidor local mcp-icloud. Requer macOS e acesso em Automação.",
   "marketplace.plugin.appleApps.prompt.unread": "Resuma meus e-mails não lidos de hoje no Apple Mail.",
@@ -408,8 +408,8 @@ export const messages = {
   "marketplace.skills.source.all": "Todas",
   "marketplace.skills.source.verified": "Verificadas",
   "marketplace.skills.source.public": "Públicas",
-  "marketplace.skills.source.verifiedLong": "Verificada pelo OpenCat",
-  "marketplace.skills.source.publicLong": "Pública: o OpenCat não a verificou",
+  "marketplace.skills.source.verifiedLong": "Verificada pelo OpenBot",
+  "marketplace.skills.source.publicLong": "Pública: o OpenBot não a verificou",
   "marketplace.skills.sortLabel": "Ordenar",
   "marketplace.skills.sortName": "Ordenar: {name}",
   "marketplace.skills.sort.installs": "Mais usadas",

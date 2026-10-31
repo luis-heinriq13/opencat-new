@@ -62,7 +62,7 @@ export const messages = defineMessages("error.agent", {
   "error.agent.copyNameFailed": "OpenBot could not create a unique agent copy name.",
   "error.agent.endpointRemoved": "The endpoint this agent used was removed. Choose another model for it.",
   "error.agent.turnStalled":
-    "{provider} parou de responder e o turno foi encerrado. Envie de novo ou escolha outro modelo.",
+    "{provider} stopped responding, so OpenBot ended this turn. Send the message again, or choose another model.",
   "error.agent.selectedGone": "The selected agent no longer exists.",
   "error.agent.profileEndpointsChanged": "The custom endpoints changed while this was generating. Try again.",
   "error.agent.profileInvalid": "The provider returned an invalid profile. Try revising your prompt.",
