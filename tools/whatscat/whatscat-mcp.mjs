@@ -82,21 +82,27 @@ async function ensureService() {
 }
 
 /** A conexão dos agentes, criada uma vez. O envio começa desligado e só o painel o liga. */
+let cachedConnection = null;
+
 async function connection() {
   await ensureService();
+  if (cachedConnection) return cachedConnection;
   try {
     const saved = JSON.parse(readFileSync(CONNECTION_FILE, "utf8"));
     if (typeof saved.id === "string") {
       const credentials = await control("GET", `/agents/${encodeURIComponent(saved.id)}/credentials`);
-      if (credentials?.token) return { id: saved.id, url: credentials.url ?? credentials.mcp_url, token: credentials.token };
+      if (credentials?.access_token) {
+        cachedConnection = { id: saved.id, url: credentials.url, token: credentials.access_token };
+        return cachedConnection;
+      }
     }
   } catch {
     // Sem conexão salva, ou ela foi removida: cria outra.
   }
   const created = await control("POST", "/agents/manual", { name: CONNECTION_NAME });
-  const id = created.agent_id ?? created.id ?? created.connection_id;
-  writeFileSync(CONNECTION_FILE, JSON.stringify({ id }), { mode: 0o600 });
-  return { id, url: created.url ?? created.mcp_url, token: created.token ?? created.bearer_token ?? created.access_token };
+  writeFileSync(CONNECTION_FILE, JSON.stringify({ id: created.id }), { mode: 0o600 });
+  cachedConnection = { id: created.id, url: created.url, token: created.access_token };
+  return cachedConnection;
 }
 
 let session = null;
@@ -234,11 +240,17 @@ async function startPanel() {
           limites: limiter.usage(),
         });
       }
+      if (request.method === "GET" && path === "/conversas") return reply(response, 200, await control("GET", "/catalog"));
       if (request.method !== "POST") return reply(response, 404, { error: "Não encontrado." });
       const body = await readBody(request);
       if (path === "/conectar") return reply(response, 200, await control("POST", "/whatsapp/connect", {}));
       if (path === "/desconectar") return reply(response, 200, await control("POST", "/whatsapp/disconnect", {}));
       if (path === "/escopo-todas") return reply(response, 200, await control("PUT", "/scope", { mode: "all", chat_ids: [] }));
+      if (path === "/escopo-escolhidas") {
+        const ids = Array.isArray(body.ids) ? body.ids.filter((id) => typeof id === "string") : [];
+        if (!ids.length) return reply(response, 400, { error: "Escolha ao menos uma conversa." });
+        return reply(response, 200, await control("PUT", "/scope", { mode: "selected", chat_ids: ids }));
+      }
       if (path === "/envio") {
         const { id } = await connection();
         return reply(response, 200, await control("PATCH", `/agents/${encodeURIComponent(id)}`, { send_enabled: body.ligado === true }));

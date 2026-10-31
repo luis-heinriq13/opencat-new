@@ -357,7 +357,7 @@ function AppInformation(props: {
         <div class="integration-card-body">
           <Show when={props.description}>
             {(description) => (
-              <Text as="p" variant="body-sm">
+              <Text as="p" variant="body-sm" style={{ "white-space": "pre-line" }}>
                 {description()}
               </Text>
             )}

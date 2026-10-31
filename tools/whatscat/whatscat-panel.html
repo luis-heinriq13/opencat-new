@@ -36,8 +36,9 @@
 
 <div class="box" id="escopo-box" hidden>
   <strong>Conversas liberadas</strong>
-  <p><small>Os agentes só veem as conversas liberadas. Por enquanto, a liberação é de todas as conversas.</small></p>
-  <button id="escopo">Liberar todas as conversas</button>
+  <p><small>Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</small></p>
+  <div id="conversas" style="max-height:220px;overflow:auto"></div>
+  <p><button id="escolhidas" class="main">Liberar as escolhidas</button> <button id="escopo">Liberar todas</button></p>
 </div>
 
 <div class="box" id="envio-box" hidden>
@@ -83,6 +84,28 @@
   $("conectar").addEventListener("click", () => post("/conectar").then(refresh, failure));
   $("desconectar").addEventListener("click", () => post("/desconectar").then(refresh, failure));
   $("escopo").addEventListener("click", () => post("/escopo-todas").then(refresh, failure));
+  $("escolhidas").addEventListener("click", () => {
+    const ids = [...document.querySelectorAll("#conversas input:checked")].map((input) => input.value);
+    post("/escopo-escolhidas", { ids }).then(refresh, failure);
+  });
+  let listed = false;
+  async function loadChats() {
+    if (listed || $("escopo-box").hidden) return;
+    const response = await fetch(base + "/conversas");
+    const value = await response.json();
+    if (!response.ok || !value.chats?.length) return;
+    listed = true;
+    for (const chat of value.chats) {
+      const label = document.createElement("label");
+      label.style.display = "block";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = chat.id;
+      label.append(input, " " + (chat.name || chat.id));
+      $("conversas").append(label);
+    }
+  }
+  setInterval(() => loadChats().catch(failure), 3000);
   $("envio").addEventListener("change", (event) => post("/envio", { ligado: event.target.checked }).then(refresh, failure));
   refresh();
   setInterval(refresh, 2000);
