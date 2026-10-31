@@ -42,7 +42,7 @@ export const messages = {
   "agentSettings.folders.inShared": "{folder} está na pasta compartilhada, então {agent} já pode alterá-la",
   "agentSettings.folders.inFolder": "{folder} está em {parent}, que já foi adicionada",
   "agentSettings.folders.protected":
-    "Não é possível adicionar {folder}: ela contém dados do OpenBot ou arquivos de outros agentes",
+    "Não é possível adicionar {folder}: ela contém dados do OpenCat ou arquivos de outros agentes",
   "agentSettings.folders.missing": "{folder} não é uma pasta neste computador",
   "agentSettings.folders.limit": {
     one: "Você pode adicionar no máximo {count} pasta",
@@ -136,7 +136,7 @@ export const messages = {
   "agentSettings.runtime.fullAccessNote":
     "O agente tem acesso completo ao computador a partir do seu espaço de trabalho e da pasta compartilhada.",
   "agentSettings.runtime.askNote":
-    "Ele pergunta antes de usar uma ferramenta do OpenBot ou publicar um site, e quando o provedor pede aprovação.",
+    "Ele pergunta antes de usar uma ferramenta do OpenCat ou publicar um site, e quando o provedor pede aprovação.",
   "agentSettings.runtime.fullNote": "Ele age sem perguntar, exceto pelas perguntas que faz a você.",
   "agentSettings.access.workspace": "Espaço de trabalho",
   "agentSettings.access.ask": "Perguntar antes",
@@ -190,7 +190,7 @@ export const messages = {
   "agentSettings.runtime.workspaceEnforcedClaude":
     "A edição de um arquivo fora desses locais pede sua aprovação. Um comando não pode gravar fora desses locais.",
   "agentSettings.runtime.workspaceUnlimited":
-    "O Uso do computador e o navegador do OpenBot não são limitados; você pode desativar o Uso do computador abaixo.",
+    "O Uso do computador e o navegador do OpenCat não são limitados; você pode desativar o Uso do computador abaixo.",
   "agentSettings.computerUse.title": "Uso do computador",
   "agentSettings.computerUse.description": "Permitir que este agente controle aplicativos neste computador",
   "agentSettings.automation.title": "Scripts locais",

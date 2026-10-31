@@ -1491,7 +1491,7 @@ export class ChannelService {
                     ...latest,
                     ...consumed,
                     state: "failed",
-                    error: "Could not queue this assignment. Resume to try again.",
+                    error: "Não foi possível colocar esta tarefa na fila. Retome para tentar de novo.",
                   },
                 ]
               : latest && context
@@ -2517,7 +2517,7 @@ export class ChannelService {
               ...item,
               state: "paused",
               revision: item.revision + 1,
-              error: "The automatic assignment limit was reached. Continue or reassign this task.",
+              error: "O limite de atribuições automáticas foi atingido. Continue ou reatribua esta tarefa.",
             })),
           },
           operationId,
