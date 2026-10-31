@@ -943,10 +943,23 @@ export class TurnLifecycle {
       const routineSession = this.#conversation.isRoutineSession(threadId);
       const mayRunAgain =
         failover !== undefined && !limited && status === "failed" && running !== undefined && !running.acted;
-      const shouldCompact =
-        !refused && !limited && !mayRunAgain && !routineSession && this.#compaction.reserve(agentId, threadId);
-      this.#browser.endControl(this.#conversation.publicThreadId(agentId, threadId), turnId);
       const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
+      // Fork: a provider error in a channel task can continue on a backup model, also after work started.
+      const channelProviderError =
+        failover !== undefined &&
+        !limited &&
+        status === "failed" &&
+        running !== undefined &&
+        !this.#conversation.isTaskThread(snapshot.threadId) &&
+        this.#conversation.isExecutionThread(snapshot.threadId);
+      const shouldCompact =
+        !refused &&
+        !limited &&
+        !mayRunAgain &&
+        !channelProviderError &&
+        !routineSession &&
+        this.#compaction.reserve(agentId, threadId);
+      this.#browser.endControl(this.#conversation.publicThreadId(agentId, threadId), turnId);
       snapshot.activeTurnId = null;
       const deliveries = this.#mailbox.findDeliveriesByTurn(agentId, turnId);
       // A task turn ends as a turn of the agent's own chat does, in the task's own lane.
@@ -995,12 +1008,29 @@ export class TurnLifecycle {
         !channelTurn &&
         deliveries.every(({ delivery }) => !this.#failoverRetries.get(delivery.id)?.has(failedKey)) &&
         this.#hooks.mayFailOver(agentId);
+      // Fork: the assignment stays for the backup. Each model is tried once for a delivery, so this ends.
+      let channelFailedOver =
+        channelProviderError &&
+        failedKey !== null &&
+        deliveries.length > 0 &&
+        deliveries.every(({ delivery }) => !this.#failoverRetries.get(delivery.id)?.has(failedKey)) &&
+        this.#hooks.mayFailOver(agentId);
+      if (channelFailedOver) {
+        for (const { delivery, channelId } of deliveries) {
+          if (channelId && !(yield* this.#hooks.requeueChannelDelivery(delivery.id, true))) {
+            channelFailedOver = false;
+            break;
+          }
+        }
+      }
       // A foreground subagent ends with its turn. A background one works on and reports later.
       const subagents = snapshot.messages.find((message) => message.id === `${turnId}:subagents`);
       stopRunningSubagents(subagents?.subagents, new Date().toISOString(), { background: false });
       for (const message of snapshot.messages) {
         if (this.#itemTurns.get(message.id) !== turnId || message.status !== "streaming") continue;
-        message.status = normalizeCompletionStatus(repeatable || failedOver ? "interrupted" : status);
+        message.status = normalizeCompletionStatus(
+          repeatable || failedOver || channelFailedOver ? "interrupted" : status,
+        );
         markIncompleteImageGeneration(message, message.status);
       }
       // Only this loop reads the map, so the finished turn's items go, or it holds every item ever seen.
@@ -1049,6 +1079,48 @@ export class TurnLifecycle {
         );
         // After the requeue, so a routine set to skip finds its run back in the queue.
         yield* this.#usageLimits.reached(agentId, resetsAt, model);
+        this.#hooks.scheduleDrain(agentId);
+        return;
+      }
+      if (failover && channelFailedOver && failedKey !== null && running) {
+        this.#hooks.emitFailure?.({ code: "agent_error", agentId, ...failover.context });
+        for (const { delivery } of deliveries) {
+          const failed = this.#failoverRetries.get(delivery.id) ?? new Set<string>();
+          this.#failoverRetries.set(delivery.id, failed.add(failedKey));
+        }
+        let continuation: UsageLimitContinuation | undefined;
+        if (running.acted) {
+          const workSteps = yield* readCapturedSteps(running.client, threadId, turnId).pipe(
+            Effect.timeout("2 seconds"),
+            Effect.map((steps) => steps.get(turnId) ?? ""),
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                logger.warn("Could not read the interrupted turn's work steps.", { error });
+                return "";
+              }),
+            ),
+          );
+          if (trace) this.#attachTrace(snapshot.messages, agentId, turnId, trace);
+          const traceSteps = trace
+            ? trace.steps
+                .filter((step) => step.kind === "tool")
+                .map(
+                  (step) =>
+                    `${step.command ?? step.text ?? "tool"} (${step.endedAt === null ? "interrupted" : step.failed ? "failed" : "completed"})`,
+                )
+                .join("\n")
+            : "";
+          continuation = {
+            turnId,
+            previousTurnIds: [turnId],
+            workSteps: this.#hooks.redactMcp(
+              workSteps ||
+                (traceSteps ? `Full tool results are unavailable. Verify the saved work.\n${traceSteps}` : ""),
+            ),
+          };
+        }
+        yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries, continuation);
+        this.#usageLimits.failed(agentId, model);
         this.#hooks.scheduleDrain(agentId);
         return;
       }

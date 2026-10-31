@@ -223,7 +223,11 @@ export function classifyFailure(error: unknown): CauseCode {
   if (/\b(?:insufficient (?:funds|balance|quota)|payment required|credits? exhausted)\b/iu.test(message))
     return "billing";
   if (/\b(?:usage limit|hit your (?:weekly |session )?limit)\b/iu.test(message)) return "usage_limit";
-  if (/\b(?:timed? out|ETIMEDOUT|gateway time-?out|deadline exceeded|DEADLINE_EXCEEDED)\b/iu.test(message))
+  if (
+    /\b(?:timed? out|ETIMEDOUT|gateway time-?out|deadline exceeded|DEADLINE_EXCEEDED|stopped responding)\b/iu.test(
+      message,
+    )
+  )
     return "timeout";
   if (
     /\b(?:fetch failed|failed to fetch|network request failed|connection error|socket hang up|stream disconnected|error sending request|ECONNRESET|ECONNREFUSED|ECONNABORTED|ENOTFOUND|EAI_AGAIN)\b/iu.test(
@@ -240,6 +244,7 @@ export function classifyFailure(error: unknown): CauseCode {
       message,
     ) ||
     /\bUNAVAILABLE\b/u.test(message) ||
+    /\ball\b.{0,40}\bmodels failed\b/iu.test(message) ||
     /\b(?:API Error|status(?: code)?|HTTP(?:\/[\d.]+)?)\W{0,4}5\d\d\b/iu.test(message)
   )
     return "provider_unavailable";

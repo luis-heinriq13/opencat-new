@@ -1707,10 +1707,11 @@ export class ChannelService {
     const archived = this.store.archivedIds();
     return this.store.ids().flatMap((channelId) => {
       if (archived.has(channelId) || this.#deletedChannels.has(channelId)) return [];
+      // Fork: an assignment that waits in the queue still counts, so its channel hears of the model switch.
       const assigned = new Set(
         this.store
           .assignments(channelId)
-          .filter(activeAssignment)
+          .filter((assignment) => activeAssignment(assignment) && assignment.state !== "queued")
           .map((assignment) => assignment.taskId),
       );
       const tasks = this.store.tasks(channelId).filter((task) => task.state === "queued" && !assigned.has(task.id));
