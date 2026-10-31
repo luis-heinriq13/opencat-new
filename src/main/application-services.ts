@@ -23,6 +23,7 @@ import { type AcpRegistry, createAcpRegistry } from "./acp-registry";
 import { type AgentAdminSettingsService, createAgentAdminSettings } from "./agent-admin-settings";
 import { spawnAgentDatabaseHost } from "./agent-database-host-process";
 import { agentDisplayEnvironment, hasSeparateAgentDisplay } from "./agent-display";
+import { type AgentFolders, createAgentFolders } from "./agent-folders";
 import { type AgentHostSettingsService, createAgentHostSettings } from "./agent-host-settings";
 import { type BrowserProfileService, createBrowserProfileService } from "./browser-profile-service";
 import { HostReleaseService, readInstallationMode } from "./host-release-service";
@@ -560,6 +561,8 @@ export interface ApplicationServices {
   approvalAutomation: ApprovalAutomation;
   agentAdminSettings: AgentAdminSettingsService;
   agentHostSettings: AgentHostSettingsService;
+  /** The folders each agent can change besides its workspace, for the desktop settings and `agent-folders-v1`. */
+  agentFolders: AgentFolders;
   browserProfiles: BrowserProfileService;
   language: LanguageService;
   logoColor: LogoColorService;
@@ -1659,11 +1662,27 @@ export async function createApplicationServices({
   await Effect.runPromise(agentApiKeys.syncVault().pipe(Effect.ignore));
   // The schedule triggers of workflows share the routine timer; built after the workflows below.
   let workflowTriggers: WorkflowTriggers | null = null;
+  // Load the local catalog before telemetry starts so tool steps and inventory use the same names.
+  // Agents read it too, for the state of a Marketplace app they suggest.
+  const catalogPluginServers = await Effect.runPromise(
+    loadCatalogPluginServers(
+      app.isPackaged
+        ? join(process.resourcesPath, "plugin-catalog")
+        : resolve(__dirname, "../../resources/plugin-catalog"),
+    ),
+  );
   const service: AgentService = new AgentService({
     store,
     mailbox,
     browser,
     visualPreview: new ChatVisualPreviewer(),
+    marketplaceAppServer: (appId) => {
+      const listed = catalogPluginServers.filter((server) => server.slug === appId);
+      const [server] = listed;
+      if (!server || listed.length !== 1) return null;
+      const config = service.listMcpServers().find((saved) => catalogPluginSlug(saved, listed, homedir()) === appId);
+      return config ? { config, setupSteps: server.setupSteps } : null;
+    },
     prepareMcpTest: (config) =>
       prepareToolRuntimeForTest(config, {
         startToolRuntimes: () => {
@@ -2181,7 +2200,13 @@ export async function createApplicationServices({
   );
   const agentAdminSettings = createAgentAdminSettings({ agents: service, approvalAutomation });
   const agentHostSettings = createAgentHostSettings({ agents: service, busyMessageMode, agentDefaults });
-  const browserProfiles = createBrowserProfileService({ store: browserProfileStore, agents: service, browser });
+  const agentFolders = createAgentFolders({ service, userDataPath: app.getPath("userData") });
+  const browserProfiles = createBrowserProfileService({
+    store: browserProfileStore,
+    agents: service,
+    browser,
+    onChanged: () => service.notifyBrowserProfilesChanged(),
+  });
   const customProviderChanges = createCustomProviderChanges({ service, customProviders });
   const customAgentChanges = createCustomAgentChanges({ service, customAgents });
   const acpRegistry = createAcpRegistry({
@@ -2380,8 +2405,10 @@ export async function createApplicationServices({
     admin: {
       agents: agentAdminSettings,
       agentHost: agentHostSettings,
+      folders: agentFolders,
       sessionSettings: service,
       acpRegistry,
+      customAgents: customAgentChanges,
       skills,
       sharedTables: service,
       marketplaceAgents,
@@ -2448,7 +2475,10 @@ export async function createApplicationServices({
     registerRemoteHost: (input) => centralAuth.registerRemoteHost(input).pipe(toRemoteWorkflowError),
     handOverRemoteHostKey: (hostId, handover) =>
       centralAuth.handOverRemoteHostKey(hostId, handover).pipe(toRemoteWorkflowError),
-    issueRemoteHostTicket: (hostId) => centralAuth.issueRemoteHostTicket(hostId).pipe(toRemoteWorkflowError),
+    // The server list carries the handover and its time, also for a change that another device asked for.
+    onKeyRotated: () => remoteServers.requestDirectoryRefresh(),
+    issueRemoteHostTicket: (hostId, home) =>
+      centralAuth.issueRemoteHostTicket(hostId, home).pipe(toRemoteWorkflowError),
     sendLiveActivityPush: (hostId, push) => centralAuth.sendLiveActivityPush(hostId, push).pipe(toRemoteWorkflowError),
     sendPushNotification: (hostId, push) => centralAuth.sendPushNotification(hostId, push).pipe(toRemoteWorkflowError),
     pushNotificationStore,
@@ -2572,15 +2602,7 @@ export async function createApplicationServices({
   if (analyticsPlatform !== "darwin" && analyticsPlatform !== "win32" && analyticsPlatform !== "linux") {
     throw new Error(`Unsupported analytics platform: ${analyticsPlatform}`);
   }
-  // Load the local catalog before telemetry starts so tool steps and inventory use the same names.
   performance.mark("openbot:services.remote-desktop");
-  const catalogPluginServers = await Effect.runPromise(
-    loadCatalogPluginServers(
-      app.isPackaged
-        ? join(process.resourcesPath, "plugin-catalog")
-        : resolve(__dirname, "../../resources/plugin-catalog"),
-    ),
-  );
   const analyticsEnabled = (app.isPackaged && appVariant === "production") || analyticsCaptureUrl !== null;
   const failureReports = analyticsEnabled
     ? new ReportQueue(
@@ -3203,6 +3225,7 @@ export async function createApplicationServices({
     approvalAutomation,
     agentAdminSettings,
     agentHostSettings,
+    agentFolders,
     browserProfiles,
     language,
     logoColor,

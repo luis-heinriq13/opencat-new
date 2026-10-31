@@ -47,6 +47,7 @@ function accountAnalytics(bindings: WorkerBindings): AccountAnalytics {
     clientSecret: bindings.OPENPANEL_CLIENT_SECRET,
     fetch: (input, init) => fetch(input, init),
     schedule,
+    database: bindings.DB,
   });
 }
 
@@ -371,13 +372,6 @@ export function requestDiscordApp(): DiscordAppService {
 export function discordAppErrorResponse(error: unknown): Response {
   if (error instanceof DiscordAppError) return apiError(error.status, error.code, error.message);
   return authErrorResponse(error);
-}
-
-export function requestRemoteSignalUrl(): string {
-  const value = requireWorkerBindings(env).REMOTE_SIGNAL_URL?.trim();
-  if (!value)
-    throw new RemoteControlPlaneError(503, "remote_not_configured", "The Remote Signal URL is not configured.");
-  return value;
 }
 
 export function bearerToken(request: Request): string | null {

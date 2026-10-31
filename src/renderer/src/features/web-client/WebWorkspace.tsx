@@ -8,19 +8,23 @@ import {
   type AgentStatus,
   type AppInfo,
   CHANNEL_CHATS_CAPABILITY,
+  CHANNEL_TASK_CANCEL_CAPABILITY,
   type ChannelSummary,
   type ClientAgentModelOption,
   canAdministerServer,
   decodeAgentBackupModelSettings,
   decodeAgentHostSettings,
+  decodeAgentPlanCardSettings,
   decodeAgentTaskLimitSettings,
   type ServerConnectionState,
   type ServerSummary,
 } from "@openbot/contracts/ipc";
 import type { PricingOrder } from "@openbot/contracts/license";
+import type { MarketplaceListingLink } from "@openbot/contracts/marketplace-links";
 import { AGENT_BACKUP_MODELS_ROUTES } from "@openbot/contracts/team-protocol/agent-backup-models-v1";
 import { AGENT_HOST_SETTINGS_ROUTES } from "@openbot/contracts/team-protocol/agent-host-settings-v1";
 import { AGENT_IMPORT_CAPABILITY } from "@openbot/contracts/team-protocol/agent-import-v1";
+import { AGENT_PLAN_CARD_ROUTES } from "@openbot/contracts/team-protocol/agent-plan-card-v1";
 import { AGENT_TASK_LIMIT_ROUTES } from "@openbot/contracts/team-protocol/agent-task-limit-v1";
 import { AGENT_TASKS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-tasks-v1";
 import { BROWSER_PROFILES_CAPABILITY } from "@openbot/contracts/team-protocol/browser-profiles-v1";
@@ -291,6 +295,9 @@ type WebWorkspaceProps = {
   /** A plugin listing that a `/app?plugin=<slug>` link named. The marketplace opens on it. */
   pluginSlug?: string | null;
   onPluginSlugConsumed?: () => void;
+  /** An agent or skill that a `/app?marketplaceAgent=` or `?marketplaceSkill=` link named. */
+  marketplaceListing?: MarketplaceListingLink | null;
+  onMarketplaceListingConsumed?: () => void;
   /** What a pricing page button asked for: the add server dialog or Billing. */
   start?: WebAppStart | null;
   onStartConsumed?: () => void;
@@ -783,6 +790,13 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
           agentId,
           taskLimit,
         }),
+      getAgentPlanCard: (agentId, serverId) =>
+        hostRequest(serverId)("POST", AGENT_PLAN_CARD_ROUTES.settings, decodeAgentPlanCardSettings, { agentId }),
+      updateAgentPlanCard: ({ agentId, quickAcknowledgement }, serverId) =>
+        hostRequest(serverId)("POST", AGENT_PLAN_CARD_ROUTES.update, decodeAgentPlanCardSettings, {
+          agentId,
+          quickAcknowledgement,
+        }),
       getAgentAdminSettings: (agentId, serverId) =>
         runTeamEffect(
           getAgentAdminSettings(hostRequest(serverId), agentId).pipe(Effect.mapError((error) => error.cause)),
@@ -804,6 +818,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
     const backupModels = remoteAgentAdmin.backupModels();
     const usageLimitReturn = remoteAgentAdmin.usageLimitReturn();
     const taskLimit = remoteAgentAdmin.taskLimit();
+    const quickAcknowledgement = remoteAgentAdmin.quickAcknowledgement();
     return agent
       ? {
           ...agent,
@@ -813,6 +828,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
           ...(backupModels ? { backupModels } : {}),
           ...(usageLimitReturn ? { usageLimitReturn } : {}),
           ...(typeof taskLimit === "number" ? { taskLimit } : {}),
+          ...(quickAcknowledgement === undefined ? {} : { quickAcknowledgement }),
         }
       : agent;
   });
@@ -936,6 +952,12 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
     () => props.pluginSlug,
     (slug) => {
       if (slug) openMarketplace();
+    },
+  );
+  createEffect(
+    () => props.marketplaceListing,
+    (link) => {
+      if (link) openMarketplace();
     },
   );
   const [billingOpen, setBillingOpen] = createSignal(false);
@@ -1215,6 +1237,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
     },
     supported: channelsSupported,
     deletionSupported: () => canAdministerServer(workspace.state.host?.role),
+    taskCancelSupported: () => workspace.state.capabilities.includes(CHANNEL_TASK_CANCEL_CAPABILITY),
     beforeOpen: () => {
       setCreating(false);
       // Not `showAgents`: the list restores the saved channel after a host connects, and that must
@@ -1857,6 +1880,8 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                           if (suggestedApp()) setSuggestedApp(null);
                           else props.onPluginSlugConsumed?.();
                         }}
+                        marketplaceListing={props.marketplaceListing}
+                        onMarketplaceListingConsumed={props.onMarketplaceListingConsumed}
                         onAddServer={(serverId) => {
                           void openServerSettings(serverId, null, "mcp").then(() => setMcpAddRequest(true));
                         }}
@@ -2675,6 +2700,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                 agentAutoApproves={remoteAgentAdmin.autoApproves()}
                 remoteBackupModelsLoaded={remoteAgentAdmin.backupModels() !== undefined}
                 remoteTaskLimitLoaded={remoteAgentAdmin.taskLimit() !== undefined}
+                remotePlanCardLoaded={remoteAgentAdmin.quickAcknowledgement() !== undefined}
                 remoteBusyMessageModeLoaded={remoteAgentAdmin.busyMessageMode() !== undefined}
                 defaultBusyMessageMode={remoteAgentAdmin.defaultBusyMessageMode()}
                 onUpdateAgentPermissions={remoteAgentAdmin.settings() ? remoteAgentAdmin.update : undefined}
