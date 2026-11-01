@@ -1,5 +1,6 @@
 import { win32 } from "node:path";
 import type { NewSessionRequest, RequestError } from "@agentclientprotocol/sdk";
+import { truncateKeepingVerificationLink } from "@openbot/user-errors/verification-link";
 import { enableCursorMcpServers } from "./cursor-mcp-disabled";
 import { isRecord } from "./protocol";
 
@@ -182,4 +183,9 @@ export function shownFailureDetail(text: string): string {
   return characters.length > FAILURE_DETAIL_LIMIT
     ? `${characters.slice(0, FAILURE_DETAIL_LIMIT - 1).join("")}…`
     : characters.join("");
+}
+
+/** `shownFailureDetail` for Gemini. Its verification link stays whole: the user needs all of it to finish. */
+export function shownGeminiFailureDetail(text: string): string {
+  return truncateKeepingVerificationLink(text, FAILURE_DETAIL_LIMIT);
 }

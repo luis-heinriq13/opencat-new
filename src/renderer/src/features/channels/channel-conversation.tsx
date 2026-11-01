@@ -57,7 +57,7 @@ export interface ChannelConversationEnvironment {
 /** Must run inside the view that shows the channel: it reads the channel store and the interface text. */
 export function createChannelConversation(env: ChannelConversationEnvironment) {
   const channels = useChannels();
-  const { t, errorMessage } = useText();
+  const { t, errorMessage, sourceText } = useText();
   const channelId = env.channelId;
   const page = () => {
     const current = channels.state.page;
@@ -72,7 +72,17 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     return agent?.name ?? authored?.author.name ?? t("chat.message.agentFallback");
   };
 
-  const entries = createMemo(() => page()?.messages.filter(channelMessageHasContent) ?? []);
+  // The coordinator's notices come from the backend in English; the reader sees them in their language.
+  const entries = createMemo(
+    () =>
+      page()
+        ?.messages.filter(channelMessageHasContent)
+        .map((entry) =>
+          entry.author.kind === "coordinator"
+            ? { ...entry, message: { ...entry.message, text: sourceText(entry.message.text) } }
+            : entry,
+        ) ?? [],
+  );
 
   /*
    * A row keeps its object while it does not change, so a streamed chunk draws one row again and not

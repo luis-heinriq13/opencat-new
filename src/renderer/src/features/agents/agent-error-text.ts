@@ -1,5 +1,6 @@
 import { agentProviderName, isAgentProvider } from "@openbot/contracts/ipc";
 import { currentText } from "@openbot/ui/text";
+import { truncateKeepingVerificationLink } from "@openbot/user-errors/verification-link";
 
 /** A provider quotes what it was given, so an error can carry a whole request body back. */
 const ERROR_DESCRIPTION_LIMIT = 300;
@@ -12,8 +13,8 @@ const lastErrorToastAt = new Map<string, number>();
 export function readableAgentError(message: string): string {
   const { t, errorMessage } = currentText();
   const readable = errorMessage(message, t("agent.error.continueFailed"));
-  if (readable.length <= ERROR_DESCRIPTION_LIMIT) return readable;
-  return `${readable.slice(0, ERROR_DESCRIPTION_LIMIT - 1).trimEnd()}…`;
+  // A Google verification link stays whole: the user needs all of it to finish the verification.
+  return truncateKeepingVerificationLink(readable, ERROR_DESCRIPTION_LIMIT);
 }
 
 /**

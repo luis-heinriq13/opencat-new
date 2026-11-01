@@ -12,7 +12,12 @@ import { type ChannelOperationError, channelFailure, channelSync } from "./chann
 import type { ChannelMemoryStore } from "./channel-memory-store";
 import type { ChannelStore } from "./channel-store";
 
-export type ChannelTextModel = (lead: AgentSummary, prompt: string) => Effect.Effect<string, ChannelOperationError>;
+/** `proceed` says, before each backup model, whether the answer is still wanted. */
+export type ChannelTextModel = (
+  lead: AgentSummary,
+  prompt: string,
+  proceed: () => boolean,
+) => Effect.Effect<string, ChannelOperationError>;
 /** The part of the channel that an earlier packet gave to the member's current provider session. */
 export interface DeliveredChannelContext {
   throughSequence: number;
@@ -113,7 +118,7 @@ class ChannelHistoryDependencies extends Context.Service<
   ChannelHistoryDependencies,
   {
     store: ChannelStore;
-    generate: ChannelTextModel;
+    generate: (lead: AgentSummary, prompt: string) => Effect.Effect<string, ChannelOperationError>;
     memories: ChannelMemoryStore;
   }
 >()("openbot/ChannelHistory/Dependencies") {}
@@ -122,7 +127,7 @@ export class ChannelHistory {
 
   constructor(
     readonly store: ChannelStore,
-    readonly generate: ChannelTextModel,
+    readonly generate: (lead: AgentSummary, prompt: string) => Effect.Effect<string, ChannelOperationError>,
     readonly memories: ChannelMemoryStore,
   ) {
     this.#layer = Layer.succeed(ChannelHistoryDependencies, { store, generate, memories });

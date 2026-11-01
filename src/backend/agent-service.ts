@@ -134,7 +134,13 @@ import { ContextResetBusyError } from "@openbot/contracts/team-protocol/context-
 import type { QueueEditRequest } from "@openbot/contracts/team-protocol/queue-edit-v1";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger } from "@openbot/logging";
-import { classifyFailure } from "@openbot/telemetry";
+import { classifyFailure, FAILOVER_CAUSES } from "@openbot/telemetry";
+import {
+  findVerificationLink,
+  transformAroundVerificationLink,
+  VERIFICATION_LINK_PROVIDER,
+  withoutGoogleSignInLinks,
+} from "@openbot/user-errors/verification-link";
 import { Cause, Deferred, Effect, Exit, Fiber, Result, Schema, Scope, Semaphore } from "effect";
 import { AgentMemories } from "./agent/agent-memories";
 import { AgentRemoval, AgentRemovalFailed } from "./agent/agent-removal";
@@ -189,7 +195,12 @@ import {
 import { ProfileSave, standingProfileChanged, toProfileSaveFailed } from "./agent/profile-save";
 import type { ProviderAccountStore } from "./agent/provider-account-store";
 import { isPlanLimitDiagnostic } from "./agent/provider-diagnostics";
-import { type AgentClientFactory, ProviderRuntime, toProviderOperationFailed } from "./agent/provider-runtime";
+import {
+  type AgentClientFactory,
+  type ProviderOperationFailed,
+  ProviderRuntime,
+  toProviderOperationFailed,
+} from "./agent/provider-runtime";
 import { QueueControls } from "./agent/queue-controls";
 import { quietRoutineRun } from "./agent/routine-quiet-runs";
 import { type RoutineMutationOptions, RoutineScheduler, toRoutineOperationFailed } from "./agent/routine-scheduler";
@@ -858,7 +869,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         mcpEndpoint: (config, agentId) => this.#mcp.endpoint(config, agentId).pipe(toMcpOperationError),
       },
       mcpHandoff: this.#mcp.handoffLog(),
-      redactMcp: (text) => this.#mcp.redact(text),
+      redactMcp: (text) => this.#storedErrorText(text),
     });
     this.#endpoints = new CustomEndpoints({
       store,
@@ -1070,39 +1081,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     this.channels = new ChannelService(store.database, mailbox, {
       agents: () => this.listAgents(),
       hidden: (agentId) => this.#store.isHidden(agentId),
-      generate: (lead, prompt) =>
-        Effect.gen({ self: this }, function* () {
-          yield* this.#providers.ensureProvider(lead.provider);
-          const model = this.#endpoints
-            .available()
-            .find((item) => item.provider === lead.provider && item.id === lead.model);
-          if (!model)
-            return yield* new ProfileGenerationFailed({
-              cause: new Error(sourceText("error.backend.channelLeadModelUnavailable")),
-            });
-          const client = this.#providers.createProfileClient(lead.provider, lead.providerAccountId);
-          return yield* this.#profileClients
-            .run(client, (cancelled) =>
-              generateTextWithoutTools(
-                client,
-                { ...model, defaultReasoningEffort: lead.reasoningEffort },
-                prompt,
-                cancelled,
-              ),
-            )
-            .pipe(
-              // A routing turn can be the first one a spent plan refuses: in its completion, or as the
-              // error of the `turn/start` request. It holds the lead's model the way a refused member turn
-              // does, and the channel keeps the task queued for the reset.
-              Effect.tapError((failure) =>
-                failure instanceof GenerationUsageLimitError
-                  ? this.#usageLimits.reached(lead.id, failure.resetsAt, lead.model)
-                  : failure.cause instanceof Error && isPlanLimitDiagnostic(failure.cause.message)
-                    ? this.#usageLimits.reached(lead.id, null, lead.model)
-                    : Effect.void,
-              ),
-            );
-        }).pipe(toChannelOperationError),
+      generate: (lead, prompt, proceed) =>
+        this.#routingTurn(lead, prompt).pipe(
+          Effect.catch((failure) => this.#routingFailover(lead, prompt, proceed, failure)),
+          toChannelOperationError,
+        ),
       schedule: (agentId) => this.#drain.scheduleDrain(agentId),
       awaitDrain: (agentId) => this.#drain.taskFor(agentId)?.pipe(toChannelOperationError),
       contextCharacters: (agentId, threadId) => {
@@ -1284,7 +1267,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       tasks: this.#tasks,
       hooks: {
         emitError: (code, error, agentId) => this.#emitError(code, error, agentId),
-        redactMcp: (text) => this.#mcp.redact(text),
+        redactMcp: (text) => this.#storedErrorText(text),
         isStopping: () => this.#stopping,
         servesModel: (model, provider) => this.#endpoints.serves(model, provider),
         requeueChannelDelivery: (deliveryId, continueWork) => this.#requeueChannelDelivery(deliveryId, continueWork),
@@ -1397,7 +1380,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         dropRefusedSession: (agentId, externalThreadId) =>
           this.#threads.dropRefusedProviderSession(agentId, externalThreadId),
         listAgents: () => this.listAgents(),
-        redactMcp: (text) => this.#mcp.redact(text),
+        redactMcp: (text) => this.#storedErrorText(text),
         emitToolUsage: (usage) => this.emit("toolUsage", usage),
         turnModel: (agentId, turnId) => this.#drain.modelForTurn(agentId, turnId),
         mayFailOver: (agentId) => this.#usageLimitBackup(agentId) !== undefined,
@@ -1433,7 +1416,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
             ),
         taskForThread: (threadId) => this.#tasks.taskForThread(threadId),
         taskOpen: (taskId) => this.#tasks.threadId(taskId) !== null,
-        taskFailed: (taskId, message) => this.#tasks.failed(taskId, this.#mcp.redact(message)),
+        taskFailed: (taskId, message) => {
+          const agentId = this.#tasks.failed(taskId, this.#storedErrorText(message));
+          // The task keeps the error without the link, so the banner is the only place that has it.
+          if (agentId && findVerificationLink(message) && this.#mayShowVerificationLink(agentId))
+            this.#emitErrorEvent("agent_error", message, agentId);
+        },
       },
     });
     this.#removal = new AgentRemoval({
@@ -1520,7 +1508,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         setAvatar: (agentId, image) => this.setAvatar(agentId, image).pipe(toToolOperationFailed),
         enabledMcpServers: () => this.enabledMcpServers(),
         emitError: (code, error, agentId) => this.#emitError(code, error, agentId),
-        redactMcp: (text) => this.#mcp.redact(text),
+        redactMcp: (text) => this.#storedErrorText(text),
         runsTurn: (agentId) => this.#runsTurn(agentId),
         interrupt: (agentId, turnId, mayStop) =>
           this.#interruptTurn(agentId, turnId, undefined, mayStop).pipe(toToolOperationFailed),
@@ -2993,6 +2981,80 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     return agent;
   }, Effect.uninterruptible);
 
+  /** One routing turn of a channel lead, on its own model or on `backup`. */
+  #routingTurn(lead: AgentSummary, prompt: string, backup?: AgentModelChoice) {
+    return Effect.gen({ self: this }, function* () {
+      const provider = backup?.provider ?? lead.provider;
+      const modelId = backup?.model ?? lead.model;
+      yield* this.#providers.ensureProvider(provider);
+      const model = this.#endpoints.available().find((item) => item.provider === provider && item.id === modelId);
+      if (!model)
+        return yield* new ProfileGenerationFailed({
+          cause: new Error(sourceText("error.backend.channelLeadModelUnavailable")),
+        });
+      const client = this.#providers.createProfileClient(
+        provider,
+        backup ? backup.providerAccountId : lead.providerAccountId,
+      );
+      const held = backup ? usageLimitOf(backup) : null;
+      return yield* this.#profileClients
+        .run(client, (cancelled) =>
+          generateTextWithoutTools(
+            client,
+            { ...model, defaultReasoningEffort: effortOnModel(model, lead.reasoningEffort) },
+            prompt,
+            cancelled,
+          ),
+        )
+        .pipe(
+          // A routing turn can be the first one a spent plan refuses: in its completion, or as the
+          // error of the `turn/start` request. It holds the model that refused, the way a refused member
+          // turn does, and a refused lead model keeps the channel's task queued for the reset.
+          Effect.tapError((failure) =>
+            failure instanceof GenerationUsageLimitError
+              ? this.#usageLimits.reached(lead.id, failure.resetsAt, lead.model, held)
+              : failure.cause instanceof Error && isPlanLimitDiagnostic(failure.cause.message)
+                ? this.#usageLimits.reached(lead.id, null, lead.model, held)
+                : Effect.void,
+          ),
+        );
+    });
+  }
+
+  /**
+   * A lead whose model gave no answer in time, or failed with a provider error, routes on its backup
+   * models, as a member turn does. Each try can take the whole generation timeout, so the attempts are
+   * limited. A backup that a plan refuses is held and the next one tries. A failure that no other
+   * model would change, such as a cancel or a tool call, ends it. The failure shown is the last one
+   * that is not a limit, because a limit on a backup is not why the lead cannot route.
+   */
+  #routingFailover(lead: AgentSummary, prompt: string, proceed: () => boolean, failure: RoutingTurnFailure) {
+    return Effect.gen({ self: this }, function* () {
+      if (!(failure instanceof ProfileGenerationFailed) || !routingFailsOver(failure)) return yield* failure;
+      this.#usageLimits.failed(lead.id, lead.model);
+      let shown: RoutingTurnFailure = failure;
+      const tried = [agentModelChoice(lead)];
+      for (let attempt = 1; attempt < ROUTING_ATTEMPTS && lead.backupModels?.automatic; attempt += 1) {
+        const backup = lead.backupModels.order.find(
+          (choice) => !tried.some((item) => sameAgentModelChoice(item, choice)) && this.#usageLimitReady(choice),
+        );
+        if (!backup || !proceed()) break;
+        tried.push(backup);
+        const result = yield* Effect.result(this.#routingTurn(lead, prompt, backup));
+        if (Result.isSuccess(result)) return result.success;
+        const next = result.failure;
+        if (next instanceof GenerationUsageLimitError) continue;
+        if (next instanceof ProfileGenerationFailed) {
+          if (next.cause instanceof Error && isPlanLimitDiagnostic(next.cause.message)) continue;
+          if (!routingFailsOver(next)) return yield* next;
+          this.#usageLimits.failed(lead.id, lead.model, usageLimitOf(backup));
+        }
+        shown = next;
+      }
+      return yield* shown;
+    });
+  }
+
   /**
    * The model a usage limit or a provider error moves this agent to now, or null. An agent goes back
    * to the model it left once no limit or provider error holds that model. An agent held by a limit,
@@ -3014,10 +3076,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         provider: choice.provider,
         model: choice.model,
         providerAccountId: choice.providerAccountId ?? null,
-        reasoningEffort:
-          model && !model.supportedReasoningEfforts.includes(reasoningEffort)
-            ? model.defaultReasoningEffort
-            : reasoningEffort,
+        reasoningEffort: model ? effortOnModel(model, reasoningEffort) : reasoningEffort,
       };
     };
     if (agent.usageLimitReturn && this.#usageLimitReady(agent.usageLimitReturn))
@@ -5080,6 +5139,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       ...(agentId !== undefined ? { agentId } : {}),
       causeCode: context?.causeCode ?? classifyFailure(error),
     });
+    this.#emitErrorEvent(code, error, agentId, context);
+  }
+
+  #emitErrorEvent(code: string, error: unknown, agentId?: string, context?: FailureContext): void {
+    const text = error instanceof Error ? error.message : String(error);
     this.#emit({
       type: "error",
       ...(agentId !== undefined ? { agentId } : {}),
@@ -5087,10 +5151,25 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       // Redacted, because every error from a provider CLI arrives here on its way to the renderer
       // and the log, and a CLI quotes what it was given: a failure against a custom endpoint can
       // carry that endpoint's API key or a header value.
-      message: this.#mcp.redact(error instanceof Error ? error.message : String(error)),
+      // Gemini's verification link stays whole: the user cannot finish the verification without it.
+      // The same link from any other source is not one to open.
+      message: this.#mayShowVerificationLink(agentId, context?.provider)
+        ? transformAroundVerificationLink(text, (part) => this.#mcp.redact(part))
+        : this.#storedErrorText(text),
       ...(context?.provider ? { provider: context.provider } : {}),
       ...(context?.model ? { model: context.model } : {}),
     });
+  }
+
+  /** An error text for a database or a log. It has no Google sign-in link, whose token is not all redacted. */
+  #storedErrorText(text: string): string {
+    return this.#mcp.redact(withoutGoogleSignInLinks(text));
+  }
+
+  /** Whether this error comes from the provider that asks for a Google verification. */
+  #mayShowVerificationLink(agentId: string | undefined, provider?: AgentProvider | null): boolean {
+    const agent = provider ? undefined : this.#store.list().find((candidate) => candidate.id === agentId);
+    return (provider ?? (agent && providerForAgent(agent))) === VERIFICATION_LINK_PROVIDER;
   }
 
   #emitRuntimeSnapshot(): void {
@@ -5155,6 +5234,27 @@ const MODEL_SWITCH_TEXT = {
   "provider-error": "status.agent.modelSwitchedForError",
   "provider-error-ended": "status.agent.modelReturnedAfterError",
 } as const;
+
+/** A lead and two backups: at the two minutes of a generation, a user hears back in six minutes. */
+const ROUTING_ATTEMPTS = 3;
+
+type RoutingTurnFailure = GenerationUsageLimitError | ProfileGenerationFailed | ProviderOperationFailed;
+
+/** Whether another provider, account or model can pass a routing turn that failed this way. */
+function routingFailsOver(failure: ProfileGenerationFailed): boolean {
+  const { cause } = failure;
+  if (cause instanceof Error && isPlanLimitDiagnostic(cause.message)) return false;
+  // A failed turn says only that the generation failed; its `cause` holds what the provider reported.
+  return FAILOVER_CAUSES.has(classifyFailure(cause instanceof Error && cause.cause ? cause.cause : cause));
+}
+
+/** The effort if the model has it, otherwise the model's default. */
+function effortOnModel<Effort>(
+  model: { supportedReasoningEfforts: readonly Effort[]; defaultReasoningEffort: Effort },
+  effort: Effort,
+): Effort {
+  return model.supportedReasoningEfforts.includes(effort) ? effort : model.defaultReasoningEffort;
+}
 
 function agentModelChoice(agent: AgentSummary): AgentModelChoice {
   return {

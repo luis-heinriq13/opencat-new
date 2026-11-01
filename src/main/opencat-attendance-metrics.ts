@@ -309,10 +309,16 @@ async function readJsonRecord(file: string): Promise<DynamicRecord> {
 /** The bridge's private file: each conversation hash with its chat id and its name, found here by the report's short `ref`. */
 async function readConversationNames(dataDirectory: string): Promise<Map<string, { chatId: string; name: string }>> {
   const names = new Map<string, { chatId: string; name: string }>();
+  // Two conversations with one short ref cannot be told apart, so neither gets a name or a resume.
+  const shared = new Set<string>();
   for (const [hash, entry] of Object.entries(await readJsonRecord(join(dataDirectory, NAMES_FILE_NAME)))) {
-    if (isDynamicRecord(entry) && typeof entry.chatId === "string" && typeof entry.nome === "string")
-      names.set(hash.toLowerCase().slice(0, 6), { chatId: entry.chatId, name: entry.nome.slice(0, 80) });
+    if (!isDynamicRecord(entry) || typeof entry.chatId !== "string" || typeof entry.nome !== "string") continue;
+    const ref = hash.toLowerCase().slice(0, 6);
+    const known = names.get(ref);
+    if (known && known.chatId !== entry.chatId) shared.add(ref);
+    names.set(ref, { chatId: entry.chatId, name: entry.nome.slice(0, 80) });
   }
+  for (const ref of shared) names.delete(ref);
   return names;
 }
 

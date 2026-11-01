@@ -3,6 +3,10 @@ import { createInterface } from "node:readline";
 import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { redactText, registerSecretValue } from "@openbot/logging";
+import {
+  transformAroundVerificationLink,
+  truncateKeepingVerificationLink,
+} from "@openbot/user-errors/verification-link";
 import { Effect, Fiber } from "effect";
 import { cliSpawnTarget } from "./cli";
 import { type ProviderClientOperationError, ProviderSignInError, providerFailure } from "./provider-client-effects";
@@ -18,13 +22,16 @@ type AcpMessage =
 const SERVER_REASON_LIMIT = 200;
 
 /** The server's reason for a refused call, redacted and short, or `null` when it gave none. */
-function serverReason(error: unknown): string | null {
+function serverReason(error: unknown, keepVerificationLink: boolean): string | null {
   if (!isDynamicRecord(error)) return null;
   const details = isDynamicRecord(error.data) ? error.data.details : undefined;
   const text = typeof details === "string" ? details : error.message;
   if (typeof text !== "string") return null;
-  const reason = redactText(text.trim().replace(/\s+/gu, " "));
+  const flat = text.trim().replace(/\s+/gu, " ");
+  // Gemini's verification link stays whole and unredacted: the user needs all of it to finish.
+  const reason = keepVerificationLink ? transformAroundVerificationLink(flat, redactText) : redactText(flat);
   if (!reason) return null;
+  if (keepVerificationLink) return truncateKeepingVerificationLink(reason, SERVER_REASON_LIMIT);
   const characters = Array.from(reason);
   return characters.length > SERVER_REASON_LIMIT ? `${characters.slice(0, SERVER_REASON_LIMIT - 1).join("")}…` : reason;
 }
@@ -154,7 +161,7 @@ export const startAcpAuthentication = Effect.fnUntraced(function* (options: {
           return;
         }
         if (message.error !== undefined && (message.id === 1 || message.id === 2 || message.id === 3)) {
-          const reason = serverReason(message.error);
+          const reason = serverReason(message.error, options.openGoogleSignIn !== undefined);
           signInFailed(
             reason
               ? sourceText("error.provider.acpSignInFailedReason", { reason })

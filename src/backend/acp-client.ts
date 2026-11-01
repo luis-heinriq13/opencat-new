@@ -28,6 +28,7 @@ import { type DynamicRecord, isBoolean, isString } from "@openbot/contracts/runt
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, redactText } from "@openbot/logging";
 import { classifyUserError } from "@openbot/user-errors";
+import { transformAroundVerificationLink, VERIFICATION_LINK_PROVIDER } from "@openbot/user-errors/verification-link";
 import { Deferred, Effect, Exit, Fiber, Scope, Semaphore } from "effect";
 import {
   AcpConfiguration,
@@ -2799,7 +2800,11 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     turn.toolItems.clear();
     this.#completeMessage(thread, turn, "final_answer");
     if (status === "failed" && error) {
-      const detail = this.#redact(failureText(error));
+      // Gemini's verification link goes to the user whole; the rest of the text is redacted as before.
+      const detail =
+        this.provider === VERIFICATION_LINK_PROVIDER
+          ? transformAroundVerificationLink(failureText(error), (part) => this.#redact(part))
+          : this.#redact(failureText(error));
       const message =
         this.#flavor.turnFailure?.(
           error,

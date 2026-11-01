@@ -199,7 +199,11 @@ export class ChannelService {
   ) {
     this.store = new ChannelStore(database);
     this.memories = new ChannelMemoryStore(database);
-    this.#history = new ChannelHistory(this.store, hooks.generate, this.memories);
+    this.#history = new ChannelHistory(
+      this.store,
+      (lead, prompt) => hooks.generate(lead, prompt, () => !this.#stopped),
+      this.memories,
+    );
   }
 
   /**
@@ -1122,7 +1126,18 @@ export class ChannelService {
           if (prompt.length > ROUTING_PROMPT_CHARACTERS)
             throw new ChannelRoutingError(sourceText("error.backend.channelRoutingTooLong"));
           const response = channelResult(
-            yield* Effect.result(this.hooks.generate(lead, prompt).pipe(Effect.mapError(channelFailure))),
+            yield* Effect.result(
+              this.hooks
+                .generate(
+                  lead,
+                  prompt,
+                  () =>
+                    !this.#stopped &&
+                    !this.#deletedChannels.has(channelId) &&
+                    this.routingState(channelId) === revision,
+                )
+                .pipe(Effect.mapError(channelFailure)),
+            ),
           );
           if (this.#deletedChannels.has(channelId)) return;
           if (this.routingState(channelId) !== revision) {
@@ -1266,6 +1281,8 @@ export class ChannelService {
           if (siblings.length) this.#wakeAgain.add(channelId);
           channel = channelResult(yield* Effect.result(channelSync(() => this.store.get(channelId))));
         } catch (error) {
+          // A routing turn that a quit or the deletion ended leaves the task as it is.
+          if (this.#stopped || this.#deletedChannels.has(channelId)) return;
           if (this.routingState(channelId) !== revision) {
             this.#wakeAgain.add(channelId);
             continue;

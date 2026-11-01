@@ -58,9 +58,10 @@ interface VoiceSubmitHooks {
   restoreTranscript: (target: ConversationTarget, transcript: string) => void;
 }
 
-/** What the voice store reads from its view: the agent and server it dictates for, and the runtime. */
+/** What the voice store reads from its view: the agent or channel it dictates for, and the runtime. */
 type VoiceStoreProps = Pick<ConversationProps, "runtime"> & {
   agent: Pick<NonNullable<ConversationProps["agent"]>, "id"> | undefined;
+  channel?: Pick<NonNullable<ConversationProps["channel"]>, "id"> | undefined;
   server: Pick<NonNullable<ConversationProps["server"]>, "id"> | undefined;
 };
 
@@ -133,9 +134,9 @@ export function createVoiceStore(deps: VoiceStoreDeps) {
   /** The recording that is being transcribed stopped at the time limit, not at the user's click. */
   let stoppedAtLimit = false;
 
-  /** Starts a recording for the agent's own chat, or for the side thread whose draft is `threadKey`. */
+  /** Starts a recording for the open conversation, or for the side thread whose draft is `threadKey`. */
   async function startVoiceRecording(threadKey?: string): Promise<void> {
-    const agentId = deps.props.agent?.id;
+    const agentId = deps.props.channel?.id ?? deps.props.agent?.id;
     const serverId = deps.props.server?.id ?? "local";
     if (!agentId || deps.voicePhase() !== "idle") return;
     deps.setVoiceThreadKey(threadKey);
@@ -542,7 +543,10 @@ export function createVoiceStore(deps: VoiceStoreDeps) {
         const key = composerDraftKey(recordingTarget);
         deps.setDrafts((current) => ({ ...current, [key]: transcribedDraft }));
         if (atLimit) deps.setVoiceLimitReached?.(recordingTarget, true);
-        if (deps.props.agent?.id === targetAgentId && (deps.props.server?.id ?? "local") === targetServerId) {
+        if (
+          (deps.props.channel?.id ?? deps.props.agent?.id) === targetAgentId &&
+          (deps.props.server?.id ?? "local") === targetServerId
+        ) {
           deps.setComposerFocusRequest((current) => current + 1);
         }
       }

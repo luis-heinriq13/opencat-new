@@ -122,6 +122,7 @@ export function ConversationComposer() {
     providerOffline,
     agentProviderName,
     sideThreadOpen,
+    openExternalMessageUrl,
   } = useConversationViewScope();
   const { t, format, sourceText: localizeSourceText } = useText();
   const messageLabel = () =>
@@ -168,8 +169,8 @@ export function ConversationComposer() {
   const waitItems = createMemo(() => openWaitItems(props.waits ?? [], props.queue));
   const waitsVisible = () => waitItems().length > 0 && Boolean(props.onCancelWait) && !pickerOpen();
   const slotOpen = () => queueVisible() || awaitingVisible() || waitsVisible();
-  // A channel has many speakers, so it has no voice input.
-  const voiceAvailable = () => !channel && !props.runtime;
+  // Dictation writes only to the local draft, so it is safe for both agent chats and channels.
+  const voiceAvailable = () => !props.runtime;
   /** The reply of this agent that is read aloud. The voice pane shows its own. */
   const speaking = () => {
     const reading = speechReading();
@@ -590,6 +591,7 @@ export function ConversationComposer() {
                 title={currentChatErrorRun() ?? undefined}
                 tone={unreadableContent() ? "warning" : "danger"}
                 reference={currentChatErrorReference()}
+                onOpenLink={(url) => void openExternalMessageUrl(url)}
                 onShown={() => reportErrorBanner(message(), "turn")}
                 conversationKey={currentChatConversationKey()}
                 onDismiss={() => {
@@ -773,7 +775,7 @@ export function ConversationComposer() {
                   levels={voiceLevels()}
                   elapsedSeconds={voiceElapsedSeconds()}
                   modelProgress={voiceModelProgress()}
-                  blocked={!props.agent || !agentReady()}
+                  blocked={!agentReady()}
                   onStart={() => void startVoiceRecording()}
                   onCancel={cancelVoiceRecording}
                   onFinish={stopVoiceRecording}

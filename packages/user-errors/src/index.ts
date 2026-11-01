@@ -6,8 +6,10 @@ import {
 } from "@openbot/i18n/source";
 import { redactText } from "@openbot/logging";
 import { errnoCode, errorReference, NETWORK_MESSAGE, normalizeMessage } from "./reference";
+import { findVerificationLink, transformAroundVerificationLink } from "./verification-link";
 
 export { errorReference, referenceCarrierName, referenceFrom, safeReference } from "./reference";
+export { findVerificationLink, type VerificationLink } from "./verification-link";
 
 /**
  * What went wrong, in the terms a recovery affordance needs.
@@ -130,7 +132,8 @@ export function userErrorMessage(error: unknown, fallback: string, locale: Trans
   // Preserve useful product validation messages, but do not display runtime output or paths.
   if (
     !message ||
-    message.length > 400 ||
+    // A trusted verification link is kept whole, so it adds its length to the limit.
+    message.length > 400 + (findVerificationLink(message)?.url.length ?? 0) ||
     /^(?:TypeError|SyntaxError|ReferenceError|RangeError):/u.test(message) ||
     error instanceof TypeError ||
     error instanceof SyntaxError ||
@@ -140,7 +143,7 @@ export function userErrorMessage(error: unknown, fallback: string, locale: Trans
   ) {
     return fallback;
   }
-  return redactText(localizeSourceText(message, locale));
+  return transformAroundVerificationLink(localizeSourceText(message, locale), redactText);
 }
 
 /** What a screen shows for a failure: the sentence and the code a user can copy. */

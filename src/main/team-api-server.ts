@@ -167,6 +167,7 @@ import { encodeTeamProtocolV8BaseCurrentEvent } from "@openbot/contracts/team-pr
 import { TEAM_PROTOCOL_V9 } from "@openbot/contracts/team-protocol/v9";
 import { isFixedSourceText, sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, toLogValue } from "@openbot/logging";
+import { withoutGoogleSignInLinks } from "@openbot/user-errors/verification-link";
 import { Deferred, Effect, Exit, Scope } from "effect";
 import type * as Ws from "ws";
 import { AgentDuplicationFailed, duplicateAgentIntoLayout } from "../backend/agent/duplication-gate";
@@ -1491,6 +1492,11 @@ export class TeamApiServer {
    * released client reads one limit per provider.
    */
   #eventFor(connection: EventClientState, event: AgentEvent): AgentEvent {
+    // Gemini's verification link holds a sign-in token of the host's Google account. The text stays.
+    if (event.type === "error") {
+      const message = withoutGoogleSignInLinks(event.message);
+      return message === event.message ? event : { ...event, message };
+    }
     if (event.type === "usage-changed" && event.usage.limits.some((limit) => limit.accountId !== undefined))
       return {
         ...event,

@@ -253,6 +253,8 @@ const profileCompletion = Effect.fnUntraced(function* (client: AgentClient, obse
   return yield* Effect.callback<string, ProfileGenerationFailed | GenerationUsageLimitError>((resume) => {
     let text = "";
     let limit: { resetsAt: number | null } | null = null;
+    /** What the provider said about the failure, kept for the classification only. */
+    let reported: unknown;
     const finish = (effect: Effect.Effect<string, ProfileGenerationFailed | GenerationUsageLimitError>) => {
       cleanup();
       resume(effect);
@@ -272,6 +274,7 @@ const profileCompletion = Effect.fnUntraced(function* (client: AgentClient, obse
       if (notification.method === "error" && !(isRecord(params) && params.willRetry === true)) {
         const error = getRecord(params, "error");
         const message = getString(params, "message") ?? getString(error, "message") ?? "";
+        reported = error ?? message;
         if (
           isPlanLimitDiagnostic(message) ||
           (error?.codexErrorInfo === "usageLimitExceeded" && !isBalanceDiagnostic(message))
@@ -295,7 +298,16 @@ const profileCompletion = Effect.fnUntraced(function* (client: AgentClient, obse
               }),
             ),
           );
-        else reject(sourceText("error.agent.profileFailed"));
+        else
+          finish(
+            Effect.fail(
+              new ProfileGenerationFailed({
+                cause: new Error(sourceText("error.agent.profileFailed"), {
+                  cause: reported ?? getRecord(turn, "error"),
+                }),
+              }),
+            ),
+          );
       }
       if (text.length > 32_000) reject(sourceText("error.agent.profileTooLarge"));
     };

@@ -1,6 +1,6 @@
 import { RequestError } from "@agentclientprotocol/sdk";
 import { type SourceMessages, sourceText } from "@openbot/i18n/source";
-import { type AcpFlavor, shownFailureDetail } from "./acp-flavor";
+import { type AcpFlavor, shownGeminiFailureDetail } from "./acp-flavor";
 import { isRecord } from "./protocol";
 
 /** Antigravity 1.3.0's `quota_exhausted_message`: a fixed header, then the reset time. */
@@ -65,7 +65,7 @@ function geminiTurnFailure(text: string): string {
   // Google's API answer for a refused key. The key is the user's to fix, not the request.
   if (/\bAPI key not valid\b|\bAPI_KEY_INVALID\b/u.test(text)) return sourceText("error.provider.geminiKeyRefused");
   const key = GEMINI_REQUEST_FAILURES.find(([, pattern]) => pattern.test(text))?.[0];
-  return key ? sourceText(key, { detail: shownFailureDetail(text) }) : shownFailureDetail(text);
+  return key ? sourceText(key, { detail: shownGeminiFailureDetail(text) }) : shownGeminiFailureDetail(text);
 }
 
 /** Only a failure the server answered with: a local failure is not Google's to explain. */
@@ -73,7 +73,7 @@ function geminiRequestFailure(error: unknown, detail: string): string {
   if (!(error instanceof RequestError)) return detail;
   const reason = detail.replace(/^(?:RequestError:\s*)?Internal error:\s*/u, "");
   const key = GEMINI_REQUEST_FAILURES.find(([, pattern]) => pattern.test(reason))?.[0];
-  return key ? sourceText(key, { detail: shownFailureDetail(reason) }) : detail;
+  return key ? sourceText(key, { detail: shownGeminiFailureDetail(reason) }) : detail;
 }
 
 /**
@@ -112,7 +112,9 @@ export const ANTIGRAVITY_ACP_FLAVOR: AcpFlavor = {
     quota: (text) => {
       const quota = GEMINI_QUOTA_CHUNK.exec(text);
       return quota
-        ? sourceText("error.provider.antigravityQuotaReached", { detail: shownFailureDetail(quota[1]?.trim() ?? "") })
+        ? sourceText("error.provider.antigravityQuotaReached", {
+            detail: shownGeminiFailureDetail(quota[1]?.trim() ?? ""),
+          })
         : null;
     },
     mcpLoadFailure: geminiMcpLoadFailure,

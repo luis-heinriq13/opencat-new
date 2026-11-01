@@ -1216,17 +1216,28 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
   };
 
   function applyResumeRequests(state) {
-    const requests = readJson(files.resume, null);
-    if (!requests || typeof requests !== "object") return;
-    for (const chatId of Object.keys(requests)) {
-      const entry = state.contacts[chatId];
-      if (entry?.pausedUntil) {
-        delete entry.pausedUntil;
-        delete entry.pausedReason;
-        audit("retomado", { conversa: shortHash(chatId) });
+    // Rename primeiro: um pedido gravado depois disso fica em um arquivo novo e vai para a próxima rodada.
+    // Um arquivo que uma queda deixou aqui é aplicado antes de pegar outro.
+    const claimed = `${files.resume}.aplicando`;
+    if (!existsSync(claimed)) {
+      try {
+        renameSync(files.resume, claimed);
+      } catch {
+        return;
       }
     }
-    rmSync(files.resume, { force: true });
+    const requests = readJson(claimed, null);
+    if (requests && typeof requests === "object") {
+      for (const chatId of Object.keys(requests)) {
+        const entry = state.contacts[chatId];
+        if (entry?.pausedUntil) {
+          delete entry.pausedUntil;
+          delete entry.pausedReason;
+          audit("retomado", { conversa: shortHash(chatId) });
+        }
+      }
+    }
+    rmSync(claimed, { force: true });
   }
 
   return {

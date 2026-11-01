@@ -157,14 +157,15 @@ export class UsageLimitGate {
   /**
    * A provider error failed a turn of this agent on `model`, the agent's current model when null.
    * The model is passed over until the hold ends or a turn on it completes. Then the agents that
-   * left it go back.
+   * left it go back. `backup` names the provider, account and model of a turn that did not run on
+   * the agent's own.
    */
-  failed(agentId: string, model: string | null = null): void {
+  failed(agentId: string, model: string | null = null, backup: UsageLimitKey | null = null): void {
     const agent = this.#agent(agentId);
     if (!agent) return;
-    const provider = providerForAgent(agent);
-    const accountId = accountOf(agent);
-    const turnModel = model ?? agent.model;
+    const provider = backup?.provider ?? providerForAgent(agent);
+    const accountId = backup ? backup.accountId : accountOf(agent);
+    const turnModel = backup?.model ?? model ?? agent.model;
     const key = limitKey(provider, accountId, turnModel);
     const previous = this.#failures.get(key);
     if (previous) clearTimeout(previous.timer);
@@ -198,19 +199,22 @@ export class UsageLimitGate {
 
   /**
    * The plan refused a turn of this agent. `resetsAt` is in epoch seconds. `model` is the one the
-   * turn ran on; the agent's current model when null.
+   * turn ran on; the agent's current model when null. `backup` names the provider, account and model
+   * of a turn that did not run on the agent's own: the limit holds those, and the agent hears nothing
+   * because it is not held.
    */
   readonly reached = Effect.fn("UsageLimitGate.reached")(function* (
     this: UsageLimitGate,
     agentId: string,
     resetsAt: number | null,
     model: string | null = null,
+    backup: UsageLimitKey | null = null,
   ) {
     const agent = this.#agent(agentId);
     if (!agent) return;
-    const provider = providerForAgent(agent);
-    const turnModel = model ?? agent.model;
-    const accountId = accountOf(agent);
+    const provider = backup?.provider ?? providerForAgent(agent);
+    const turnModel = backup?.model ?? model ?? agent.model;
+    const accountId = backup ? backup.accountId : accountOf(agent);
     const key = limitKey(provider, accountId, turnModel);
     const limit = this.#limits.get(key) ?? {
       provider,
@@ -230,14 +234,14 @@ export class UsageLimitGate {
     yield* this.#hooks.held(this.#heldAgents(limit).map((held) => held.id));
     this.#hooks.emitRuntimeSnapshot();
     if (limit.resetsAt !== null) {
-      this.#announce(agentId, limit);
+      if (!backup) this.#announce(agentId, limit);
       return;
     }
     // A provider that names no reset in its refusal usually reports it in its usage reading.
     yield* this.#readReset(key, limit).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          if (this.#limits.get(key) === limit) this.#announce(agentId, limit);
+          if (!backup && this.#limits.get(key) === limit) this.#announce(agentId, limit);
         }),
       ),
       Effect.forkIn(this.#scope),

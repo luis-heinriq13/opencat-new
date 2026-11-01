@@ -129,12 +129,16 @@ export class AgentTasks implements TaskLanes {
     return agent !== undefined && !agentProviderDescriptor(agent.provider).concurrentTurns;
   }
 
-  /** The error of a task turn, redacted by the caller. The panel shows it until the next turn starts. */
-  failed(taskId: string, message: string): void {
+  /**
+   * The error of a task turn, redacted by the caller. The panel shows it until the next turn starts.
+   * Returns the agent of the task, or null when the task is gone.
+   */
+  failed(taskId: string, message: string): string | null {
     const task = this.#store.task(taskId);
-    if (!task) return;
+    if (!task) return null;
     this.#store.setError(taskId, message.slice(0, INPUT_LIMITS.agentTaskError));
     this.changed(task.agentId);
+    return task.agentId;
   }
 
   snapshot(agentId: string): AgentTasksSnapshot {
