@@ -105,8 +105,10 @@ mac:
   # with `bun scripts/compile-macos-icon.ts` after a change to the `.icon` file.
   icon: build/icon-production.icns
   extraResources:
-    - from: build/macos/Assets.car
-      to: Assets.car
+    # `build/macos/Assets.car` and `CFBundleIconName: Icon` are off on purpose: the catalog on disk is
+    # the old lavender icon and Xcode 26 is not installed here to compile the OpenCat one from
+    # `build/icon-production.icon`. With the catalog, macOS 26 would show the old icon over the new
+    # `icon-production.icns`. Put both back after `bun scripts/compile-macos-icon.ts`.
     - from: build/icon-production-macos-safe-area.png
       to: icons/icon-production-macos-safe-area.png
     - from: build/icon-dev-macos-safe-area.png
@@ -130,7 +132,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.inherit.plist
   darkModeSupport: true
   extendInfo:
-    CFBundleIconName: Icon
     ElectronTeamID: ZTRDTUL87R
     NSMicrophoneUsageDescription: OpenBot uses the microphone to transcribe voice prompts locally on this Mac.
     # Computer Use runs the driver as a child process, so macOS asks for both grants in OpenBot's

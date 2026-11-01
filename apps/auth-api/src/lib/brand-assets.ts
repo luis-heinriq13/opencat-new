@@ -4,7 +4,13 @@
 // The shapes come from `@openbot/brand`, and the layout of the logo with its name from the Figma
 // "Logo" board. No JSX and no DOM here: the Worker imports this module.
 
-import { APP_LOGO_CORNER, APP_LOGO_EYE_POINTS, APP_LOGO_SIZE } from "@openbot/brand/app-logo-shape";
+import {
+  APP_LOGO_CAT_PATH,
+  APP_LOGO_CORNER,
+  APP_LOGO_EYE_POINTS,
+  APP_LOGO_EYE_STROKE,
+  APP_LOGO_SIZE,
+} from "@openbot/brand/app-logo-shape";
 import { WORDMARK_PATHS, WORDMARK_WIDTH } from "@openbot/brand/wordmark-shape";
 import { BRAND_ROUTE } from "./brand-page";
 
@@ -16,8 +22,9 @@ type Ink = "dark" | "light";
 export type BrandSpace = "tight" | "safe";
 
 // The colors of the brand tokens in `@openbot/brand/tokens.css`. A file must not depend on a page's CSS.
-const FILL: Record<IconColor, string> = { lilac: "#d6adf2", white: "#ffffff", black: "#040007" };
-const EYE: Record<IconColor, string> = { lilac: "#040007", white: "#040007", black: "#ffffff" };
+const FILL: Record<IconColor, string> = { lilac: "#fdeeed", white: "#ffffff", black: "#2a0a10" };
+const CAT: Record<IconColor, string> = { lilac: "#d92d3a", white: "#d92d3a", black: "#d92d3a" };
+const EYE: Record<IconColor, string> = { lilac: "#28060d", white: "#28060d", black: "#ffffff" };
 const INK: Record<Ink, string> = { dark: "#040007", light: "#ffffff" };
 const COLOR_NAME: Record<IconColor, string> = { lilac: "Lilac", white: "White", black: "Black" };
 
@@ -43,7 +50,8 @@ function mark(color: IconColor, shape: IconShape, x: number, y: number): string 
   return [
     `<g transform="translate(${x} ${y})">`,
     `<rect width="${APP_LOGO_SIZE}" height="${APP_LOGO_SIZE}" rx="${corner}" fill="${FILL[color]}"/>`,
-    `<g fill="none" stroke="${EYE[color]}" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round">`,
+    `<path d="${APP_LOGO_CAT_PATH}" fill="${CAT[color]}"/>`,
+    `<g fill="none" stroke="${EYE[color]}" stroke-width="${APP_LOGO_EYE_STROKE}" stroke-linecap="round" stroke-linejoin="round">`,
     `<polyline points="${APP_LOGO_EYE_POINTS.left}"/><polyline points="${APP_LOGO_EYE_POINTS.right}"/>`,
     "</g></g>",
   ].join("");

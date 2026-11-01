@@ -186,6 +186,7 @@ export function AgentNetworkSection() {
       colors: {
         hub: token("--openbot-logo-production"),
         hubEye: token("--openbot-logo-production-eye"),
+        hubCat: token("--openbot-logo-cat"),
         dot: token("--openbot-glass-border"),
         badge: token("--openbot-bg-control-active"),
         canvas: token("--openbot-bg-canvas"),

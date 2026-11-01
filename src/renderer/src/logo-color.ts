@@ -9,6 +9,12 @@ import { appPort } from "./app-port";
 
 /** Sets the release logo color and its eye color in this window. */
 function applyLogoColor(color: AppLogoColor): void {
+  if (color === DEFAULT_APP_LOGO_COLOR) {
+    // The default is the OpenCat tile of the brand tokens, not the old lavender.
+    document.documentElement.style.removeProperty("--openbot-logo-production");
+    document.documentElement.style.removeProperty("--openbot-logo-production-eye");
+    return;
+  }
   document.documentElement.style.setProperty("--openbot-logo-production", APP_LOGO_COLOR_HEX[color]);
   document.documentElement.style.setProperty("--openbot-logo-production-eye", APP_LOGO_EYE_HEX[color]);
 }

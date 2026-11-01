@@ -9,7 +9,13 @@
 // The numbers below are the prototype's CSS lengths, in pixels of the 1200-wide card.
 
 import { BloubBot } from "@norbert_bodziony/bloub";
-import { APP_LOGO_CORNER, APP_LOGO_EYE_POINTS, APP_LOGO_SIZE } from "@openbot/brand/app-logo-shape";
+import {
+  APP_LOGO_CAT_PATH,
+  APP_LOGO_CORNER,
+  APP_LOGO_EYE_POINTS,
+  APP_LOGO_EYE_STROKE,
+  APP_LOGO_SIZE,
+} from "@openbot/brand/app-logo-shape";
 import { bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { render } from "@solidjs/web";
@@ -43,8 +49,9 @@ const CANVAS = "#1a1a1a";
 const PRIMARY = "#ffffff";
 const SECONDARY = "#dcdcdc";
 /** `--openbot-logo-production` and `--openbot-logo-production-eye`. */
-const LOGO_BACKGROUND = "#d6adf2";
-const LOGO_EYE = "#040007";
+const LOGO_BACKGROUND = "#fdeeed";
+const LOGO_CAT = "#d92d3a";
+const LOGO_EYE = "#28060d";
 
 /** `.marketplace-share-avatar`: 540 square, 24 from the left, centred on the height. */
 const AVATAR = { x: 24, y: (HEIGHT - 540) / 2, size: 540 };
@@ -191,8 +198,10 @@ function drawLogo(context: CanvasRenderingContext2D, x: number, y: number, size:
   context.fillStyle = LOGO_BACKGROUND;
   context.fill();
   context.clip();
+  context.fillStyle = LOGO_CAT;
+  context.fill(new Path2D(APP_LOGO_CAT_PATH));
   context.strokeStyle = LOGO_EYE;
-  context.lineWidth = 9.5;
+  context.lineWidth = APP_LOGO_EYE_STROKE;
   context.lineCap = "round";
   context.lineJoin = "round";
   for (const points of [APP_LOGO_EYE_POINTS.left, APP_LOGO_EYE_POINTS.right]) {

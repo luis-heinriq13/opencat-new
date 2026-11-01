@@ -1,6 +1,7 @@
 .app-logo {
   --app-logo-background: var(--openbot-logo-production);
   --app-logo-eye: var(--openbot-logo-production-eye);
+  --app-logo-cat: var(--openbot-logo-cat);
   position: relative;
   display: inline-block;
   overflow: hidden;
@@ -30,12 +31,17 @@
   fill: var(--app-logo-background);
 }
 
+.app-logo-cat {
+  fill: var(--app-logo-cat);
+  pointer-events: none;
+}
+
 .app-logo-eye {
   fill: none;
   stroke: var(--app-logo-eye);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 9.5px;
+  stroke-width: 23.6px;
   pointer-events: none;
   transform-box: view-box;
 }
@@ -49,11 +55,11 @@
 }
 
 .app-logo-eye-left {
-  transform-origin: 28.7% 48.7%;
+  transform-origin: 39.1% 55.8%;
 }
 
 .app-logo-eye-right {
-  transform-origin: 71.2% 48.8%;
+  transform-origin: 60.9% 55.8%;
 }
 
 .app-logo[data-animation="blink"] .app-logo-eye {

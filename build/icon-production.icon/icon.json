@@ -2,13 +2,13 @@
   "fill-specializations": [
     {
       "value": {
-        "solid": "display-p3:0.81396,0.68457,0.93115,1.00000"
+        "solid": "srgb:1.00000,0.97647,0.97255,1.00000"
       }
     },
     {
       "appearance": "dark",
       "value": {
-        "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
+        "solid": "srgb:0.16471,0.03922,0.06275,1.00000"
       }
     }
   ],
@@ -16,43 +16,33 @@
     {
       "layers": [
         {
-          "fill-specializations": [
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
-              }
-            }
-          ],
-          "glass-specializations": [
-            {
-              "value": false
-            },
-            {
-              "appearance": "tinted",
-              "value": true
-            }
-          ],
+          "hidden": false,
+          "image-name": "cat.png",
+          "name": "cat",
+          "opacity": 1,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [0, 0]
+          }
+        },
+        {
           "hidden": false,
           "image-name": "eyes.png",
           "name": "eyes",
           "opacity": 1,
           "position": {
-            "scale": 0.206,
-            "translation-in-points": [
-              0,
-              -14
-            ]
+            "scale": 1,
+            "translation-in-points": [0, 0]
           }
         }
       ],
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.5
+        "opacity": 0.4
       },
       "translucency": {
-        "enabled": true,
-        "value": 0.5
+        "enabled": false,
+        "value": 0
       }
     }
   ],

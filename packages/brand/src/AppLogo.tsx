@@ -1,5 +1,5 @@
 import { createEffect, createSignal, flush, onCleanup } from "solid-js";
-import { APP_LOGO_CORNER, APP_LOGO_EYE_POINTS, APP_LOGO_SIZE } from "./app-logo-shape";
+import { APP_LOGO_CAT_PATH, APP_LOGO_CORNER, APP_LOGO_EYE_POINTS, APP_LOGO_SIZE } from "./app-logo-shape";
 
 export type AppLogoAnimation = "none" | "blink" | "look-around" | "surprised";
 export type AppLogoVariant = "production" | "dev" | "preview";
@@ -157,6 +157,7 @@ export function AppLogo(props: AppLogoProps) {
         rx={APP_LOGO_CORNER}
         ry={APP_LOGO_CORNER}
       />
+      <path class="app-logo-cat" d={APP_LOGO_CAT_PATH} />
       <g class="app-logo-eye-motion">
         <polyline class="app-logo-eye app-logo-eye-left" points={APP_LOGO_EYE_POINTS.left} />
       </g>
