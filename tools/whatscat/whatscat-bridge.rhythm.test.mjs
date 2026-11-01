@@ -295,7 +295,7 @@ test("resposta longa sai em várias mensagens, na ordem, com pausa proporcional 
   for (const ms of sleeps) assert.ok(ms >= 1500 && ms <= 5000);
   assert.equal(sent[0].gapMs, undefined, "a primeira parte segue o limite normal");
   for (const item of sent.slice(1)) assert.ok(item.gapMs >= 1500 && item.gapMs <= 5000);
-  assert.equal(typed.length, sent.length, "o indicador, se existe, vale antes de cada parte");
+  assert.ok(typed.length >= sent.length, "o indicador vale ao entregar ao agente e antes de cada parte");
   const rows = readFileSync(bridge.files.metrics, "utf8")
     .trim()
     .split("\n")

@@ -539,6 +539,18 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
   /** O teto desde a primeira mensagem: nunca menor que o silêncio configurado. */
   const hardMs = () => Math.max(windowMs(), (config.groupMaxSeconds ?? DEFAULT_GROUP_MAX_SECONDS) * 1000);
   const sleep = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  /** Mostra "digitando" no WhatsApp, renovando a cada 8 s por contato. Falhar nunca atrapalha a resposta. */
+  const lastTyping = new Map();
+  const showTyping = async (chatId) => {
+    if (now() - (lastTyping.get(chatId) ?? 0) < 8000) return;
+    lastTyping.set(chatId, now());
+    try {
+      await deps.typing?.(chatId);
+    } catch {
+      // Sem indicador a resposta sai igual.
+    }
+  };
+
   const openDelivery = (state, chatId) => state.pending.some((item) => item.chatId === chatId);
   const contactOf = (state, chatId) => {
     state.contacts[chatId] ??= { replies: [] };
@@ -897,6 +909,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
           ...(threaded ? { key: `WhatsApp #${label}`, taskId: state.threads[item.chatId]?.taskId } : {}),
         });
         if (threaded) trackThread(state, item.chatId, receipt);
+        await showTyping(item.chatId);
         if (receipt?.deliveryId) {
           state.pending.push({
             deliveryId: receipt.deliveryId,
@@ -1004,6 +1017,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       }
       if (["queued", "starting", "running"].includes(delivery?.status)) {
         stillPending.push(item);
+        await showTyping(item.chatId);
       } else if (delivery?.status === "completed" && typeof delivery.answer === "string" && delivery.answer.trim()) {
         await processAnswer(state, item, delivery.answer);
       } else {

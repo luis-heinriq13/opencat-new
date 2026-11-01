@@ -295,6 +295,29 @@ function accountOf(state) {
 const callEngine = (name, args) => remote("tools/call", { name, arguments: args });
 
 /** O que o motor oferece, lido só da lista de ferramentas dele e repetido a cada 10 minutos. */
+/** O indicador de digitação vem do wacli, que divide o armazenamento com o serviço. */
+function sendTypingIndicator(chatId) {
+  return new Promise((resolve) => {
+    execFile(
+      ENGINE,
+      [
+        "presence",
+        "typing",
+        "--to",
+        String(chatId),
+        "--store",
+        join(DATA_DIR, "store"),
+        "--lock-wait",
+        "3s",
+        "--timeout",
+        "12s",
+      ],
+      { timeout: 20_000 },
+      () => resolve(),
+    );
+  });
+}
+
 let enginePlan = { updates: null, typing: null };
 let enginePlanAt = 0;
 let updatesReader = null;
@@ -319,7 +342,7 @@ function bridgeDeps(config) {
   return {
     readMessages: createEngineReader(callEngine),
     ...(updatesReader ? { updates: updatesReader } : {}),
-    ...(enginePlan.typing ? { typing: (chatId) => callEngine(enginePlan.typing.name, { chat_id: chatId }) } : {}),
+    typing: (chatId) => sendTypingIndicator(chatId),
     listChats: async () => {
       if (Date.now() - chatsCache.at > 15_000) {
         const ids = ((await control("GET", "/catalog"))?.chats ?? [])
