@@ -48,6 +48,22 @@ export function SidebarTopbar() {
         {(serverMenu) => <ServerMenu {...serverMenu()} serverName={props.serverName} compact={props.compact} />}
       </Show>
       <div class="sidebar-topbar-actions">
+        <Show when={!props.compact && props.onCollapse}>
+          {(collapse) => (
+            <IconButton
+              variant="ghost"
+              type="button"
+              class="sidebar-icon-button sidebar-collapse-button no-drag"
+              label={t("sidebar.topbar.collapse")}
+              tooltip={t("sidebar.topbar.collapse")}
+              aria-controls="agent-sidebar"
+              aria-expanded="true"
+              onClick={() => collapse()()}
+            >
+              <SidebarToggleIcon />
+            </IconButton>
+          )}
+        </Show>
         <Show when={!props.compact && props.chatHistory}>
           {(history) => {
             const backLabel = () => {

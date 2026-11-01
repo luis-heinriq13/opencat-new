@@ -22,6 +22,16 @@
 :root[data-openbot-color-scheme="light"] {
   color-scheme: light;
 
+  /* OpenCat's desktop workspace. These are applied only by its app frame, so web and mobile
+     keep their existing palette. */
+  --openbot-cat-accent: #f34832;
+  --openbot-cat-accent-hover: #dc3928;
+  --openbot-cat-accent-text: #b72e20;
+  --openbot-cat-accent-soft: rgba(243, 72, 50, 0.1);
+  --openbot-cat-accent-strong: rgba(243, 72, 50, 0.25);
+  --openbot-cat-canvas: #fffaf8;
+  --openbot-cat-sidebar: #fffdfc;
+
   --openbot-bg-canvas: #f5f5f6;
   --attendance-accent: #7d5f00;
   --openbot-bg-canvas-clear: rgba(245, 245, 246, 0);

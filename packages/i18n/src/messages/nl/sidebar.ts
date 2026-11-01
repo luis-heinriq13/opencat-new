@@ -19,6 +19,7 @@ export const messages = {
   "sidebar.topbar.localServer": "Lokaal",
   "sidebar.resizer.compactWidth": "Compact ({width}px)",
   "sidebar.topbar.expand": "Zijbalk uitvouwen",
+  "sidebar.topbar.collapse": "Zijbalk inklappen",
   "sidebar.topbar.openMarketplace": "Marktplaats openen",
   "sidebar.topbar.marketplace": "Marktplaats",
   "sidebar.topbar.back": "Terug",
