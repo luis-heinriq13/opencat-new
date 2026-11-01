@@ -58,6 +58,14 @@
   gap: var(--openbot-space-2);
 }
 
+.routine-planner-controls {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--openbot-space-2);
+}
+
 .routine-planner-nav {
   display: flex;
   min-width: 0;
@@ -120,6 +128,7 @@
   display: grid;
   min-width: 0;
   min-height: 12rem;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--openbot-space-1);
   border: 1px solid var(--openbot-border-strong);
@@ -154,10 +163,12 @@
   color: var(--openbot-accent-text);
 }
 
+/* A fixed track: an automatic one grows to the longest name and pushes into the next day. */
 .routine-planner-runs,
 .routine-planner-entries {
   display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--openbot-space-0-5);
   margin: 0;
   padding: 0;
@@ -194,6 +205,37 @@
 
 .routine-planner-status[data-status="completed"] {
   color: var(--openbot-success-text);
+}
+
+.routine-planner-failures {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--openbot-space-0-5);
+  color: var(--openbot-danger-text);
+  font-size: var(--openbot-text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.routine-planner-failures > svg {
+  width: var(--openbot-space-3);
+  height: var(--openbot-space-3);
+  stroke-width: 2;
+}
+
+.routine-planner-day-summary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0 var(--openbot-space-1-5);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-planner-day-failures {
+  color: var(--openbot-danger-text);
 }
 
 .routine-planner-avatars {
@@ -255,19 +297,8 @@
 }
 
 /* A paused run would happen if the routine resumed. It keeps its place but loses its weight. */
-.routine-planner-run[data-status="paused"],
 .routine-planner-entry[data-status="paused"] {
   opacity: 0.6;
-}
-
-.routine-planner-run[data-status="paused"] {
-  outline: 1px dashed var(--openbot-border-grouped);
-  outline-offset: -1px;
-  background: var(--openbot-transparent);
-}
-
-.routine-planner-run[data-status="failed"] {
-  background: var(--openbot-danger-soft);
 }
 
 .routine-planner-run[data-status="completed"] .routine-planner-run-name {
@@ -279,38 +310,38 @@
   color: var(--openbot-text-muted);
 }
 
-/* The agent chips and the new-routine action share one row under the navigation. */
-.routine-planner-filters {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--openbot-space-2);
+/* The agent filter. A choice shows on the trigger, in the accent, with the avatars it picked. */
+.routine-planner-agent-trigger.ui-button {
+  gap: var(--openbot-space-1-5);
 }
 
-.routine-planner-filters > :only-child {
-  margin-left: auto;
+.routine-planner-agent-trigger > svg {
+  width: var(--openbot-space-3);
+  height: var(--openbot-space-3);
+  color: var(--openbot-text-muted);
 }
 
-.routine-planner-agent-filter {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: var(--openbot-space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.routine-planner-agent-chip.ui-icon-button[aria-pressed="true"] {
+.routine-planner-agent-trigger[data-active].ui-button {
+  border-color: var(--openbot-accent-strong);
   background: var(--openbot-accent-soft);
-  box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
+  color: var(--openbot-accent-text);
+}
+
+.routine-planner-agent-menu {
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.routine-planner-agent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*
- * The week: an hour axis and seven day columns. Each column is a subgrid of the same hour rows, so
- * a cell that grows with many runs grows the row for every day. A narrow pane scrolls sideways.
+ * The week: an hour axis and seven day columns. Each column is a subgrid of the same rows, so a cell
+ * that a person opens grows the row for every day. A narrow pane scrolls sideways.
  */
 .routine-planner-timegrid-scroll {
   min-width: 0;
@@ -321,7 +352,8 @@
   display: grid;
   min-width: 44rem;
   grid-template-columns: 3.5rem repeat(7, minmax(0, 1fr));
-  grid-template-rows: auto repeat(var(--routine-planner-hours), minmax(3.25rem, auto));
+  grid-template-rows: auto repeat(var(--routine-planner-hours), minmax(var(--openbot-space-6), auto));
+  overflow: clip;
   border: 1px solid var(--openbot-border-strong);
   border-radius: var(--openbot-radius-lg);
   background: var(--openbot-bg-surface);
@@ -331,6 +363,7 @@
 .routine-planner-column {
   display: grid;
   grid-row: 1 / span calc(var(--routine-planner-hours) + 1);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: subgrid;
   min-width: 0;
 }
@@ -348,8 +381,9 @@
   text-align: right;
 }
 
-.routine-planner-hour-axis > span:first-child {
-  grid-row: 2;
+/* The empty first row, across from the day headings. The labels follow it in order. */
+.routine-planner-hour-axis::before {
+  content: "";
 }
 
 .routine-planner-column {
@@ -360,8 +394,16 @@
   background: var(--openbot-accent-soft);
 }
 
-.routine-planner-column .routine-planner-day-heading {
+.routine-planner-column-head {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--openbot-space-0-5);
   padding: var(--openbot-space-1);
+}
+
+.routine-planner-column-head .routine-planner-day-summary {
+  padding-inline: var(--openbot-space-2);
 }
 
 .routine-planner-column[data-today] .routine-planner-day-button strong {
@@ -374,15 +416,19 @@
   padding: var(--openbot-space-0-5);
 }
 
+/* The same two lines in every row: the name, then the time or count with the outcome. */
 .routine-planner-chip.ui-button {
-  display: flex;
+  display: grid;
   width: 100%;
   height: auto;
-  min-height: var(--openbot-control-xs);
   min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name name name"
+    "avatars meta mark";
   align-items: center;
-  justify-content: flex-start;
-  gap: var(--openbot-space-1);
+  justify-items: start;
+  gap: 0 var(--openbot-space-1);
   border-radius: var(--openbot-radius-sm);
   background: var(--openbot-bg-control);
   padding: var(--openbot-space-0-5) var(--openbot-space-1);
@@ -390,20 +436,47 @@
   font-size: var(--openbot-text-sm);
 }
 
-.routine-planner-chip .routine-planner-run-time {
-  flex: 0 0 auto;
-}
-
-.routine-planner-chip-name {
+.routine-planner-chip-name,
+.routine-planner-chip-meta {
+  width: 100%;
   min-width: 0;
-  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.routine-planner-chip .routine-planner-status {
+.routine-planner-chip-name {
+  grid-area: name;
+}
+
+.routine-planner-chip-meta {
+  grid-area: meta;
+  color: var(--openbot-text-muted);
+  font-weight: var(--openbot-weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-planner-chip .routine-planner-avatars {
+  grid-area: avatars;
+}
+
+.routine-planner-chip-mark {
+  display: flex;
+  grid-area: mark;
+  align-items: center;
+  gap: var(--openbot-space-0-5);
+}
+
+.routine-planner-chip-chevron {
   flex: 0 0 auto;
+  width: var(--openbot-space-3);
+  height: var(--openbot-space-3);
+  color: var(--openbot-text-muted);
+}
+
+[aria-expanded="true"] > .routine-planner-chip-chevron,
+[aria-expanded="true"] > .routine-planner-chip-mark > .routine-planner-chip-chevron {
+  transform: rotate(180deg);
 }
 
 .routine-planner-chip[data-status="paused"] {
@@ -413,12 +486,41 @@
   opacity: 0.6;
 }
 
-.routine-planner-chip[data-status="failed"] {
-  background: var(--openbot-danger-soft);
+.routine-planner-block {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--openbot-space-0-5);
 }
 
-.routine-planner-chip[data-status="completed"] .routine-planner-chip-name {
-  color: var(--openbot-text-muted);
+/* A row that opens shows its times as small items, as many in a line as fit. */
+.routine-planner-single-runs {
+  display: grid;
+  min-width: 0;
+  flex: 0 0 100%;
+  grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
+  gap: var(--openbot-space-0-5);
+  margin: var(--openbot-space-0-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-planner-single-run.ui-button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  justify-content: space-between;
+  gap: var(--openbot-space-0-5);
+  border-radius: var(--openbot-radius-sm);
+  padding: 0 var(--openbot-space-0-5);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-regular);
+}
+
+.routine-planner-single-run .routine-planner-status {
+  width: var(--openbot-space-3);
+  flex: 0 0 auto;
 }
 
 /* A month has up to six rows of days: a run is one line, and the column heads name the weekdays. */
@@ -430,19 +532,11 @@
   display: none;
 }
 
-.routine-planner[data-view="month"] .routine-planner-run.ui-button {
-  grid-template-columns: auto auto minmax(0, 1fr);
-  grid-template-areas: "mark time name";
+.routine-planner[data-view="month"] .routine-planner-chip.ui-button {
+  grid-template-areas: "meta name mark";
 }
 
-.routine-planner[data-view="month"] .routine-planner-run-name {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.routine-planner[data-view="month"] .routine-planner-run .routine-planner-avatars {
+.routine-planner[data-view="month"] .routine-planner-chip .routine-planner-avatars {
   display: none;
 }
 
@@ -495,6 +589,7 @@
 .routine-planner-entry {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--openbot-space-1);
 }
@@ -503,7 +598,7 @@
   display: flex;
   min-width: 0;
   height: auto;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   align-items: center;
   justify-content: flex-start;
   gap: var(--openbot-space-2);
@@ -515,6 +610,7 @@
 .routine-planner-entry-text {
   display: grid;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .routine-planner-entry-name,
@@ -541,6 +637,14 @@
 .routine-planner-entry-agents {
   display: flex;
   flex: 0 0 auto;
+  align-items: center;
+}
+
+.routine-planner-more-agents {
+  padding-inline: var(--openbot-space-1);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .routine-planner-agent .routine-planner-avatar.agent-avatar {

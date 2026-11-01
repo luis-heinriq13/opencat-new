@@ -155,6 +155,106 @@ const MANY_ROUTINES: StoryRoutine[] = Array.from({ length: 40 }, (_, index) => {
   );
 });
 
+const FORTALEZA = "America/Fortaleza";
+/** Sunday, November 1, 2026, 15:34 in Fortaleza. */
+const CROWDED_NOW = new Date("2026-11-01T18:34:00.000Z");
+const CROWDED_DAYS = ["2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"];
+
+/** Twenty agents with a routine each would be a wall of avatars: the filter is one menu. */
+const CROWDED_AGENTS: RoutineCalendarAgent[] = Array.from({ length: 20 }, (_, index) => ({
+  id: `crowded-agent-${index}`,
+  name: `Agente ${index + 1}`,
+  avatarSeed: `crowded-${index}`,
+  avatarHue: null,
+  avatarUrl: null,
+}));
+
+const crowdedAgent = (index: number) => CROWDED_AGENTS[index];
+
+const CROWDED_ROUTINES: StoryRoutine[] = [
+  routine("monitoring", "Monitoramento dos agentes", [crowdedAgent(0)], { kind: "hourly", minute: 12 }),
+  routine("post-install", "Pós-instalação do OpenCat", [crowdedAgent(0)], { kind: "hourly", minute: 27 }),
+  routine("disk-check", "Checagem de disco", [crowdedAgent(1)], {
+    kind: "interval",
+    amount: 6,
+    unit: "hours",
+    anchorAt: "2026-10-01T00:00:00.000Z",
+  }),
+  routine("daily-summary", "Resumo diário", [crowdedAgent(2)], { kind: "daily", time: "08:00" }),
+  routine("daily-summary-2", "Resumo diário", [crowdedAgent(3)], { kind: "daily", time: "08:00" }),
+  routine("health", "ChatNeed — Saúde diária (Sentinela)", [crowdedAgent(4)], { kind: "daily", time: "08:00" }),
+  routine("disk-summary", "Resumo do disco", [crowdedAgent(1)], { kind: "daily", time: "09:00" }),
+  routine("fork-update", "Atualização do fork do OpenBot", [crowdedAgent(5)], { kind: "daily", time: "06:40" }),
+  routine("channel-review", "Revisão do canal com todos os agentes", CROWDED_AGENTS.slice(6, 14), {
+    kind: "daily",
+    time: "17:00",
+  }),
+  ...CROWDED_AGENTS.slice(14).map((agent, index) =>
+    routine(`weekly-${index}`, `Relatório semanal ${index + 1}`, [agent], {
+      kind: "daily",
+      time: `${String(10 + index).padStart(2, "0")}:30`,
+    }),
+  ),
+];
+
+/** The times of a story routine on one day, as "HH:MM". */
+function crowdedTimes(item: StoryRoutine): string[] {
+  const hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
+  switch (item.schedule.kind) {
+    case "hourly": {
+      const minute = String(item.schedule.minute).padStart(2, "0");
+      return hours.map((hour) => `${hour}:${minute}`);
+    }
+    case "interval":
+      return hours.filter((_, hour) => hour % 6 === 0).map((hour) => `${hour}:00`);
+    case "daily":
+      return [item.schedule.time];
+    default:
+      return [];
+  }
+}
+
+/** The failures are fixed, so that the story stays the same in each run. */
+function crowdedRuns(): RoutineCalendarRun[] {
+  const runs: RoutineCalendarRun[] = [];
+  let count = 0;
+  for (const day of CROWDED_DAYS) {
+    for (const item of CROWDED_ROUTINES) {
+      for (const time of crowdedTimes(item)) {
+        count += 1;
+        const at = zonedInstant(day, time, FORTALEZA);
+        runs.push({
+          id: `${item.id}-${day}-${time}`,
+          routineId: item.id,
+          at: at.toISOString(),
+          status: at.getTime() >= CROWDED_NOW.getTime() ? "active" : count % 7 === 0 ? "failed" : "completed",
+        });
+      }
+    }
+  }
+  return runs;
+}
+
+/** The props go in directly, so that this story does not depend on the Storybook args. */
+function crowdedStory(initialView: "week" | "day" | "month"): Story {
+  return {
+    render: () => (
+      <main style={{ width: "min(1400px, 100vw)", padding: "var(--openbot-space-6)" }}>
+        <RoutineCalendar
+          routines={CROWDED_ROUTINES}
+          runs={crowdedRuns()}
+          agents={CROWDED_AGENTS}
+          now={CROWDED_NOW}
+          timeZone={FORTALEZA}
+          initialView={initialView}
+          onOpenRoutine={fn()}
+          onOpenAgent={fn()}
+        />
+      </main>
+    ),
+  };
+}
+
 const meta = {
   title: "Routines/Calendar",
   component: RoutineCalendar,
@@ -188,7 +288,7 @@ type Story = StoryObj<typeof meta>;
 /**
  * Hours down the left, a column for each day, today highlighted. Only the hours with runs show.
  * Past runs show their outcome. Weekly planning is paused, so its Friday run is a dashed ghost.
- * The agent chips above the grid filter the runs; Create Routine asks for the agent.
+ * The Agents menu in the toolbar filters the runs.
  */
 export const Week: Story = {};
 
@@ -197,10 +297,10 @@ export const WeekOneRoutine: Story = {
   args: { routines: ROUTINES.slice(0, 1), runs: runsFor(ROUTINES.slice(0, 1), NOW, WARSAW) },
 };
 
-/** One agent has nobody to filter against, so the chips leave the row. */
+/** One agent has nobody to filter against, so the Agents menu leaves the toolbar. */
 export const WeekOneAgent: Story = { args: { agents: STORY_AGENTS.slice(0, 1) } };
 
-/** One day by the hour. Each run opens its routine; each avatar opens its agent. */
+/** One day: its count, the routines that repeat, then the rest by hour. Each avatar opens its agent. */
 export const Day: Story = { args: { initialView: "day" } };
 
 /** October in whole weeks. The days of September and November only fill the first and last rows. */
@@ -217,7 +317,7 @@ export const ClockChangeWeek: Story = {
 /** A viewer in New York sees the Warsaw routines at New York times, on New York days. */
 export const OtherTimeZone: Story = { args: { timeZone: "America/New_York" } };
 
-/** Forty routines: a day shows four runs and a count; the count opens the day view. */
+/** Forty routines: routines at the same hour share one row, which opens them. */
 export const ManyRoutines: Story = {
   args: { routines: MANY_ROUTINES, runs: runsFor(MANY_ROUTINES, NOW, WARSAW) },
 };
@@ -226,10 +326,20 @@ export const ManyRoutinesDay: Story = {
   args: { ...ManyRoutines.args, initialView: "day" },
 };
 
-/** A month day shows three runs and a count. */
+/** A month day shows three routines and a count. */
 export const ManyRoutinesMonth: Story = {
   args: { ...ManyRoutines.args, initialView: "month" },
 };
+
+/**
+ * A week as a person with many routines sees it: hourly routines, routines with the same name, a
+ * channel with eight agents, and failures. A repeating routine is one row, and a row opens its runs.
+ */
+export const Crowded: Story = crowdedStory("week");
+
+export const CrowdedDay: Story = crowdedStory("day");
+
+export const CrowdedMonth: Story = crowdedStory("month");
 
 /** Routines exist, but none of them runs in this range. */
 export const NoRunsThisWeek: Story = { args: { runs: [] } };
