@@ -2,7 +2,6 @@ import { useText } from "@openbot/ui/text";
 import { Loading, Match, Show, Switch } from "solid-js";
 import { AgentUsagePanel, WorkflowsPage } from "../../lazy-views";
 import { SkillsMarketplace } from "../../WorkspaceOverlays";
-import { BulletinPanel } from "../bulletin/BulletinPanel";
 import { SchedulePanel } from "../schedule/SchedulePanel";
 import { useServers } from "../servers/servers-context";
 import { useUsage } from "../usage/usage-context";
@@ -49,9 +48,6 @@ export function WindowPageView() {
         >
           <Match when={usage.state.view === "schedule"}>
             <SchedulePanel serverId={serverId()} hostName={hostName(serverId())} onBack={usage.closeUsage} />
-          </Match>
-          <Match when={usage.state.view === "bulletin"}>
-            <BulletinPanel serverId={serverId()} hostName={hostName(serverId())} onBack={usage.closeUsage} />
           </Match>
           <Match when={usage.state.view === "workflows"}>
             <Loading>
