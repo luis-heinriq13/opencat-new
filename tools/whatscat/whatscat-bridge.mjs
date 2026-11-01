@@ -224,6 +224,8 @@ export function readBridgeSettings(file) {
     groupConfigs,
     excludes: list(record.excludes).filter((id) => !isGroupChat(id)),
     internalContacts: list(record.internalContacts).filter((id) => !isGroupChat(id)),
+    internoTambemCliente: record.internoTambemCliente === true,
+    nomeAgente: typeof record.nomeAgente === "string" ? record.nomeAgente : "",
     aceitoAcessoTotal: record.aceitoAcessoTotal === true,
     agentSendTools: record.agentSendTools === true,
     quietHours: quietOf(record.quietHours),
@@ -455,6 +457,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     metrics: join(dir, "opencat-ponte-metricas.jsonl"),
     notice: join(dir, "opencat-ponte-aviso.json"),
     resume: join(dir, "opencat-ponte-retomar.json"),
+    names: join(dir, "opencat-ponte-nomes.json"),
     contacts: join(dir, "contatos"),
     attachments: join(dir, "anexos"),
   };
@@ -480,8 +483,22 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     if (fresh) chmodSync(files.audit, 0o600);
   };
   /** Uma linha por evento, sem texto e sem número, para um painel de métricas. Gira por tamanho. */
+  /** O nome de cada conversa, num arquivo privado (0600): a página Atendimentos mostra o nome e retoma por ele. */
+  const knownNames = new Map();
+  const rememberName = (chatId) => {
+    const nome = labelOf(chatId);
+    if (knownNames.get(chatId) === nome) return;
+    knownNames.set(chatId, nome);
+    const stored = readJson(files.names, {});
+    writePrivate(files.names, {
+      ...(stored && typeof stored === "object" ? stored : {}),
+      [shortHash(chatId)]: { chatId, nome },
+    });
+  };
+
   const metric = (evento, chatId, extra = {}) => {
     try {
+      rememberName(chatId);
       mkdirSync(dir, { recursive: true, mode: 0o700 });
       if (existsSync(files.metrics) && statSync(files.metrics).size > METRICS_MAX_BYTES) {
         renameSync(files.metrics, `${files.metrics}.1`);
@@ -643,7 +660,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
           `*${sanitizeLabel(config.nomeAgente) || "Atendimento"}: precisa de uma pessoa*`,
           `Contato: ${labelOf(chatId)}`,
           `Motivo: ${REASON_TEXT[code] ?? code}`,
-          "O agente parou de responder este contato. Para retomar: Loja > WhatsApp (não oficial) > painel.",
+          "O agente parou de responder este contato. Para retomar: página Atendimentos > Retomar.",
         ].join("\n"),
         receivedAt: now(),
       });

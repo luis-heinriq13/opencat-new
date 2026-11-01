@@ -10,6 +10,7 @@ function AttendanceStory(props: { state?: "full" | "empty" | "paused"; narrow?: 
   const now = Date.now();
   const port = {
     attendance: {
+      resumeConversation: async () => {},
       report: async (period: "today" | "7d" | "30d") =>
         state() === "empty"
           ? emptyAttendanceReport(period, now)

@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, shell } from "electron";
 import { isPanelCloseUrl, isPanelUrlAllowed } from "./whatscat-panel-navigation";
+import { isAppearanceDark, windowBackgroundColor } from "./window-appearance";
 
 /** The address the store's panel button asks for. `openUrl` opens the panel instead of a browser. */
 export const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
@@ -186,6 +187,7 @@ async function createPanel(parent: BrowserWindow | null): Promise<void> {
     minHeight: 520,
     title: "WhatsApp (não oficial)",
     show: false,
+    backgroundColor: windowBackgroundColor("#1a1a1a"),
     ...(holder ? { parent: holder, modal: true } : {}),
     minimizable: !holder,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
@@ -218,7 +220,7 @@ async function createPanel(parent: BrowserWindow | null): Promise<void> {
     child.kill();
   });
   try {
-    await window.loadURL(url);
+    await window.loadURL(`${url}#tema=${isAppearanceDark() ? "dark" : "light"}`);
   } catch (error) {
     if (!window.isDestroyed()) window.destroy();
     throw error;

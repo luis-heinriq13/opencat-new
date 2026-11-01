@@ -76,6 +76,7 @@ export const messages = defineMessages("attendance", {
   "attendance.attention.falhou": "Reply failed",
   "attendance.attention.contact": "Contact {ref}",
   "attendance.attention.group": "Group {ref}",
+  "attendance.attention.resume": "Resume",
   "attendance.failures.title": "Provider failures",
   "attendance.failures.empty": "No failures in this period.",
   "attendance.failures.limite": "Usage limit",

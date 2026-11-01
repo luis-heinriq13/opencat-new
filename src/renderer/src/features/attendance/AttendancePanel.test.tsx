@@ -8,7 +8,10 @@ const NOW = new Date(2026, 5, 15, 14, 30).getTime();
 
 function port(report: (period: "today" | "7d" | "30d") => ReturnType<typeof mockAttendanceReport>) {
   return {
-    attendance: { report: vi.fn(async (period: "today" | "7d" | "30d") => report(period)) },
+    attendance: {
+      report: vi.fn(async (period: "today" | "7d" | "30d") => report(period)),
+      resumeConversation: vi.fn(async () => {}),
+    },
     appConnections: { change: vi.fn(async () => NO_APP_CONNECTION) },
   };
 }

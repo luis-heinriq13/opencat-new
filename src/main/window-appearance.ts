@@ -30,10 +30,14 @@ export function setWindowAppearance(preference: AppAppearancePreference): void {
   for (const listener of listeners) listener();
 }
 
+/** Whether the app shows its dark colors now. A panel with its own page opens with the same choice. */
+export function isAppearanceDark(): boolean {
+  return current.appearance === "system" ? nativeTheme.shouldUseDarkColors : current.appearance === "dark";
+}
+
 /** The background a window shows before its page paints, and around it while it resizes. */
 export function windowBackgroundColor(darkColor: string): string {
-  const dark = current.appearance === "system" ? nativeTheme.shouldUseDarkColors : current.appearance === "dark";
-  return dark ? darkColor : LIGHT_WINDOW_BACKGROUND;
+  return isAppearanceDark() ? darkColor : LIGHT_WINDOW_BACKGROUND;
 }
 
 /** Keeps an opaque window's background on the current appearance until the window closes. */

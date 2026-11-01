@@ -30,6 +30,8 @@ export interface AttendanceViewProps {
   actionFailed?: boolean | undefined;
   onPause: () => void;
   onResume: () => void;
+  /** Makes the agent answer one paused conversation again. */
+  onResumeConversation: (ref: string) => void;
   onOpenStore: () => void;
   onRetry: () => void;
   onBack: () => void;
@@ -204,6 +206,8 @@ export function AttendanceView(props: AttendanceViewProps) {
         <Show when={props.report && !showEmpty() && props.report}>
           {(report) => (
             <AttendanceReportBody
+              busy={props.busy}
+              onResumeConversation={props.onResumeConversation}
               report={report()}
               period={props.period}
               minutesPerReply={props.minutesPerReply}
@@ -220,6 +224,8 @@ export function AttendanceView(props: AttendanceViewProps) {
 }
 
 function AttendanceReportBody(props: {
+  busy?: boolean | undefined;
+  onResumeConversation: (ref: string) => void;
   report: AttendanceReport;
   period: AttendancePeriod;
   minutesPerReply: number;
@@ -641,15 +647,27 @@ function AttendanceReportBody(props: {
                     </span>
                     <span class="attendance-attention-text">
                       <strong>
-                        {item().kind === "group"
-                          ? t("attendance.attention.group", { ref: item().ref })
-                          : t("attendance.attention.contact", { ref: item().ref })}
+                        {item().name ??
+                          (item().kind === "group"
+                            ? t("attendance.attention.group", { ref: item().ref })
+                            : t("attendance.attention.contact", { ref: item().ref }))}
                       </strong>
                       <span class="attendance-attention-meta">
                         {t(EVENT_LABELS[item().event])}
                         <Show when={item().category}>{(category) => <> · {t(FAILURE_LABELS[category()])}</>}</Show>
                       </span>
                     </span>
+                    <Show when={item().paused}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={props.busy}
+                        onClick={() => props.onResumeConversation(item().ref)}
+                      >
+                        {t("attendance.attention.resume")}
+                      </Button>
+                    </Show>
                     <time class="attendance-attention-meta" datetime={new Date(item().at).toISOString()}>
                       {format.date(item().at, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </time>

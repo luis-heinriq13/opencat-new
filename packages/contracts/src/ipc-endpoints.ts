@@ -1180,9 +1180,10 @@ export const IPC_ENDPOINTS = {
     change: request<AppConnectionChange, AppConnectionStatus>()("app-connections:change"),
   },
   // The attendance report of the WhatsApp (not official) connection: counts, times and hash labels,
-  // read from the local metrics file. No message, phone number or name crosses.
+  // read from the local metrics file, with the contact's name. No message or full phone number crosses.
   attendance: {
     report: request<AttendancePeriod, AttendanceReport>()("attendance:report"),
+    resumeConversation: request<string, void>()("attendance:resume-conversation"),
   },
   // The Bitwarden connection of this computer. The session key goes from the renderer to main once,
   // in `connect`; every answer is the status only. The `host*` endpoints do the same for a joined

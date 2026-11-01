@@ -35,11 +35,15 @@ export interface AttendanceLatencyHour {
   failures: number;
 }
 
-/** A conversation that needs a person. The label comes from the hash only. */
+/** A conversation that needs a person. */
 export interface AttendanceAttentionItem {
   at: number;
-  /** The first characters of the conversation hash. */
+  /** The first characters of the conversation hash: shown when there is no name, and named in `resumeConversation`. */
   ref: string;
+  /** The contact's name or masked number, or null when the bridge has not seen it since it began to record names. */
+  name: string | null;
+  /** The agent is paused for this conversation now. Only the newest item of a conversation says so. */
+  paused: boolean;
   kind: AttendanceKind;
   event: "humano" | "bloqueada" | "falhou";
   category: AttendanceErrorCategory | null;

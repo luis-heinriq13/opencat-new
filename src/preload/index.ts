@@ -876,6 +876,7 @@ const openbotApi: OpenBotDesktopApi = {
   }),
   attendance: bridgeGroup(IPC_ENDPOINTS.attendance, {
     report: decodeAttendanceReport,
+    resumeConversation: decodeVoid,
   }),
   bitwardenConnector: bridgeGroup(IPC_ENDPOINTS.bitwardenConnector, {
     status: decodeBitwardenConnectorStatus,

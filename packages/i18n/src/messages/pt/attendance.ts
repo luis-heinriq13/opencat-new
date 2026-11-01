@@ -76,6 +76,7 @@ export const messages = {
   "attendance.attention.falhou": "A resposta falhou",
   "attendance.attention.contact": "Contato {ref}",
   "attendance.attention.group": "Grupo {ref}",
+  "attendance.attention.resume": "Retomar",
   "attendance.failures.title": "Falhas do provedor",
   "attendance.failures.empty": "Nenhuma falha neste período.",
   "attendance.failures.limite": "Limite de uso",

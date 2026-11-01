@@ -2,7 +2,7 @@ import type { OpenBotDesktopApi } from "@openbot/contracts/ipc";
 
 /** What the attendance page reaches in main: the report, and the connection that Pause and Resume change. */
 export interface AttendancePort {
-  attendance: Pick<OpenBotDesktopApi["attendance"], "report">;
+  attendance: Pick<OpenBotDesktopApi["attendance"], "report" | "resumeConversation">;
   appConnections: Pick<OpenBotDesktopApi["appConnections"], "change">;
 }
 

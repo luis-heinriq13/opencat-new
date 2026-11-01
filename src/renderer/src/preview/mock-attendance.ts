@@ -97,11 +97,56 @@ export function mockAttendanceReport(
     latency,
     latencyOverall: { p50: 7_400, p90: 31_000 },
     attention: [
-      { at: now - 25 * 60_000, ref: refs[0], kind: "contact", event: "humano", category: null },
-      { at: now - 3 * HOUR, ref: refs[1], kind: "contact", event: "falhou", category: "limite" },
-      { at: now - 5 * HOUR, ref: refs[2], kind: "group", event: "bloqueada", category: null },
-      { at: now - 9 * HOUR, ref: refs[3], kind: "contact", event: "humano", category: null },
-      { at: now - 26 * HOUR, ref: refs[4], kind: "contact", event: "falhou", category: "motor" },
+      {
+        at: now - 25 * 60_000,
+        ref: refs[0],
+
+        name: null,
+        paused: false,
+        kind: "contact",
+        event: "humano",
+        category: null,
+      },
+      {
+        at: now - 3 * HOUR,
+        ref: refs[1],
+
+        name: null,
+        paused: false,
+        kind: "contact",
+        event: "falhou",
+        category: "limite",
+      },
+      {
+        at: now - 5 * HOUR,
+        ref: refs[2],
+
+        name: null,
+        paused: false,
+        kind: "group",
+        event: "bloqueada",
+        category: null,
+      },
+      {
+        at: now - 9 * HOUR,
+        ref: refs[3],
+
+        name: null,
+        paused: false,
+        kind: "contact",
+        event: "humano",
+        category: null,
+      },
+      {
+        at: now - 26 * HOUR,
+        ref: refs[4],
+
+        name: null,
+        paused: false,
+        kind: "contact",
+        event: "falhou",
+        category: "motor",
+      },
     ],
     failures: [
       { category: "limite", count: Math.max(1, Math.round(failed * 0.5)) },
@@ -129,5 +174,5 @@ export function emptyAttendanceReport(period: AttendancePeriod, now: number): At
 
 /** The preview answers with the fictional report. */
 export function createMockAttendance(): OpenBotDesktopApi["attendance"] {
-  return { report: async (period) => mockAttendanceReport(period, Date.now()) };
+  return { report: async (period) => mockAttendanceReport(period, Date.now()), resumeConversation: async () => {} };
 }

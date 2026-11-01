@@ -79,12 +79,23 @@ export function decodeAttendanceReport(value: unknown): AttendanceReport {
         !isDynamicRecord(item) ||
         !isNumber(item.at) ||
         typeof item.ref !== "string" ||
+        !(item.name === null || typeof item.name === "string") ||
+        typeof item.paused !== "boolean" ||
         (item.kind !== "contact" && item.kind !== "group") ||
         (item.event !== "humano" && item.event !== "bloqueada" && item.event !== "falhou") ||
         !(item.category === null || isOneOf(ATTENDANCE_ERROR_CATEGORIES, item.category))
       )
         throw new Error("Invalid attendance report.");
-      return { at: item.at, ref: item.ref.slice(0, 8), kind: item.kind, event: item.event, category: item.category };
+      return {
+        at: item.at,
+        ref: item.ref.slice(0, 8),
+
+        name: item.name,
+        paused: item.paused,
+        kind: item.kind,
+        event: item.event,
+        category: item.category,
+      };
     }),
     failures: value.failures.map((entry) => {
       if (!isDynamicRecord(entry) || !isOneOf(ATTENDANCE_ERROR_CATEGORIES, entry.category) || !isNumber(entry.count))

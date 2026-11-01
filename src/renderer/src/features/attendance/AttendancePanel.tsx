@@ -113,6 +113,28 @@ export function AttendancePanel(props: {
     }
   }
 
+  async function resumeConversation(ref: string): Promise<void> {
+    setState((draft) => {
+      draft.busy = true;
+      draft.actionFailed = false;
+    });
+    try {
+      await port().attendance.resumeConversation(ref);
+      // The bridge reads the request on its next turn, a few seconds from now.
+      setState((draft) => {
+        for (const item of draft.report?.attention ?? []) if (item.ref === ref) item.paused = false;
+      });
+    } catch {
+      setState((draft) => {
+        draft.actionFailed = true;
+      });
+    } finally {
+      setState((draft) => {
+        draft.busy = false;
+      });
+    }
+  }
+
   const agentName = () => {
     const agentId = state.report?.connection.agentId;
     return agentId ? props.agentName(agentId) : null;
@@ -149,6 +171,7 @@ export function AttendancePanel(props: {
       actionFailed={state.actionFailed}
       onPause={() => void change("pause")}
       onResume={() => void change("turn-on")}
+      onResumeConversation={(ref) => void resumeConversation(ref)}
       onOpenStore={props.onOpenStore}
       onRetry={() => void load(state.period)}
       onBack={props.onBack}

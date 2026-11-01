@@ -1,8 +1,8 @@
 // OpenCat: the attendance report of the WhatsApp (not official) connection. The bridge writes one line per event to
 // opencat-ponte-metricas.jsonl (and rotates it to .1 by size). This module reads a bounded tail of both files and
-// turns the lines into counts. It never keeps a message, a phone number or a chat id: a line has none, and the
-// report holds only the first characters of the conversation hash.
-import { open, stat } from "node:fs/promises";
+// turns the lines into counts. A line has no message, phone number or chat id. The report adds the contact's name
+// or masked number from the bridge's private names file, and main alone reads the chat id in that file.
+import { open, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ATTENDANCE_ERROR_CATEGORIES,
@@ -17,10 +17,13 @@ import {
   type AttendanceReport,
   NO_APP_CONNECTION,
 } from "@openbot/contracts/ipc";
-import { isDynamicRecord, isOneOf } from "@openbot/contracts/runtime-values";
+import { type DynamicRecord, isDynamicRecord, isOneOf } from "@openbot/contracts/runtime-values";
 import { readAppConnection } from "./opencat-app-connections";
 
 export const METRICS_FILE_NAME = "opencat-ponte-metricas.jsonl";
+const NAMES_FILE_NAME = "opencat-ponte-nomes.json";
+const STATE_FILE_NAME = "opencat-ponte-estado.json";
+const RESUME_FILE_NAME = "opencat-ponte-retomar.json";
 /** Rows older than this are never read into a report. */
 export const METRICS_RETENTION_DAYS = 90;
 /** The most bytes read from one file. The bridge rotates at 1 MB, so a normal file is read whole. */
@@ -162,6 +165,8 @@ export function aggregateAttendance(
         attention.push({
           at: row.at,
           ref: row.conversation.slice(0, 6),
+          name: null,
+          paused: false,
           kind: row.kind,
           event: "humano",
           category: null,
@@ -172,6 +177,8 @@ export function aggregateAttendance(
         attention.push({
           at: row.at,
           ref: row.conversation.slice(0, 6),
+          name: null,
+          paused: false,
           kind: row.kind,
           event: "bloqueada",
           category: null,
@@ -183,7 +190,15 @@ export function aggregateAttendance(
         const slot = hourly[hour];
         if (slot) slot.failures += 1;
         failures.set(category, (failures.get(category) ?? 0) + 1);
-        attention.push({ at: row.at, ref: row.conversation.slice(0, 6), kind: row.kind, event: "falhou", category });
+        attention.push({
+          at: row.at,
+          ref: row.conversation.slice(0, 6),
+          name: null,
+          paused: false,
+          kind: row.kind,
+          event: "falhou",
+          category,
+        });
         break;
       }
       case "pausada":
@@ -263,5 +278,61 @@ export async function readAttendanceReport(
     readMetricRows(dataDirectory, now),
     readAppConnection(dataDirectory).catch(() => NO_APP_CONNECTION),
   ]);
-  return { ...aggregateAttendance(rows, period, now), connection };
+  const report = aggregateAttendance(rows, period, now);
+  const [names, pausedChats] = await Promise.all([
+    readConversationNames(dataDirectory),
+    readPausedChats(dataDirectory, now),
+  ]);
+  const seen = new Set<string>();
+  const attention = report.attention.map((item) => {
+    const known = names.get(item.ref);
+    const newest = !seen.has(item.ref);
+    seen.add(item.ref);
+    return {
+      ...item,
+      name: known?.name ?? null,
+      paused: newest && known !== undefined && pausedChats.has(known.chatId),
+    };
+  });
+  return { ...report, attention, connection };
+}
+
+async function readJsonRecord(file: string): Promise<DynamicRecord> {
+  try {
+    const value = JSON.parse(await readFile(file, "utf8"));
+    return isDynamicRecord(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The bridge's private file: each conversation hash with its chat id and its name, found here by the report's short `ref`. */
+async function readConversationNames(dataDirectory: string): Promise<Map<string, { chatId: string; name: string }>> {
+  const names = new Map<string, { chatId: string; name: string }>();
+  for (const [hash, entry] of Object.entries(await readJsonRecord(join(dataDirectory, NAMES_FILE_NAME)))) {
+    if (isDynamicRecord(entry) && typeof entry.chatId === "string" && typeof entry.nome === "string")
+      names.set(hash.toLowerCase().slice(0, 6), { chatId: entry.chatId, name: entry.nome.slice(0, 80) });
+  }
+  return names;
+}
+
+async function readPausedChats(dataDirectory: string, now: number): Promise<Set<string>> {
+  const { contacts } = await readJsonRecord(join(dataDirectory, STATE_FILE_NAME));
+  const paused = new Set<string>();
+  if (!isDynamicRecord(contacts)) return paused;
+  for (const [chatId, entry] of Object.entries(contacts)) {
+    if (isDynamicRecord(entry) && typeof entry.pausedUntil === "number" && entry.pausedUntil > now) paused.add(chatId);
+  }
+  return paused;
+}
+
+/** Asks the bridge to answer this conversation again, through the file its own panel uses. */
+export async function resumeAttendanceConversation(dataDirectory: string, ref: string): Promise<void> {
+  const known = (await readConversationNames(dataDirectory)).get(ref);
+  if (!known) throw new Error("Unknown attendance conversation.");
+  const file = join(dataDirectory, RESUME_FILE_NAME);
+  const requests = await readJsonRecord(file);
+  const temporary = `${file}.${process.pid}.tmp`;
+  await writeFile(temporary, JSON.stringify({ ...requests, [known.chatId]: Date.now() }), { mode: 0o600 });
+  await rename(temporary, file);
 }
