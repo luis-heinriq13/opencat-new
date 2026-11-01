@@ -168,6 +168,29 @@
   }
 }
 
+/* The desktop usage page keeps every total available. A narrow window scrolls this row
+ * instead of silently hiding the final measures. */
+.app-frame:not(.web-app-frame) .agent-usage-totals {
+  gap: var(--openbot-space-3);
+  overflow-x: auto;
+  padding-bottom: var(--openbot-space-2);
+  scrollbar-width: thin;
+}
+
+.app-frame:not(.web-app-frame) .agent-usage-totals > div:nth-child(n) {
+  display: block;
+  flex: 0 0 auto;
+  min-width: calc(var(--openbot-space-6) * 7);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-md);
+  background: var(--openbot-bg-surface);
+  padding: var(--openbot-space-3);
+}
+
+.app-frame:not(.web-app-frame) .agent-usage-totals dt {
+  white-space: normal;
+}
+
 /* The header holds one row of filters, so every dropdown and the refresh button share
    a body colour and a 32px height rather than each wearing its own form-field or
    toolbar look. */

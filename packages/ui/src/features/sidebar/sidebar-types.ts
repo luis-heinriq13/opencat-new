@@ -121,6 +121,8 @@ export interface SidebarProps {
   /** A card under the chat list, such as an announcement. The compact sidebar has no room for it. */
   footer?: JSX.Element;
   onExpand: () => void;
+  /** Collapses the list while leaving the navigation rail available. */
+  onCollapse?: (() => void) | undefined;
   /** Opens the global search. The search field and the compact search button both call it. */
   onOpenSearch: () => void;
   onOpenMarketplace: () => void;

@@ -41,6 +41,34 @@
     cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* The warm desktop palette stays inside OpenCat's workspace. Other brand consumers retain
+ * their own palette, and the dark desktop theme is unchanged. */
+:root[data-openbot-color-scheme="light"] .app-frame:not(.web-app-frame) {
+  --openbot-accent: var(--openbot-cat-accent);
+  --openbot-accent-hover: var(--openbot-cat-accent-hover);
+  --openbot-accent-text: var(--openbot-cat-accent-text);
+  --openbot-accent-soft: var(--openbot-cat-accent-soft);
+  --openbot-accent-strong: var(--openbot-cat-accent-strong);
+  --openbot-bg-canvas: var(--openbot-cat-canvas);
+  --openbot-bg-sidebar: var(--openbot-cat-sidebar);
+  --openbot-bg-native-sidebar: var(--openbot-cat-sidebar);
+}
+
+/* Keep long agent instructions and channel data inside their own pane. The chat column
+ * stays readable on a wide monitor without changing the width of code and data previews. */
+:root[data-openbot-color-scheme="light"] .app-frame:not(.web-app-frame) .conversation-panel {
+  --conversation-column-width: 960px;
+}
+
+.app-frame:not(.web-app-frame) :is(.settings-panel-content, .channel-editor, .agent-usage-body) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-frame:not(.web-app-frame) :is(.settings-panel-content, .channel-editor) :is(input, textarea) {
+  max-width: 100%;
+}
+
 .app-frame-with-server-rail {
   grid-template-columns: var(--server-rail-width) var(--left-panel-width, 280px) 0 minmax(0, 1fr);
 }
