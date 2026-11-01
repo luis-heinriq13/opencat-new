@@ -34,8 +34,6 @@ export type SidebarView = "agents" | "routines";
 export const SIDEBAR_HIDDEN_GROUP_OPEN_ID = "hidden-agents:open";
 
 export interface SidebarProps {
-  /** OpenCat: rows over the list, in the layout that shows the pages in the sidebar. */
-  topNav?: JSX.Element;
   /** The switch over the list is shown only when the caller handles `onViewChange`. */
   view?: SidebarView | undefined;
   onViewChange?: ((view: SidebarView) => void) | undefined;

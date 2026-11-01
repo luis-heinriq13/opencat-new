@@ -61,7 +61,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   const current = (): PageRailPage | null => {
     const page = windowPage.page();
     if (page === "agents") return layout.sidebarView();
-    return page === "server-settings" || page === "bulletin" ? null : page;
+    return page === "server-settings" ? null : page;
   };
   return (
     <PageRail
@@ -78,6 +78,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       onSchedule={windowPage.openSchedule}
       onTasks={tasksAvailable() ? windowPage.openTasks : undefined}
       onUsage={windowPage.openUsage}
+      onBulletin={windowPage.openBulletin}
       onMarketplace={() => setSkillsMarketplaceOpen(true)}
       onSettings={(button) => (updateNotice() ? openAppSettings(button, "updates") : windowPage.openSettings(button))}
       settingsNotice={updateNotice()}

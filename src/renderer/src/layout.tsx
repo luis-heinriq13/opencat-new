@@ -22,10 +22,6 @@ import {
 import { usePlatform } from "./platform";
 import { createSimpleContext } from "./simple-context";
 
-const SIDEBAR_STYLE_STORAGE_KEY = "opencat.sidebar-style";
-/** OpenCat: the pages sit in the rail, or in the sidebar as in Tucano. */
-export type SidebarStyle = "opencat" | "tucano";
-
 /**
  * Whether the conversation still has room beside a sidebar of this width. The
  * server rail is part of the arithmetic rather than a style detail, and its
@@ -114,14 +110,6 @@ const Layout = createSimpleContext({
       window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY) === "routines" ? "routines" : "agents",
     );
     const [railPinChoices, setRailPinChoices] = createSignal<RailPinChoices>(readRailPinChoices());
-    const [sidebarStyle, setSidebarStyleSignal] = createSignal<SidebarStyle>(
-      // OpenCat: the pages in the sidebar are the default. A choice made in Settings stays.
-      window.localStorage.getItem(SIDEBAR_STYLE_STORAGE_KEY) === "opencat" ? "opencat" : "tucano",
-    );
-    const setSidebarStyle = (style: SidebarStyle) => {
-      setSidebarStyleSignal(style);
-      window.localStorage.setItem(SIDEBAR_STYLE_STORAGE_KEY, style);
-    };
     const railPinned = createMemo(() => {
       const choices = railPinChoices();
       return PAGE_RAIL_PINNABLE_PAGES.filter((page) => choices[page] ?? RAIL_PINNED_BY_DEFAULT.has(page));
@@ -205,8 +193,6 @@ const Layout = createSimpleContext({
       setSidebarView,
       railPinned,
       setRailPinned,
-      sidebarStyle,
-      setSidebarStyle,
     };
   },
 });

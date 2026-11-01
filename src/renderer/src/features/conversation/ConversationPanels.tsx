@@ -276,13 +276,6 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
     activeRightPanel() === "side-panel" || (activeRightPanel() === "thread" && shownPanelThreadId() === null);
   const sideThreadTabs = () => props.threads?.side.tabs ?? [];
   const moveSideThread = (id: string, index: number) => props.threads?.side.onMove(id, index);
-  // OpenCat: the sidebar row that opens the memories of this agent.
-  onSettled(() => {
-    const open = () => openSidePanelPane("settings");
-    window.addEventListener("opencat:open-agent-settings", open);
-    return () => window.removeEventListener("opencat:open-agent-settings", open);
-  });
-
   return (
     <>
       <Show when={sidePanelOpen()}>

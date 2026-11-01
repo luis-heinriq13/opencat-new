@@ -24,7 +24,6 @@ import { Show } from "solid-js";
 import { useAppearanceChoice } from "../../appearance-choice";
 import { useI18n } from "../../i18n-context";
 import { useInterfaceSizeChoice } from "../../interface-size";
-import { useLayout } from "../../layout";
 import { useLogoColorChoice } from "../../logo-color";
 import { ExternalLinkSelect } from "./ExternalLinkSelect";
 
@@ -44,7 +43,6 @@ interface SettingsGeneralTabProps {
 
 export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
   const i18n = useI18n();
-  const layout = useLayout();
   const appearance = useAppearanceChoice();
   const logoColor = useLogoColorChoice();
   const interfaceSize = useInterfaceSizeChoice();
@@ -68,13 +66,6 @@ export function SettingsGeneralTab(props: SettingsGeneralTabProps) {
               />
             </ItemActions>
           </Item>
-          <SwitchField
-            data-settings-row="settings.appearance.sidebarPages.title"
-            checked={layout.sidebarStyle() === "tucano"}
-            onChange={(checked: boolean) => layout.setSidebarStyle(checked ? "tucano" : "opencat")}
-            label={i18n.t("settings.appearance.sidebarPages.title")}
-            description={i18n.t("settings.appearance.sidebarPages.description")}
-          />
           <Show when={props.platform === "darwin"}>
             <SwitchField
               data-settings-row="settings.appearance.transparentWindow.title"
