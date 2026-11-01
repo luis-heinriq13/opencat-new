@@ -39,42 +39,69 @@ Se o painel for de uma versão antiga, atualize o OpenCat: a cópia em `~/.openc
 
 Os dados ficam em `~/Library/Application Support/OpenCat-WhatsCat`. O painel abre só neste computador, em um endereço com segredo.
 
-### Ponte para um agente (piloto, desligada por padrão)
+### Ponte para um agente (desligada por padrão)
 
-A ponte entrega ao agente as mensagens novas de conversas que você listar e transforma a resposta dele em um rascunho. Nada é enviado sozinho: você aprova cada rascunho no painel e só então o envio passa pelos limites acima. Não existe modo de envio automático. O risco de banimento e a violação dos termos do WhatsApp continuam os mesmos, e uma resposta aprovada ainda conta como envio pela conta pessoal.
+A ponte entrega ao agente as mensagens novas das conversas liberadas e **envia a resposta dele sozinha**, com `send_text`, pelos limites fixos acima (20 a 40 s entre envios, 30 por hora, 150 por dia) e com um `request_id` estável por mensagem recebida, então uma nova tentativa não duplica. Não existe mais aprovação manual nem rascunhos: um arquivo antigo `opencat-rascunhos.json` é ignorado (e não é apagado). O risco de banimento e a violação dos termos do WhatsApp continuam: uma resposta automática é envio pela conta pessoal.
+
+Só a ponte envia, e só a resposta da própria entrega. O que você escreve para o agente no chat dele nunca vai ao WhatsApp. As ferramentas MCP do agente expõem só leitura; as de envio ficam ocultas e recusadas, a menos que você ponha `"agentSendTools": true` no arquivo (ou `WHATSCAT_AGENT_SEND=1`).
 
 Para ligar:
 
 1. No OpenBot, ligue "Local scripts" no agente que vai responder (veja `docs/automation.md`).
-2. Conecte o WhatsApp (não oficial) e libere as conversas no painel. Uma conversa fora do escopo do motor não chega à ponte.
-3. Crie `opencat-ponte.json` na pasta de dados do WhatsApp (não oficial):
+2. Conecte o WhatsApp (não oficial) e libere as conversas no painel.
+3. Restrinja o acesso do agente a Workspace (veja "Permissões" abaixo).
+4. Crie `opencat-ponte.json` na pasta de dados do WhatsApp (não oficial):
 
 ```json
-{ "enabled": true, "agentId": "ID-DO-AGENTE", "mode": "selected", "chats": ["5511999999999@s.whatsapp.net"], "groups": [], "excludes": [], "pollSeconds": 15 }
+{ "enabled": true, "agentId": "ID-DO-AGENTE", "mode": "selected", "chats": ["5511999999999@s.whatsapp.net"], "pollSeconds": 15 }
 ```
 
-4. Abra o painel. Os rascunhos aparecem em "Rascunhos de resposta", com Aprovar e enviar ou Descartar.
+`reply` vale `"auto"` (padrão, com a ponte ligada) ou `"pause"`. Com `"pause"` a ponte para tudo na rodada seguinte, sem ler nem responder, e as mensagens recebidas nesse tempo não são respondidas depois. O painel tem o interruptor Ligado/Pausado para isso.
 
-O painel abre como janela modal da janela principal do OpenCat. Ele tem busca por nome ou número, "Selecionar todos os visíveis", "Limpar" e seções que recolhem. Os nomes aparecem como no WhatsApp; um ID sem nome vira o número legível. A seção "Atendimento pelo agente" mostra o modo atual e se a ponte está rodando, e salva o modo e as listas (não liga a ponte).
+#### O painel
 
-Modos de atendimento (`mode`):
+O painel abre como janela modal do OpenCat e usa as cores e medidas do tema escuro dele. Seções: **Conexão** (estado e número conectado mascarado), **Atendimento** (agente, Ligado/Pausado, pausados com "Retomar"), **Quem o agente atende** (modo, busca, lista com iniciais, exclusões e equipe interna), **Grupos** (modo e instruções de cada um), **Atividade** (só contagens das últimas 24 horas) e, recolhida, a escolha das conversas visíveis ao motor.
 
-- `selected` (padrão), "Só as escolhidas": só os contatos em `chats`.
-- `all`, "Todos os contatos, inclusive novos": toda conversa de pessoa é atendida, também a de um contato que escreve pela primeira vez, menos as listadas em `excludes`. Não precisa de `chats`. Grupos nunca entram por este modo: só os de `groups`, um a um. Para o motor entregar o contato novo, a ponte o soma ao escopo do motor (só soma, nunca tira).
+O aviso "Entendi o risco" só aparece ao conectar ou reconectar um número, nunca com o número já ligado. Para fechar: botão **X**, tecla **Esc** ou a rota interna `/fechar`. O OpenCat trata `/fechar` e o Esc na própria janela, então ela fecha mesmo se a página travar. Fechar clicando fora não é possível: a janela é modal nativa e o clique fora vai para a janela bloqueada.
 
-A ponte roda em segundo plano enquanto o OpenCat está aberto, mesmo com o painel fechado, e só se o arquivo tiver `"enabled": true`. O aplicativo inicia um processo sem janela (`whatscat-mcp.mjs --bridge`), reinicia com espera crescente se ele cair e o encerra ao sair. Só há uma ponte por pasta de dados (`opencat-ponte.lock`). Para desligar, ponha `"enabled": false`: o aplicativo para o processo em até 30 segundos. O painel e a ponte trocam dados pelos mesmos arquivos de rascunhos.
+#### Segurança, no código
 
-Regras:
+Estas regras valem mesmo que o modelo ignore o prompt:
 
-- Sem `"enabled": true`, agente e, no modo `selected`, ao menos uma conversa ou grupo, a ponte não liga.
-- No modo `selected`, só entram conversas listadas em `chats`. Grupos só entram se o ID (`...@g.us`) estiver em `groups`; um grupo em `chats` é ignorado. Mensagens suas e listas de transmissão ou canais são ignoradas.
-- Só chegam mensagens posteriores ao momento em que a ponte liga. O ID da mensagem do WhatsApp vira o `clientMessageId` (o OpenBot guarda o recibo por 24 horas) e fica numa lista local contra duplicidade.
-- O texto chega ao agente dentro de um bloco `whatscat_mensagem_nao_confiavel`, em JSON, marcado como dado de terceiro e não como instrução. Isso reduz o risco de injeção de prompt, mas não o elimina: revise cada rascunho.
-- Isolamento por contato: o fio do agente é um só, então o OpenBot não tem um fio separado por contato. Para reduzir a mistura, cada mensagem leva um bloco só do contato, com as últimas 10 mensagens dele (arquivos 0600 na pasta `contatos`, um por contato) e a instrução de usar apenas os dados dele. Isso reduz o risco, mas não o elimina: o agente pode ainda ter visto outros contatos antes neste fio. Por isso a aprovação de cada rascunho continua obrigatória.
-- Rascunhos e estado ficam em `opencat-rascunhos.json` e `opencat-ponte-estado.json` (modo 0600). A auditoria, `opencat-ponte-auditoria.log`, guarda eventos, resultado e um hash curto da conversa, sem texto e sem número.
-- Se o envio falhar, o rascunho vira "falhou" e não é reenviado sozinho: o resultado pode ter saído, confira a conversa.
-- Mídia: a ponte repassa só o tipo, o nome do arquivo e o caminho local, se o motor os informar. Não há transcrição de áudio nem leitura de imagem hoje, e o agente é avisado disso. A API local de scripts não aceita anexos.
-- Limitação conhecida: a leitura usa a ferramenta `read_messages` do motor e o envio usa `send_message` (ajustável em `sendTool`). O formato exato das respostas do motor ainda não foi confirmado com uma conta real, então teste primeiro com uma conta de teste.
+- **Filtro de saída**, antes de qualquer envio. Barra respostas com marcas do invólucro da ponte, número de telefone ou ID de conversa que não sejam deste contato (em grupo, qualquer número), formato de chave (`sk-`, `ghp_`, `AIza`, `xox`, `Bearer`, cabeçalho de chave privada), caminho local (`/Users/`, `~/.`) ou trecho longo (12 palavras seguidas) igual ao arquivo de instruções (`instructionsFile`) ou às instruções do grupo. Barrada: nada é enviado, a auditoria registra o motivo, o contato pausa e o dono é avisado no chat do agente.
+- **Passar para uma pessoa**: a resposta do agente `[[HUMANO]]` pausa o contato (padrão 24 h, `handoffMinutes`) e avisa o dono no chat do agente com só um rótulo mascarado e o motivo, e os `internalContacts` por WhatsApp (nome ou número mascarado e o motivo, nunca o conteúdo). O agente fica pausado para o contato até alguém tocar em Retomar no painel ou a pausa acabar. Quem está em `internalContacts` nunca é tratado como cliente.
+- **Palavras de parada** (`stopWords`; padrão: pare, parar, sair, não quero, stop), só em conversa individual: a ponte confirma uma vez, põe o contato em `excludes` e nunca mais responde. O agente nem recebe a mensagem.
+- **Dono assumiu**: uma mensagem que sai do seu número e que a ponte não enviou pausa aquele contato por 60 minutos (`takeoverMinutes`). A ponte nunca responde a mensagens suas.
+- **Robôs em laço**: no máximo 10 respostas por hora por contato (`maxRepliesPerHour`) e 20 s entre elas (`minGapSeconds`). Passou do máximo: pausa e aviso ao dono.
+- **Horário de silêncio** (`quietHours`: `enabled`, `start`, `end`; desligado por padrão): fora do expediente sai uma única mensagem "Retorno em breve" por janela, e o agente atende quando a janela acaba.
+- **Grupos**: `groupConfigs` é uma lista de `{ "id", "mode", "instructions" }` com `mode` igual a `mention` (padrão), `readonly` ou `all`. Só os listados entram. O motor não manda dado de menção nas mensagens (os campos são `message_id`, `chat_id`, `sender_id`, `from_me`, `media_type`, `filename` e o texto), então a menção é reconhecida pelo texto: `@` mais o número da conta conectada, ou um dos `names`. Campos de menção, se o motor passar a mandá-los, também valem. Quem escreve num grupo chega ao agente só como um código (hash). `selfId` informa o ID da conta se o motor não o der.
+- **Texto de terceiros é dado**: entra no JSON dentro do bloco `whatscat_mensagem_nao_confiavel`, com `<` escapado, de modo que nada fecha o bloco. O mesmo vale para o texto extraído de áudio, imagem e PDF.
+
+#### Permissões: quem pode ser atendido
+
+`access` do agente vale `workspace` (restrito) ou `full`. O OpenBot informa `access` em `GET /v1/agents`. Regra da ponte: contatos que não são você só são atendidos se o agente tem `workspace`. Com `full`, ou se o OpenBot não informar, a ponte recusa (auditoria `acesso_recusado` e aviso no painel) a menos que você ponha `"aceitoAcessoTotal": true` (o painel mostra o aviso e o interruptor). Mesmo com esse aceite, a lista de atendidos **não se amplia sozinha**: o modo `all` vira `selected` e contatos novos não entram.
+
+Atenção: `workspace` **restringe só escrita**. Leitura de qualquer arquivo, comandos locais e rede continuam abertos para o agente em todos os provedores, e nenhum provedor tem um modo sem ferramentas de arquivo e shell. Restringir reduz o dano, não elimina: por isso as respostas passam também pelo filtro de saída, e instruções confidenciais ou dados de outros clientes não devem ficar em arquivos que o agente consiga ler.
+
+#### Áudio, imagem e PDF
+
+Antes de entregar ao agente, a ponte baixa o arquivo com `get_attachment`, com tetos de 25 MB (áudio), 20 MB (PDF) e 10 MB (imagem), numa pasta privada do contato (0700/0600) em `anexos/`.
+
+- **Áudio**: `ffmpeg` converte (sem shell, com tempo limite, até 10 minutos) e o reconhecimento de voz local do OpenCat transcreve, preferindo o Whisper (português) e caindo no Parakeet. A ponte reaproveita o `voice-transcription-host.js` do aplicativo com `child_process.fork` em Node comum, e o OpenCat informa os caminhos em `OPENCAT_VOICE_HOST` e `OPENCAT_VOICE_RUNTIME`. Sem os modelos baixados, o agente é avisado que não conseguiu ouvir: a ponte não finge transcrever.
+- **PDF**: `pdftotext` (até 40 páginas). Se não houver texto, OCR das 3 primeiras páginas (`pdftoppm` e `tesseract`). Texto limitado a 12000 caracteres, com aviso de corte.
+- **Imagem**: `tesseract` (modelo `eng`; acentos podem falhar) e uma cópia do arquivo em `workspaceDir/whatsapp-midia/` (configure `workspaceDir` com a pasta do agente), para um modelo com visão poder abri-la mesmo com acesso restrito. Sem texto na imagem não é falha: o caminho segue para o agente. A leitura de imagem em si depende do provedor do agente.
+- O bloco entregue leva a origem, o nome do arquivo e o texto extraído como dado de terceiro: **texto dentro de mídia nunca é instrução**. Se algo falha, o bloco diz o que falhou e orienta o agente a pedir que o contato escreva a mensagem.
+- Arquivos com mais de 30 dias (`retentionDays`) são apagados.
+
+#### Arquivos e métricas
+
+- `opencat-ponte.json`, estado e arquivos de contato: modo 0600. A auditoria (`opencat-ponte-auditoria.log`) guarda eventos e hash curto da conversa, sem texto e sem número.
+- `opencat-ponte-metricas.jsonl` (0600, gira em 1 MB para `.1`): uma linha por evento, sem conteúdo nem número, com `at`, `conversa` (hash), `tipo` (`contact` ou `group`), `evento` (`recebida`, `respondida`, `falhou`, `bloqueada`, `humano`, `pausada`, `midia_processada`, `midia_falhou`), `esperaMs` (da chegada à entrega ao agente), `agenteMs`, `envioMs`, `processoMs` (mídia) e `erro` (categoria).
+- Modos (`mode`): `selected` (padrão), só `chats`; `all`, toda conversa de pessoa menos as de `excludes`, e só com acesso restrito. Grupos nunca entram por `all`.
+- Só chegam mensagens posteriores ao momento em que a ponte liga, e o ID da mensagem do WhatsApp vira o `clientMessageId` contra duplicidade.
+- Isolamento por contato: o fio do agente é um só, então cada mensagem leva um bloco só do contato, com as últimas 10 dele, e a instrução de não usar dados de outro. Isso reduz o risco, mas não o elimina.
+- A ponte roda em segundo plano enquanto o OpenCat está aberto, mesmo com o painel fechado, e só com `"enabled": true`. O aplicativo inicia `whatscat-mcp.mjs --bridge`, reinicia com espera crescente e o encerra ao sair. Para desligar, `"enabled": false`: o processo para em até 30 segundos.
+- Limitação conhecida: o formato exato das respostas de `read_messages`, `get_attachment` e do estado do motor (número conectado) ainda não foi confirmado com uma conta real. Teste primeiro com uma conta de teste e use `ataques-reais.md`, na pasta `tools/whatscat`, para ensaiar contra o modelo de verdade.
 
 ### Em produção
 

@@ -103,10 +103,10 @@ Each request needs `Authorization: Bearer <token>`.
 
 ### `GET /v1/agents`
 
-The agents that allow local scripts, with their routines:
+The agents that allow local scripts, with their `access` (`"full"` or `"workspace"`) and routines:
 
 ```json
-[{ "id": "agent-1", "name": "Ada", "routines": [{ "id": "routine-1", "name": "Wake", "active": false }] }]
+[{ "id": "agent-1", "name": "Ada", "access": "full", "routines": [{ "id": "routine-1", "name": "Wake", "active": false }] }]
 ```
 
 ### `POST /v1/agents/:agentId/routines/:routineId/run`

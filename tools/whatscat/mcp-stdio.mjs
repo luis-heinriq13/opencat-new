@@ -52,7 +52,15 @@ export function toolText(text, isError = false) {
  * Limits for outgoing messages, kept in a file so a restart does not reset them. `check` answers the
  * number of milliseconds to wait, or throws when a limit is reached. `record` stores one send.
  */
-export function createSendLimiter({ file, minGapMs, jitterMs = 0, perHour, perDay, now = Date.now, random = Math.random }) {
+export function createSendLimiter({
+  file,
+  minGapMs,
+  jitterMs = 0,
+  perHour,
+  perDay,
+  now = Date.now,
+  random = Math.random,
+}) {
   const read = () => {
     try {
       const value = JSON.parse(readFileSync(file, "utf8"));

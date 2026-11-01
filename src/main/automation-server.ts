@@ -71,7 +71,7 @@ export interface AutomationServerOptions {
   root: string;
   listAgents: () => readonly Pick<
     AgentSummary,
-    "id" | "name" | "allowAutomation" | "hiddenAt" | "provider" | "model" | "reasoningEffort"
+    "id" | "name" | "allowAutomation" | "hiddenAt" | "provider" | "model" | "reasoningEffort" | "access"
   >[];
   /** The account defaults; an agent with no automation setting of its own follows them. */
   agentDefaults: () => AgentDefaults;
@@ -431,6 +431,8 @@ export class AutomationServer {
         .map((agent) => ({
           id: agent.id,
           name: agent.name,
+          // "workspace" limits writes only; reads, commands and the network stay open (see docs/whatscat.md).
+          access: agent.access ?? "full",
           routines: this.#options
             .listRoutines(agent.id)
             .map((routine) => ({ id: routine.id, name: routine.name, active: routine.active })),

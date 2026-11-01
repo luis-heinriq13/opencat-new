@@ -26,14 +26,17 @@ async function graph(path, init = {}) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const failure = body?.error;
-    throw new Error(`A Meta recusou (${response.status}): ${failure?.message ?? "sem detalhe"} [código ${failure?.code ?? "?"}]`);
+    throw new Error(
+      `A Meta recusou (${response.status}): ${failure?.message ?? "sem detalhe"} [código ${failure?.code ?? "?"}]`,
+    );
   }
   return body;
 }
 
 function phone(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
-  if (digits.length < 8 || digits.length > 15) throw new Error("Número inválido. Use o formato internacional, como 5511999998888.");
+  if (digits.length < 8 || digits.length > 15)
+    throw new Error("Número inválido. Use o formato internacional, como 5511999998888.");
   return digits;
 }
 
@@ -76,7 +79,11 @@ const TOOLS = [
         para: { type: "string" },
         modelo: { type: "string", description: "Nome do modelo aprovado" },
         idioma: { type: "string", description: "Código do idioma, como pt_BR" },
-        parametros: { type: "array", items: { type: "string" }, description: "Valores das variáveis do corpo, em ordem" },
+        parametros: {
+          type: "array",
+          items: { type: "string" },
+          description: "Valores das variáveis do corpo, em ordem",
+        },
       },
       required: ["para", "modelo", "idioma"],
     },
@@ -111,7 +118,11 @@ serveMcp({
           name: String(args.modelo ?? ""),
           language: { code: String(args.idioma ?? "") },
           ...(parameters.length
-            ? { components: [{ type: "body", parameters: parameters.map((text) => ({ type: "text", text: String(text) })) }] }
+            ? {
+                components: [
+                  { type: "body", parameters: parameters.map((text) => ({ type: "text", text: String(text) })) },
+                ],
+              }
             : {}),
         },
       });

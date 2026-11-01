@@ -3,7 +3,6 @@ import { appendFile, mkdir, readdir, readFile, rename, rm, stat } from "node:fs/
 import { basename, join } from "node:path";
 import type {
   IdleRestart,
-  LocalUpdateInfo,
   ScheduledUpdateRestart,
   UpdateBusyPhase,
   UpdateFailureCode,
@@ -16,6 +15,7 @@ import { Cause, Deferred, Effect, Result, Schema, Scope, Semaphore } from "effec
 import type { ProgressInfo, UpdateInfo } from "electron-updater";
 import type { HostUpdateState } from "../../packages/contracts/src/host-manager";
 import { causeHelpers } from "../backend/effect-boundary";
+import type { LocalUpdateOffer } from "./local-update-source";
 import type { OpenBotSiblingInstance, SiblingScanFailed } from "./update-sibling-instances";
 
 const logger = createOpenBotLogger("update");
@@ -98,7 +98,7 @@ interface UpdateServiceOptions {
    * Installs a local build: asks the user, starts the installer and quits. It resolves to false when
    * the user declined. Only the main process may show the question, so the renderer cannot skip it.
    */
-  installLocalUpdate?: ((update: LocalUpdateInfo & { version: string }) => Promise<boolean>) | undefined;
+  installLocalUpdate?: ((update: LocalUpdateOffer) => Promise<boolean>) | undefined;
   checkSiblingInstances?: (() => Effect.Effect<readonly OpenBotSiblingInstance[], SiblingScanFailed>) | undefined;
   /** The uid of this process. It tells a refusal in this account apart from another account. */
   currentUid?: number | undefined;
@@ -214,7 +214,7 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
   #autoDownload: boolean;
   #downloadedVersion: string | null = null;
   #managedByHost = false;
-  #localUpdate: (LocalUpdateInfo & { version: string }) | null = null;
+  #localUpdate: LocalUpdateOffer | null = null;
   #scheduledRestart: ScheduledUpdateRestart | null = null;
   #idleRestart: IdleRestart | null = null;
   #cancellationToken: UpdateCancellationToken | null = null;
@@ -366,7 +366,7 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
    * Offers a build that the user made on this computer. It never replaces the remote feed: with the
    * feed on, or a host in charge, the offer is ignored. Clearing it returns to "unsupported".
    */
-  setLocalUpdate(update: (LocalUpdateInfo & { version: string }) | null): void {
+  setLocalUpdate(update: LocalUpdateOffer | null): void {
     if (this.#options.enabled || this.#managedByHost || this.#teardownCommitted) return;
     if (this.#status.phase === "installing") return;
     if (update === null) {
@@ -387,7 +387,7 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
   }
 
   /** The click on "Update" for a local build. It asks first; a "no" leaves everything as it was. */
-  #installLocal(update: LocalUpdateInfo & { version: string }): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
+  #installLocal(update: LocalUpdateOffer): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
     return Effect.gen({ self: this }, function* () {
       const install = this.#options.installLocalUpdate;
       if (!install || this.#installStarted) return this.getStatus();
@@ -408,6 +408,16 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
       this.#setStatus({ phase: "installing", progress: 100, message: null, errorCode: null });
       return this.getStatus();
     });
+  }
+
+  /**
+   * What the status shows as the current version, for example "0.57.0 (build 2841 · 5ffe2bc)". The
+   * package version stays what the updater compares against.
+   */
+  setDisplayVersion(label: string): void {
+    if (this.#status.currentVersion === label) return;
+    this.#status = { ...this.#status, currentVersion: label };
+    this.emit("status", this.getStatus());
   }
 
   /** Host-managed sessions display host state and never invoke the tenant updater. */

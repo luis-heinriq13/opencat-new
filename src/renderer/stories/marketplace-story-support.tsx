@@ -1,4 +1,5 @@
 import {
+  type AppConnectionStatus,
   AVATAR_HUES,
   type ClientAgentSummary,
   type InstalledSkill,
@@ -12,7 +13,11 @@ import type { McpConnectFlow } from "@openbot/contracts/mcp-connect-flows";
 import { CONNECTOR_LISTINGS } from "@openbot/ui/features/connectors/connector-catalog";
 import { Marketplace } from "@openbot/ui/features/marketplace/Marketplace";
 import { AgentsDialog } from "@openbot/ui/features/marketplace/MarketplaceAgentsDialog";
-import type { MarketplaceApp, MarketplaceModel } from "@openbot/ui/features/marketplace/marketplace-model";
+import type {
+  MarketplaceApp,
+  MarketplaceAppAgent,
+  MarketplaceModel,
+} from "@openbot/ui/features/marketplace/marketplace-model";
 import {
   createMarketplaceNavigation,
   type MarketplaceNavigation,
@@ -240,6 +245,8 @@ export interface StoryProps {
   macOS?: boolean;
   /** 50 agents, as a user with a large team has. */
   manyAgents?: boolean;
+  /** The WhatsApp (not official) app is connected, and this is who answers on it. */
+  whatsapp?: "none" | "on" | "paused";
   /** No agent has a skill yet. */
   noSkills?: boolean;
   /** The agents dialog of this skill is open over the window. */
@@ -252,6 +259,9 @@ export interface StoryProps {
 
 /** The Apple apps listing, which only a Mac asks macOS about. */
 const APPLE_APPS = MARKETPLACE_PLUGINS.filter((plugin) => plugin.slug === "apple-apps");
+
+/** The WhatsApp (not official) listing, which the story fixtures leave out. */
+const WHATSAPP_APP = MARKETPLACE_PLUGINS.filter((plugin) => plugin.slug === "whatscat");
 
 const FIRST_HELD: Readonly<Record<string, HeldState>> = { [STORY_MARKETPLACE_PLUGINS[0]?.slug ?? ""]: "connected" };
 
@@ -270,6 +280,7 @@ export function MarketplaceStory(props: StoryProps) {
     connected,
     macOS,
     manyAgents,
+    whatsapp,
     noSkills,
     dialogSkill,
     agentStates,
@@ -306,21 +317,23 @@ export function MarketplaceStory(props: StoryProps) {
     installed: noSkills ? {} : startSkills(userAgents),
     apps: [
       ...connectorApps,
-      ...[...STORY_MARKETPLACE_PLUGINS, ...(macOS ? APPLE_APPS : [])].map((plugin): MarketplaceApp => {
-        const state = held[plugin.slug];
-        return {
-          kind: "plugin",
-          id: plugin.slug,
-          name: plugin.name,
-          tagline: plugin.tagline,
-          status: pluginStatus(state),
-          category: plugin.category,
-          plugin,
-          connections: Object.fromEntries(
-            plugin.apps.map((entry) => [entry.id, { held: Boolean(state), signInNeeded: state === "signInNeeded" }]),
-          ),
-        };
-      }),
+      ...[...STORY_MARKETPLACE_PLUGINS, ...(macOS ? APPLE_APPS : []), ...(whatsapp ? WHATSAPP_APP : [])].map(
+        (plugin): MarketplaceApp => {
+          const state = plugin.slug === "whatscat" ? "connected" : held[plugin.slug];
+          return {
+            kind: "plugin",
+            id: plugin.slug,
+            name: plugin.name,
+            tagline: plugin.tagline,
+            status: pluginStatus(state),
+            category: plugin.category,
+            plugin,
+            connections: Object.fromEntries(
+              plugin.apps.map((entry) => [entry.id, { held: Boolean(state), signInNeeded: state === "signInNeeded" }]),
+            ),
+          };
+        },
+      ),
       ...STORY_MCP_SERVERS.slice(0, 1).map(
         (server): MarketplaceApp => ({
           kind: "custom",
@@ -335,6 +348,38 @@ export function MarketplaceStory(props: StoryProps) {
     busy: {},
     notice: "",
   });
+  const [whatsappStatus, setWhatsappStatus] = createSignal<AppConnectionStatus>({
+    app: "whatsapp",
+    configured: whatsapp !== undefined && whatsapp !== "none",
+    agentId: whatsapp === "on" || whatsapp === "paused" ? (userAgents[0]?.id ?? null) : null,
+    enabled: whatsapp === "on" || whatsapp === "paused",
+    reply: whatsapp === "paused" ? "pause" : "auto",
+    scope: "selected",
+    chatCount: 3,
+    groupCount: 1,
+    excludedCount: 0,
+  });
+  const whatsappAgent: MarketplaceAppAgent = {
+    status: whatsappStatus,
+    busy: () => false,
+    setAgent: async (agentId) => {
+      setWhatsappStatus((current) => ({ ...current, configured: true, agentId, enabled: true, reply: "auto" }));
+      return true;
+    },
+    turnOn: async () => {
+      setWhatsappStatus((current) => ({ ...current, enabled: true, reply: "auto" }));
+      return true;
+    },
+    pause: async () => {
+      setWhatsappStatus((current) => ({ ...current, reply: "pause" }));
+      return true;
+    },
+    disconnect: async () => {
+      setWhatsappStatus((current) => ({ ...current, agentId: null, enabled: false }));
+      return true;
+    },
+    openPanel: fn(),
+  };
   const [error, setError] = createSignal<string | null>(null);
   const [open, setOpen] = createSignal(true);
   const [askOnInstall, setAskOnInstall] = createSignal(true);
@@ -457,6 +502,7 @@ export function MarketplaceStory(props: StoryProps) {
 
     apps: () => state.apps,
     canConnectApps: () => !member,
+    whatsappAgent: whatsapp ? whatsappAgent : undefined,
     appBusy: (id) => Boolean(state.busy[id]),
     connectApp: async (app) => {
       setBusy(app.id, true);

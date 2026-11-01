@@ -92,6 +92,7 @@
     "./features/connectors/connector-catalog": "./src/features/connectors/connector-catalog.tsx",
     "./features/connectors/connectors": "./src/features/connectors/connectors.ts",
     "./features/conversation/AgentActivity": "./src/features/conversation/AgentActivity.tsx",
+    "./features/conversation/AgentAppsDialog": "./src/features/conversation/AgentAppsDialog.tsx",
     "./features/conversation/AgentChatEmptyState": "./src/features/conversation/AgentChatEmptyState.tsx",
     "./features/conversation/AgentFolders": "./src/features/conversation/AgentFolders.tsx",
     "./features/conversation/AgentInstructionsView": "./src/features/conversation/AgentInstructionsView.tsx",

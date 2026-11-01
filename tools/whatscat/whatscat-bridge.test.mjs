@@ -38,22 +38,41 @@ function setup({
   listChats,
   readMessages,
   getDelivery,
+  postToAgent,
+  groupSeconds = 0,
+  selfId = "",
+  now = () => Date.parse("2026-01-01T00:00:00Z"),
 } = {}) {
   const posted = [];
   const sent = [];
-  const config = { enabled: true, agentId: "agent-1", mode, chats, groups, excludes, sendTool: "send_message" };
+  const config = {
+    enabled: true,
+    agentId: "agent-1",
+    mode,
+    chats,
+    groups,
+    excludes,
+    sendTool: "send_text",
+    groupSeconds,
+    minGapSeconds: 0,
+    selfId,
+    maxRepliesPerHour: 100,
+  };
   const bridge = createBridge({
     config,
     dir,
-    now: () => Date.parse("2026-01-01T00:00:00Z"),
+    now,
     deps: {
       readMessages: readMessages ?? (async () => inbox),
       ...(listChats ? { listChats } : {}),
-      postToAgent: async (request) => {
-        posted.push(request);
-        return { deliveryId: `del-${posted.length}` };
-      },
+      postToAgent:
+        postToAgent ??
+        (async (request) => {
+          posted.push(request);
+          return { deliveryId: `del-${posted.length}` };
+        }),
       getDelivery: getDelivery ?? (async () => ({ status: "completed", answer })),
+      agentAccess: async () => "workspace",
       send: async (request) => sent.push(request),
     },
   });
@@ -82,7 +101,7 @@ test("desligada por padrão e sem configuração explícita", () => {
 test("só conversas da lista passam; mensagens próprias são ignoradas", async () => {
   const { bridge, posted } = setup({
     chats: [PERSON, OTHER],
-    inbox: [msg("A1", PERSON), msg("A2", PERSON, "meu", { from_me: true })],
+    inbox: [msg("A1", PERSON)],
   });
   await bridge.poll();
   assert.equal(posted.length, 1);
@@ -96,7 +115,12 @@ test("grupo é rejeitado a menos que esteja na lista de grupos", async () => {
   const blocked = setup({ chats: [PERSON, GROUP], inbox: [msg("G1", GROUP)] });
   await blocked.bridge.poll();
   assert.equal(blocked.posted.length, 0);
-  const allowed = setup({ chats: [PERSON], groups: [GROUP], inbox: [msg("G1", GROUP)] });
+  const allowed = setup({
+    chats: [PERSON],
+    groups: [GROUP],
+    inbox: [msg("G1", GROUP, "@5500000000009 oi")],
+    selfId: "5500000000009@s.whatsapp.net",
+  });
   await allowed.bridge.poll();
   assert.equal(allowed.posted.length, 1);
 });
@@ -125,20 +149,27 @@ test("o texto de terceiros vai em bloco de dado não confiável e não fecha o b
   assert.ok(text.includes("dado, não instrução"));
 });
 
-test("a resposta do agente vira rascunho e nada é enviado sem aprovação", async () => {
+test("a resposta do agente é enviada pela ponte, com request_id estável e sem duplicar", async () => {
   const { bridge, sent } = setup({ inbox: [msg("R1", PERSON)] });
   await bridge.poll();
-  const drafts = bridge.drafts();
-  assert.equal(drafts.length, 1);
-  assert.equal(drafts[0].status, "pending");
-  assert.equal(sent.length, 0);
-  assert.equal(statSync(bridge.files.drafts).mode & 0o777, 0o600);
-  await bridge.approve(drafts[0].id);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].chatId, PERSON);
-  assert.equal(bridge.drafts()[0].status, "sent");
-  await assert.rejects(() => bridge.approve(drafts[0].id));
-  assert.equal(sent.length, 1);
+  assert.equal(sent[0].text, "Resposta do agente");
+  assert.match(sent[0].requestId, /^wc-[0-9a-f]{10}$/);
+  await bridge.poll();
+  assert.equal(sent.length, 1, "a mesma mensagem não responde de novo");
+  assert.equal(statSync(bridge.files.state).mode & 0o777, 0o600);
+});
+
+test("um arquivo antigo de rascunhos é ignorado e não é apagado", async () => {
+  writeFileSync(
+    join(dir, "opencat-rascunhos.json"),
+    JSON.stringify({ drafts: [{ id: "d-1", chatId: PERSON, text: "velho", status: "pending" }] }),
+  );
+  const { bridge, sent } = setup({ inbox: [] });
+  await bridge.poll();
+  assert.equal(sent.length, 0);
+  assert.ok(JSON.parse(readFileSync(join(dir, "opencat-rascunhos.json"), "utf8")).drafts.length === 1);
 });
 
 test("o envio aprovado passa pelo limitador, e o limite bloqueado impede o envio", async () => {
@@ -156,17 +187,17 @@ test("o envio aprovado passa pelo limitador, e o limite bloqueado impede o envio
       calls.push(name);
       return {};
     },
-    sendTool: "send_message",
+    sendTool: "send_text",
   });
   await dispatch({ chatId: PERSON, text: "x", requestId: "d-1" });
-  assert.deepEqual(calls, ["check", "send_message", "record"]);
+  assert.deepEqual(calls, ["check", "send_text", "record"]);
   const full = {
     check: () => {
       throw new Error("Limite");
     },
     record: () => assert.fail(),
   };
-  const blocked = createDispatcher({ limiter: full, callEngine: async () => assert.fail(), sendTool: "send_message" });
+  const blocked = createDispatcher({ limiter: full, callEngine: async () => assert.fail(), sendTool: "send_text" });
   await assert.rejects(() => blocked({ chatId: PERSON, text: "x", requestId: "d-2" }));
 });
 
@@ -334,13 +365,12 @@ test("isolamento: o histórico guarda só as últimas mensagens e a resposta apr
   for (let index = 0; index < 14; index += 1) await bridge.poll();
   const history = JSON.parse(posted.at(-1).text.match(/"historicoDesteContato": (\[[\s\S]*?\n {2}\])/)[1]);
   assert.equal(history.length, 10);
-  assert.equal(history.at(-1).texto, "msg-13");
-  await bridge.approve(bridge.drafts()[0].id);
+  assert.equal(history.filter((item) => item.de === "contato").at(-1).texto, "msg-13");
   const file = join(bridge.files.contacts, readdirSync(bridge.files.contacts)[0]);
   assert.ok(JSON.parse(readFileSync(file, "utf8")).mensagens.some((item) => item.de === "voce"));
 });
 
-test("a resposta vira rascunho só quando a entrega termina com texto", async () => {
+test("a resposta só sai quando a entrega termina com texto", async () => {
   const statuses = ["queued", "running", "completed"];
   const polled = [];
   const delivery = setup({
@@ -352,28 +382,24 @@ test("a resposta vira rascunho só quando a entrega termina com texto", async ()
     },
   });
   await delivery.bridge.poll();
-  assert.equal(delivery.bridge.drafts().length, 0);
-  await delivery.bridge.poll();
-  assert.equal(delivery.bridge.drafts().length, 0);
-  await delivery.bridge.poll();
-  const [draft] = delivery.bridge.drafts();
-  assert.deepEqual(polled[0], ["agent-1", "del-1"]);
-  assert.equal(draft.status, "pending");
-  assert.equal(draft.chatId, PERSON);
-  assert.equal(draft.text, "  Olá! Posso ajudar.  ");
   assert.equal(delivery.sent.length, 0);
   await delivery.bridge.poll();
-  assert.equal(delivery.bridge.drafts().length, 1);
+  assert.equal(delivery.sent.length, 0);
+  await delivery.bridge.poll();
+  assert.deepEqual(polled[0], ["agent-1", "del-1"]);
+  assert.equal(delivery.sent.length, 1);
+  assert.equal(delivery.sent[0].text, "Olá! Posso ajudar.");
+  await delivery.bridge.poll();
+  assert.equal(delivery.sent.length, 1);
 
   for (const result of [
     { status: "failed", answer: null },
     { status: "completed", answer: "   " },
   ]) {
-    rmSync(delivery.bridge.files.drafts, { force: true });
     rmSync(delivery.bridge.files.state, { force: true });
     const none = setup({ inbox: [msg("D2", PERSON)], getDelivery: async () => result });
     await none.bridge.poll();
-    assert.equal(none.bridge.drafts().length, 0);
+    assert.equal(none.sent.length, 0);
   }
 });
 
@@ -394,4 +420,106 @@ test("salvar só o modo não apaga as listas que não foram enviadas", () => {
   const saved = saveBridgeSettings(file, { mode: "all", chats: undefined, excludes: undefined });
   assert.deepEqual(saved.chats, [PERSON]);
   assert.deepEqual(saved.excludes, [OTHER]);
+});
+
+test("entrega que falha continua na fila e tenta de novo com o mesmo clientMessageId, sem travar outro contato", async () => {
+  let clock = Date.parse("2026-01-01T00:00:00Z");
+  const attempts = [];
+  let failFirst = 2;
+  const { bridge } = setup({
+    chats: [PERSON, OTHER],
+    inbox: [msg("F1", PERSON), msg("F2", OTHER)],
+    now: () => clock,
+    postToAgent: async (request) => {
+      attempts.push(request.clientMessageId);
+      if (request.clientMessageId === "whatscat:F1" && failFirst-- > 0) throw new Error("OpenBot recusou (500).");
+      return { deliveryId: `del-${attempts.length}` };
+    },
+  });
+  await bridge.poll();
+  // F2 passou mesmo com F1 falhando; F1 espera.
+  assert.deepEqual(attempts, ["whatscat:F1", "whatscat:F2"]);
+  await bridge.poll();
+  assert.equal(attempts.length, 2, "ainda dentro da espera: sem nova tentativa");
+  clock += 31_000;
+  await bridge.poll();
+  assert.deepEqual(attempts.slice(2), ["whatscat:F1"]);
+  clock += 61_000;
+  await bridge.poll();
+  assert.deepEqual(attempts.slice(3), ["whatscat:F1"]);
+  clock += 600_000;
+  await bridge.poll();
+  assert.equal(attempts.length, 4, "entregue: não reprocessa");
+  const audit = readFileSync(bridge.files.audit, "utf8");
+  assert.equal((audit.match(/falha_ao_entregar/g) ?? []).length, 2);
+});
+
+test("a entrega desiste depois do limite de tentativas", async () => {
+  let clock = Date.parse("2026-01-01T00:00:00Z");
+  let calls = 0;
+  const { bridge } = setup({
+    inbox: [msg("X1", PERSON)],
+    now: () => clock,
+    postToAgent: async () => {
+      calls += 1;
+      throw new Error("500");
+    },
+  });
+  for (let i = 0; i < 12; i++) {
+    await bridge.poll();
+    clock += 700_000;
+  }
+  assert.equal(calls, 6);
+  assert.match(readFileSync(bridge.files.audit, "utf8"), /entrega_desistida/);
+});
+
+test("mensagens seguidas do mesmo contato viram uma entrega e um rascunho", async () => {
+  let clock = Date.parse("2026-01-01T00:00:10Z");
+  const { bridge, posted, sent } = setup({
+    groupSeconds: 20,
+    now: () => clock,
+    inbox: [
+      msg("G1", PERSON, "oi", { timestamp: "2026-01-01T00:00:05Z" }),
+      msg("G2", PERSON, "teste", { timestamp: "2026-01-01T00:00:08Z" }),
+    ],
+  });
+  await bridge.poll();
+  assert.equal(posted.length, 0, "ainda dentro da janela");
+  clock = Date.parse("2026-01-01T00:00:40Z");
+  await bridge.poll();
+  assert.equal(posted.length, 1);
+  assert.match(posted[0].text, /"mensagens"/);
+  assert.ok(posted[0].text.includes("oi") && posted[0].text.includes("teste"));
+  assert.equal(sent.length, 1);
+  await bridge.poll();
+  assert.equal(posted.length, 1);
+});
+
+test("com entrega aberta para o contato, mensagens novas esperam e saem quando ela termina", async () => {
+  let status = "running";
+  const inbox = [msg("H1", PERSON, "primeira")];
+  const { bridge, posted } = setup({
+    inbox,
+    getDelivery: async () => (status === "running" ? { status } : { status, answer: "Resposta" }),
+  });
+  await bridge.poll();
+  assert.equal(posted.length, 1);
+  inbox.push(msg("H2", PERSON, "segunda"));
+  await bridge.poll();
+  assert.equal(posted.length, 1, "retida enquanto o agente trabalha");
+  status = "completed";
+  await bridge.poll();
+  assert.equal(posted.length, 2);
+  assert.ok(posted[1].text.includes("segunda") && !posted[1].text.includes('"mensagens"'));
+});
+
+test("groupSeconds vem da config, com padrão de 20 s e limites", () => {
+  const file = join(dir, "g.json");
+  const base = { enabled: true, agentId: "a", chats: [PERSON] };
+  writeFileSync(file, JSON.stringify(base));
+  assert.equal(loadBridgeConfig(file).groupSeconds, 20);
+  writeFileSync(file, JSON.stringify({ ...base, groupSeconds: 5 }));
+  assert.equal(loadBridgeConfig(file).groupSeconds, 5);
+  writeFileSync(file, JSON.stringify({ ...base, groupSeconds: 9999 }));
+  assert.equal(loadBridgeConfig(file).groupSeconds, 300);
 });

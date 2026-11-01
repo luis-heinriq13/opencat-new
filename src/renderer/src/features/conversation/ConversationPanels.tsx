@@ -485,6 +485,8 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
               onAddFromMarketplace={
                 serverCanAdminister(props.server, "skills-admin-v1") ? props.onOpenMarketplace : undefined
               }
+              onOpenMarketplace={props.onOpenMarketplace}
+              onOpenMarketplaceApp={props.onOpenMarketplaceApp}
               skillsMode={agentSkillsMode(props.server, props.runtime)}
               skillsServerId={props.server?.id}
               previewWorkspaceFile={(path) =>

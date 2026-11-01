@@ -14,21 +14,24 @@ import QRCode from "qrcode";
 import { createSendLimiter, serveMcp, toolText } from "./mcp-stdio.mjs";
 import {
   acquireBridgeLock,
+  activityCounts,
   bridgeRunning,
   chatDisplayName,
   createAgentApi,
+  createAttachmentFetcher,
   createBridge,
   createDispatcher,
   createEngineReader,
-  formatChatId,
   isGroupChat,
   loadBridgeConfig,
+  readAccessNotice,
   readBridgeSettings,
   releaseBridgeLock,
   saveBridgeSettings,
-  shortHash,
   writeBridgeHeartbeat,
 } from "./whatscat-bridge.mjs";
+import { createMediaExtractor } from "./whatscat-media.mjs";
+import { maskNumber } from "./whatscat-safety.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SERVICE = process.env.WHATSCAT_SERVICE_BIN || join(here, "bin", "localwhatsappmcp");
@@ -225,8 +228,19 @@ function publicState(state) {
   };
 }
 
+/**
+ * Quem responde às pessoas é a ponte, direto. As ferramentas do agente só leem, a menos que o dono ligue
+ * `agentSendTools` no opencat-ponte.json (ou WHATSCAT_AGENT_SEND=1) para um uso fora da ponte.
+ */
+function agentMaySend() {
+  return process.env.WHATSCAT_AGENT_SEND === "1" || readBridgeSettings(BRIDGE_CONFIG_FILE).agentSendTools === true;
+}
+
 async function callTool(name, args) {
   if (name === STATUS_TOOL.name) return toolText(JSON.stringify(publicState(await ensureService())));
+  if (isSendTool(name) && !agentMaySend()) {
+    return toolText("O envio pelo agente está desligado: a ponte do WhatsCat responde sozinha, com filtros.", true);
+  }
   if (!isSendTool(name)) return remote("tools/call", { name, arguments: args });
   const wait = limiter.check();
   if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
@@ -239,14 +253,42 @@ const BRIDGE_CONFIG_FILE = join(DATA_DIR, "opencat-ponte.json");
 /** Código de saída de quem encontra outra ponte viva: o aplicativo espera antes de tentar de novo. */
 const EXIT_ALREADY_RUNNING = 75;
 
-/** As dependências da ponte. O painel só as usa para aprovar um rascunho; o processo da ponte, para tudo. */
+/** Estado mais recente do motor e nomes das conversas, para a conta conectada e os avisos à equipe. */
+let lastEngineState = null;
+const chatNames = new Map();
+
+/** O ID da conta conectada, se o motor o informar. O formato exato não foi confirmado com uma conta real. */
+function accountOf(state) {
+  const whatsapp = state?.whatsapp ?? {};
+  const found = [
+    whatsapp.jid,
+    whatsapp.account_id,
+    whatsapp.account,
+    whatsapp.phone,
+    whatsapp.number,
+    whatsapp.me,
+  ].find((value) => typeof value === "string" && value);
+  return found ?? "";
+}
+
+/** As dependências da ponte. O painel só usa pausa e retomada; o processo da ponte, tudo. */
 function bridgeDeps(config) {
   const callEngine = (name, args) => remote("tools/call", { name, arguments: args });
+  const agentApi = createAgentApi();
   return {
     readMessages: createEngineReader(callEngine),
     listChats: async () =>
       ((await control("GET", "/catalog"))?.chats ?? []).map((chat) => chat.id).filter((id) => typeof id === "string"),
-    ...createAgentApi(),
+    ...agentApi,
+    agentAccess: () => agentApi.agentAccess(config.agentId),
+    selfId: () => accountOf(lastEngineState),
+    chatName: (chatId) => chatNames.get(chatId),
+    addExclude: (chatId) =>
+      saveBridgeSettings(BRIDGE_CONFIG_FILE, {
+        excludes: [...readBridgeSettings(BRIDGE_CONFIG_FILE).excludes, chatId],
+      }),
+    fetchAttachment: createAttachmentFetcher(callEngine),
+    extractMedia: createMediaExtractor(),
     send: createDispatcher({ limiter, callEngine, sendTool: config.sendTool }),
   };
 }
@@ -273,6 +315,15 @@ async function extendScope(state, config) {
         !scope.chat_ids.includes(id),
     );
   if (missing.length) await control("PUT", "/scope", { mode: "selected", chat_ids: [...scope.chat_ids, ...missing] });
+}
+
+let namesAt = 0;
+async function refreshNames() {
+  if (Date.now() - namesAt < 300_000) return;
+  namesAt = Date.now();
+  for (const chat of (await control("GET", "/catalog"))?.chats ?? []) {
+    if (typeof chat?.id === "string") chatNames.set(chat.id, chatDisplayName(chat).nome);
+  }
 }
 
 /** `--bridge`: a ponte sem janela. Uma por pasta de dados; fecha quando o aplicativo que a iniciou fecha. */
@@ -304,7 +355,13 @@ async function runBridgeProcess() {
     lastRun = Date.now();
     try {
       const state = await ensureService();
-      await extendScope(state, config).catch(() => undefined);
+      lastEngineState = state;
+      await refreshNames().catch(() => undefined);
+      // O motor só ganha contatos novos quando o agente tem acesso restrito: sem isso nada se amplia sozinho.
+      const access = await createAgentApi()
+        .agentAccess(config.agentId)
+        .catch(() => null);
+      if (access === "workspace") await extendScope(state, config).catch(() => undefined);
       await createBridge({ config, dir: DATA_DIR, deps: bridgeDeps(config) }).poll();
     } catch {
       // Falhas de leitura já ficam no registro de auditoria da ponte.
@@ -362,6 +419,9 @@ async function startPanel() {
         const grant = (fresh?.agents ?? []).find((item) => item.id === id);
         return reply(response, 200, {
           conectado: Boolean(whatsapp.linked),
+          // O aviso de risco só aparece enquanto se conecta ou reconecta um número, nunca com ele ligado.
+          mostrarAviso: !whatsapp.linked,
+          numero: maskNumber(accountOf(fresh)),
           situacao: whatsapp.status ?? "desconhecida",
           detalhe: whatsapp.detail ?? "",
           qr,
@@ -378,39 +438,59 @@ async function startPanel() {
             .map((chat) => ({ id: chat.id, grupo: isGroupId(chat.id), ...chatDisplayName(chat) })),
         });
       }
+      if (request.method === "GET" && path === "/fechar") {
+        response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+        return response.end("<!doctype html><meta charset=utf-8><title>Fechado</title><p>Pode fechar esta janela.</p>");
+      }
       if (request.method === "GET" && path === "/ponte") {
         const settings = readBridgeSettings(BRIDGE_CONFIG_FILE);
         const bridge = currentBridge();
         const chats = new Map(
           ((await control("GET", "/catalog").catch(() => null))?.chats ?? []).map((chat) => [chat.id, chat]),
         );
+        const agents = await createAgentApi()
+          .listAgents()
+          .catch(() => []);
+        const agent = agents.find((item) => item?.id === settings.agentId);
         return reply(response, 200, {
           ativa: Boolean(bridge),
           configurada: settings.configurada,
           rodando: bridgeRunning(DATA_DIR),
+          atendimento: settings.reply,
+          agente: agent?.name ?? null,
           modo: settings.mode,
           escolhidas: settings.chats,
-          grupos: settings.groups,
+          grupos: settings.groupConfigs,
           excluidos: settings.excludes,
-          rascunhos: (bridge?.drafts() ?? []).map((draft) => ({
-            id: draft.id,
-            status: draft.status,
-            texto: draft.text,
-            conversa: chats.has(draft.chatId)
-              ? chatDisplayName(chats.get(draft.chatId)).nome
-              : (formatChatId(draft.chatId) ?? `conversa ${shortHash(draft.chatId)}`),
-            criadoEm: draft.createdAt,
+          internos: settings.internalContacts,
+          aceitoAcessoTotal: settings.aceitoAcessoTotal,
+          aviso: readAccessNotice(DATA_DIR),
+          silencio: settings.quietHours,
+          atividade: activityCounts(DATA_DIR),
+          pausados: (bridge?.paused() ?? []).map((item) => ({
+            id: item.chatId,
+            nome: chats.has(item.chatId) ? chatDisplayName(chats.get(item.chatId)).nome : "Contato",
+            ate: new Date(item.ate).toISOString(),
+            motivo: item.motivo,
           })),
         });
       }
       if (request.method !== "POST") return reply(response, 404, { error: "Não encontrado." });
       const body = await readBody(request);
-      if (path === "/ponte/aprovar" || path === "/ponte/descartar") {
+      if (path === "/ponte/retomar") {
         const bridge = currentBridge();
         if (!bridge || typeof body.id !== "string") return reply(response, 400, { error: "A ponte está desligada." });
-        // Aprovar é o único caminho de envio da ponte, e passa pelos limites.
-        const done = path === "/ponte/aprovar" ? await bridge.approve(body.id) : bridge.discard(body.id);
-        return reply(response, 200, { status: done.status });
+        bridge.resume(body.id);
+        return reply(response, 200, { ok: true });
+      }
+      if (path === "/ponte/ligado") {
+        // Liga e desliga só o atendimento (reply). A ponte em si continua dependendo de "enabled" no arquivo.
+        const saved = saveBridgeSettings(BRIDGE_CONFIG_FILE, { reply: body.ligado === true ? "auto" : "pause" });
+        return reply(response, 200, { atendimento: saved.reply });
+      }
+      if (path === "/ponte/acesso") {
+        const saved = saveBridgeSettings(BRIDGE_CONFIG_FILE, { aceitoAcessoTotal: body.aceito === true });
+        return reply(response, 200, { aceitoAcessoTotal: saved.aceitoAcessoTotal });
       }
       if (path === "/ponte/atendimento") {
         // Só o modo e as listas. Ligar a ponte continua sendo uma edição de "enabled" em opencat-ponte.json.
@@ -418,8 +498,9 @@ async function startPanel() {
         const saved = saveBridgeSettings(BRIDGE_CONFIG_FILE, {
           mode: body.modo,
           chats: body.escolhidas,
-          groups: body.grupos,
+          groupConfigs: body.grupos,
           excludes: body.excluidos,
+          internalContacts: body.internos,
         });
         return reply(response, 200, { modo: saved.mode });
       }
@@ -476,7 +557,9 @@ if (process.argv.includes("--bridge")) {
       const state = await ensureService();
       // Sem WhatsApp conectado e conversas escolhidas, só o status existe: ele indica o painel.
       if (state?.scope?.mode === "initial") return [STATUS_TOOL];
-      const tools = (await remote("tools/list", {})).tools ?? [];
+      const tools = ((await remote("tools/list", {})).tools ?? []).filter(
+        (tool) => agentMaySend() || !isSendTool(tool?.name),
+      );
       return [STATUS_TOOL, ...tools];
     },
     callTool,

@@ -35,6 +35,7 @@ import type {
   MarketplaceSkillRef,
   SkillRead,
 } from "@openbot/ui/features/marketplace/marketplace-model";
+import { WHATSCAT_PANEL_URL } from "@openbot/ui/features/marketplace/marketplace-model";
 import { serverAddress } from "@openbot/ui/features/marketplace/marketplace-view";
 import type { McpConnectSubject } from "@openbot/ui/features/settings/McpConnectShell";
 import {
@@ -53,6 +54,7 @@ import { writeClipboardText } from "../../clipboard";
 import type { AgentSkillCalls } from "../../skills-port";
 import type { ConnectorRegistry } from "../connectors/connector-registry";
 import { mcpSignInRecord } from "../servers/mcp-servers";
+import { createMarketplaceAppAgent } from "./marketplace-app-agent";
 import { desktopMarketplaceCalls, type MarketplaceCalls, type MarketplaceSignInRelay } from "./marketplace-calls";
 import { createPluginAppConfig } from "./marketplace-plugin-catalog";
 import { localizedPlugin } from "./marketplace-plugin-text";
@@ -1249,6 +1251,16 @@ export function createMarketplaceController(props: MarketplaceControllerProps) {
     return true;
   }
 
+  /* WhatsApp (not official): the agent that answers. Only where this computer keeps the apps. */
+  const appAgent = createMarketplaceAppAgent({
+    calls: () => (props.pluginHostName ? undefined : calls().appConnections),
+    active: () => props.open,
+    agentName: (agentId) => agents().find((agent) => agent.id === agentId)?.name ?? "",
+    run,
+    setNotice,
+    openPanel: () => openPluginUrl(WHATSCAT_PANEL_URL),
+  });
+
   function openPluginUrl(url: string) {
     const safe = safeBrowserUrl(url);
     if (!safe) return;
@@ -1357,6 +1369,9 @@ export function createMarketplaceController(props: MarketplaceControllerProps) {
 
     apps,
     canConnectApps: () => Boolean(props.pluginServerId),
+    get whatsappAgent() {
+      return appAgent.available() ? appAgent.control : undefined;
+    },
     appBusy: (id) => Boolean(busy[`app:${id}`]) || connector(id)?.busy() === true,
     connectApp: (app) => installPlugin(app.plugin),
     reconnectApp: (app, appId) => reconnectPluginApp(app.plugin, appId),

@@ -27,6 +27,7 @@ export * from "./ipc-agent-waits";
 export * from "./ipc-agents";
 export * from "./ipc-app-auth";
 export * from "./ipc-app-behavior";
+export * from "./ipc-app-connections";
 export * from "./ipc-approvals";
 export * from "./ipc-attachments";
 export * from "./ipc-bitwarden-connector";

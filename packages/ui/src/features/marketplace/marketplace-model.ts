@@ -1,4 +1,5 @@
 import type {
+  AppConnectionStatus,
   ClientAgentSummary,
   InstalledSkill,
   MarketplaceAgentDetail,
@@ -24,6 +25,29 @@ export type MarketplaceAgent = Pick<
   ClientAgentSummary,
   "id" | "name" | "title" | "avatarSeed" | "avatarHue" | "avatarUrl"
 >;
+
+/** Main opens the WhatsApp (not official) panel for this address instead of a browser. */
+export const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
+
+/**
+ * The agent that answers for an app such as WhatsApp (not official) on this computer. Each change
+ * reports its own failure through the model's `error` and answers false.
+ */
+export interface MarketplaceAppAgent {
+  /** Undefined until the first read. */
+  status: () => AppConnectionStatus | undefined;
+  busy: () => boolean;
+  /** Connects the agent, turns the app on and sets the replies to automatic. */
+  setAgent: (agentId: string) => Promise<boolean>;
+  /** Resumes the replies of the agent that is already connected. */
+  turnOn: () => Promise<boolean>;
+  /** Keeps the agent and stops the replies. */
+  pause: () => Promise<boolean>;
+  /** Removes the agent from the app. */
+  disconnect: () => Promise<boolean>;
+  /** Opens the app's own panel, where the user connects the number and allows contacts. */
+  openPanel: () => void;
+}
 
 /** A skill that can go to more agents: a catalog listing, or a skill made on this computer. */
 export type MarketplaceSkillRef = Pick<MarketplaceSkillSummary, "id" | "name">;
@@ -193,6 +217,8 @@ export interface MarketplaceModel {
   apps: () => readonly MarketplaceApp[];
   /** False for a member of a joined server, who browses and connects no catalog app. */
   canConnectApps: () => boolean;
+  /** The agent that answers on WhatsApp (not official). Absent where the app cannot run: web, joined server. */
+  whatsappAgent?: MarketplaceAppAgent | undefined;
   appBusy: (id: string) => boolean;
   /** Runs the connect step of a catalog app. False when the user closed it. */
   connectApp: (app: Extract<MarketplaceApp, { kind: "plugin" }>) => Promise<boolean>;

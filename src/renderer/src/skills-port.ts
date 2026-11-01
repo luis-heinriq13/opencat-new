@@ -34,6 +34,7 @@ export interface SkillsPort {
   >;
   marketplaceAgents: Pick<OpenBotDesktopApi["marketplaceAgents"], "get" | "getListing" | "install" | "list">;
   macAutomation: Pick<OpenBotDesktopApi["macAutomation"], "request">;
+  appConnections: Pick<OpenBotDesktopApi["appConnections"], "status" | "change">;
   skills: Pick<
     OpenBotDesktopApi["skills"],
     | "get"

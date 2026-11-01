@@ -1,10 +1,17 @@
 // @vitest-environment node
 
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { bundlePathFromExecutable, type LocalUpdateDependencies, readLocalUpdate } from "./local-update-source";
+import {
+  bundlePathFromExecutable,
+  formatVersionLabel,
+  type LocalUpdateDependencies,
+  localUpdateStillOffered,
+  readInstalledBuild,
+  readLocalUpdate,
+} from "./local-update-source";
 
 const COMMIT = "a".repeat(40);
 const OLD_COMMIT = "b".repeat(40);
@@ -14,7 +21,7 @@ let root: string;
 let updates: string;
 let app: string;
 
-type Fields = { [key: string]: string | number | boolean | (string | number)[] };
+type Fields = { [key: string]: string | number | boolean | (string | number)[] | { [key: string]: string | number } };
 
 function manifest(overrides: Fields = {}): string {
   return JSON.stringify({
@@ -157,5 +164,78 @@ describe("bundlePathFromExecutable", () => {
       "/Applications/OpenCat.app",
     );
     expect(bundlePathFromExecutable("/usr/bin/node")).toBeNull();
+  });
+});
+
+describe("build label", () => {
+  const build = { number: 2841, commit: "5ffe2bc" };
+
+  it("accepts the optional build and keeps the allow-list strict", async () => {
+    await writePending(manifest({ build }));
+    const result = await readLocalUpdate(deps());
+    expect(result.ok && result.update.build).toEqual(build);
+    await writePending(manifest({ build, extra: "x" }));
+    expect(await reasonOf()).toBe("unexpected fields");
+  });
+
+  it.each([
+    ["a string", "2841"],
+    ["extra fields", { number: 1, commit: "5ffe2bc", more: "x" }],
+    ["a zero number", { number: 0, commit: "5ffe2bc" }],
+    ["a fractional number", { number: 1.5, commit: "5ffe2bc" }],
+    ["a commit with a path", { number: 1, commit: "../etc" }],
+  ])("rejects a build with %s", async (_name, value) => {
+    await writePending(manifest({ build: value }));
+    expect(await reasonOf()).toBe("invalid build");
+  });
+
+  it("formats the label", () => {
+    expect(formatVersionLabel("0.57.0", build)).toBe("0.57.0 (build 2841 \u00b7 5ffe2bc)");
+    expect(formatVersionLabel("0.57.0", null)).toBe("0.57.0");
+  });
+
+  it("reads the installed build from installed.json", async () => {
+    expect(await readInstalledBuild(updates, uid)).toBeNull();
+    const path = join(updates, "installed.json");
+    await writeFile(path, JSON.stringify({ commit: COMMIT, version: "0.57.0", build }), { mode: 0o600 });
+    await chmod(path, 0o600);
+    expect(await readInstalledBuild(updates, uid)).toEqual({ version: "0.57.0", build });
+    await writeFile(path, JSON.stringify({ commit: COMMIT, build: { number: -1, commit: "x" } }), { mode: 0o600 });
+    expect(await readInstalledBuild(updates, uid)).toBeNull();
+  });
+});
+
+describe("installation in progress", () => {
+  async function marker(name: string, ageMs: number): Promise<void> {
+    const path = join(updates, name);
+    await writeFile(path, "1", { mode: 0o600 });
+    const when = new Date(Date.now() - ageMs);
+    await utimes(path, when, when);
+  }
+
+  it.each(["installacao.lock", "pending.instalando.json"])("offers nothing while %s exists", async (name) => {
+    await writePending(manifest());
+    await marker(name, 1_000);
+    expect(await reasonOf()).toContain("an installation is in progress");
+    expect(await localUpdateStillOffered(deps(), COMMIT)).toBe(false);
+  });
+
+  it("ignores a marker that an interrupted installer left behind long ago", async () => {
+    await writePending(manifest());
+    await marker("pending.instalando.json", 2 * 60 * 60 * 1000);
+    expect((await readLocalUpdate(deps())).ok).toBe(true);
+  });
+});
+
+describe("localUpdateStillOffered", () => {
+  it("is true only while the offered manifest exists and is new", async () => {
+    expect(await localUpdateStillOffered(deps(), COMMIT)).toBe(false);
+    await writePending(manifest());
+    expect(await localUpdateStillOffered(deps(), COMMIT)).toBe(true);
+    expect(await localUpdateStillOffered(deps(), OLD_COMMIT)).toBe(false);
+    const installed = join(updates, "installed.json");
+    await writeFile(installed, JSON.stringify({ commit: COMMIT }), { mode: 0o600 });
+    await chmod(installed, 0o600);
+    expect(await localUpdateStillOffered(deps(), COMMIT)).toBe(false);
   });
 });

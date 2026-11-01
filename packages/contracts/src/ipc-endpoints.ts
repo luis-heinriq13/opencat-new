@@ -166,6 +166,7 @@ import type {
   VerifyEmailCodeInput,
 } from "./ipc-app-auth";
 import type { AppBehaviorPreference, AppBehaviorPreferenceChange } from "./ipc-app-behavior";
+import type { AppConnectionApp, AppConnectionChange, AppConnectionStatus } from "./ipc-app-connections";
 import type {
   ApprovalAutomationPreference,
   RespondToApprovalInput,
@@ -1171,6 +1172,12 @@ export const IPC_ENDPOINTS = {
     hostOpenVerification: scopedQuery<void, "required">()("github-connector:host-open-verification"),
     hostOpenInstall: scopedQuery<void, "required">()("github-connector:host-open-install"),
   },
+  // Which agent answers for an app on this computer, such as WhatsApp (not official). The status holds
+  // counts only: no phone number, chat id or contact name. `change` returns the status after the write.
+  appConnections: {
+    status: request<AppConnectionApp, AppConnectionStatus>()("app-connections:status"),
+    change: request<AppConnectionChange, AppConnectionStatus>()("app-connections:change"),
+  },
   // The Bitwarden connection of this computer. The session key goes from the renderer to main once,
   // in `connect`; every answer is the status only. The `host*` endpoints do the same for a joined
   // server (`bitwarden-connector-v1`), with an API key and the master password: a session key from
@@ -1904,6 +1911,7 @@ export const IPC_GROUP_PATHS = {
   hostAdmin: "hostAdmin",
   githubConnector: "githubConnector",
   onePasswordConnector: "onePasswordConnector",
+  appConnections: "appConnections",
   bitwardenConnector: "bitwardenConnector",
   vault: "vault",
   hostedSites: "hostedSites",

@@ -2,129 +2,242 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WhatsApp (não oficial)</title>
 <style>
-  :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
-  body { margin: 0 auto; max-width: 600px; padding: 24px; line-height: 1.45; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .box { border: 1px solid #8884; border-radius: 10px; padding: 14px; margin: 14px 0; }
-  .aviso { border-color: #d97706; }
-  .ok { border-color: #16a34a; }
-  details > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 8px; }
-  details > summary::-webkit-details-marker { display: none; }
-  details > summary::before { content: "▸"; opacity: .6; }
-  details[open] > summary::before { content: "▾"; }
-  details.box > summary { font-weight: 600; }
-  details > .inner { margin-top: 10px; }
-  #qr { background: #fff; border-radius: 8px; padding: 10px; width: 260px; margin: 10px auto; }
-  button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #8886; background: transparent; cursor: pointer; }
-  button.main { background: #16a34a; border-color: #16a34a; color: #fff; }
-  button.small { padding: 4px 9px; font-size: 13px; }
-  button:disabled { opacity: .5; cursor: default; }
-  input[type="search"] { font: inherit; width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #8886; background: transparent; color: inherit; }
-  small { opacity: .75; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
-  .toolbar .count { margin-left: auto; font-size: 13px; opacity: .75; }
-  .list { max-height: 230px; overflow: auto; border: 1px solid #8883; border-radius: 8px; }
-  .item { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #8882; cursor: pointer; }
+  /* Valores copiados de packages/brand/src/tokens.css (tema escuro do OpenCat). */
+  :root {
+    color-scheme: dark;
+    --bg-canvas: #1a1a1a;
+    --bg-surface: #212121;
+    --bg-raised: #242424;
+    --bg-control: #212121;
+    --bg-control-hover: #242424;
+    --bg-control-active: #2a2a2a;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.12);
+    --text: #ffffff;
+    --text-secondary: #dcdcdc;
+    --text-muted: #979797;
+    --text-dim: #6a6a6a;
+    --accent: #007cf7;
+    --accent-hover: #1f8fff;
+    --accent-text: #42a0ff;
+    --accent-soft: rgba(0, 124, 247, 0.16);
+    --success: #31cf76;
+    --success-soft: rgba(49, 207, 118, 0.12);
+    --warning: #ff9412;
+    --warning-soft: rgba(255, 148, 18, 0.12);
+    --danger: #fd2f3b;
+    --danger-text: #ff6069;
+    --danger-soft: rgba(253, 47, 59, 0.16);
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-card: 14px;
+    --radius-pill: 999px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --control-sm: 28px;
+    --control-md: 32px;
+    --switch-w: 36px;
+    --switch-h: 20px;
+    --switch-thumb: 16px;
+    --switch-inset: 2px;
+    --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  p { margin: 0; }
+  html, body { margin: 0; background: var(--bg-canvas); color: var(--text-secondary); font: 13px/1.5 var(--font); }
+  body { padding: var(--space-4) var(--space-4) var(--space-6); max-width: 680px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+  header .logo { width: 32px; height: 32px; border-radius: var(--radius-md); background: var(--success-soft); color: var(--success); display: grid; place-items: center; font-weight: 600; }
+  header h1 { font-size: 16px; line-height: 1.3; margin: 0; color: var(--text); font-weight: 600; }
+  header p { margin: 0; color: var(--text-muted); }
+  header .grow { flex: 1; min-width: 0; }
+  h2 { font-size: 14px; color: var(--text); margin: 0; font-weight: 600; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: var(--space-4); margin-bottom: var(--space-3); }
+  .card > .head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+  .card > .head .grow { flex: 1; min-width: 0; }
+  .muted { color: var(--text-muted); }
+  .stack > * + * { margin-top: var(--space-3); }
+  .row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .row.grow > .grow { flex: 1; min-width: 0; }
+  .notice { border-radius: var(--radius-lg); padding: var(--space-3); border: 1px solid var(--border-strong); background: var(--bg-raised); }
+  .notice.warn { border-color: var(--warning); background: var(--warning-soft); color: var(--text); }
+  .notice.info { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  .notice.bad { border-color: var(--danger); background: var(--danger-soft); color: var(--text); }
+  button { font: inherit; height: var(--control-md); padding: 0 var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: var(--bg-control); color: var(--text); cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--bg-control-hover); }
+  button:active:not(:disabled) { background: var(--bg-control-active); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.small { height: var(--control-sm); padding: 0 var(--space-2); font-size: 12px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.icon { width: var(--control-md); padding: 0; display: grid; place-items: center; font-size: 18px; line-height: 1; background: transparent; border-color: transparent; color: var(--text-muted); }
+  button.icon:hover:not(:disabled) { color: var(--text); background: var(--bg-control-hover); }
+  :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+  input[type="search"], select, textarea { font: inherit; width: 100%; background: var(--bg-control); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 0 var(--space-3); height: var(--control-md); }
+  textarea { height: auto; min-height: 64px; padding: var(--space-2) var(--space-3); resize: vertical; }
+  select { width: auto; }
+  ::placeholder { color: var(--text-dim); }
+  /* Interruptor, com as medidas do OpenCat: 36x20, bolinha de 16, folga de 2. */
+  .switch { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: var(--switch-w); height: var(--switch-h); margin: 0; cursor: pointer; }
+  .switch .track { width: var(--switch-w); height: var(--switch-h); border-radius: var(--radius-pill); background: var(--bg-control-active); border: 1px solid var(--border-strong); position: relative; transition: background 0.15s; flex: none; }
+  .switch .track::after { content: ""; position: absolute; top: calc(var(--switch-inset) - 1px); left: calc(var(--switch-inset) - 1px); width: var(--switch-thumb); height: var(--switch-thumb); border-radius: 50%; background: #fff; transition: transform 0.15s; }
+  .switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(calc(var(--switch-w) - var(--switch-thumb) - var(--switch-inset) * 2)); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-pill); font-size: 12px; background: var(--bg-control-active); color: var(--text-secondary); }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); }
+  .badge.on { color: var(--success); background: var(--success-soft); }
+  .badge.on::before { background: var(--success); }
+  .badge.off { color: var(--warning); background: var(--warning-soft); }
+  .badge.off::before { background: var(--warning); }
+  #qr { background: #fff; border-radius: var(--radius-lg); padding: var(--space-3); width: 260px; margin: var(--space-3) auto; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  .seg label { display: block; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: var(--space-3); cursor: pointer; background: var(--bg-control); }
+  .seg label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .seg input { margin-right: var(--space-2); }
+  .seg strong { color: var(--text); font-weight: 600; }
+  .seg small { display: block; color: var(--text-muted); margin-top: 2px; }
+  .list { max-height: 240px; overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-control); }
+  .item { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); cursor: pointer; }
   .item:last-child { border-bottom: 0; }
-  .item:hover { background: #8881; }
-  .item .nome { font-weight: 500; overflow-wrap: anywhere; }
-  .item .numero { margin-left: auto; font-size: 13px; opacity: .65; white-space: nowrap; }
-  .vazio { padding: 10px; font-size: 14px; opacity: .7; }
-  .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 13px; border: 1px solid #8886; }
-  .badge.on { border-color: #16a34a; color: #16a34a; }
-  .badge.off { border-color: #d97706; color: #d97706; }
-  .modo { display: block; border: 1px solid #8884; border-radius: 8px; padding: 9px 12px; margin: 6px 0; cursor: pointer; }
-  .modo.atual { border-color: #16a34a; background: #16a34a14; }
-  .secao { margin-top: 12px; }
-  .secao > summary strong { font-size: 14px; }
+  .item:hover { background: var(--bg-control-hover); }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-control-active); color: var(--text-secondary); display: grid; place-items: center; font-size: 11px; font-weight: 600; flex: none; }
+  .item .nome { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+  .item .numero { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+  .empty { padding: var(--space-4); text-align: center; color: var(--text-muted); }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: var(--space-2) 0; }
+  .toolbar .count { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--space-2); }
+  .stat { background: var(--bg-control); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-3); }
+  .stat b { display: block; font-size: 18px; color: var(--text); font-weight: 600; }
+  .group { border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: var(--space-3); background: var(--bg-control); }
+  .group + .group { margin-top: var(--space-2); }
+  details > summary { cursor: pointer; color: var(--text-muted); }
+  .error { color: var(--danger-text); min-height: 1.5em; margin: var(--space-2) 0 0; }
+  .field { display: block; color: var(--text-muted); font-size: 12px; margin-bottom: var(--space-1); }
 </style>
 </head>
 <body>
-<h1>WhatsApp (não oficial)</h1>
-<small>Seu WhatsApp nos agentes do OpenCat. Os dados ficam neste computador.</small>
+<header>
+  <div class="logo" aria-hidden="true">W</div>
+  <div class="grow">
+    <h1>WhatsApp (não oficial)</h1>
+    <p>Seu WhatsApp nos agentes do OpenCat. Os dados ficam neste computador.</p>
+  </div>
+  <button type="button" class="icon" id="fechar" aria-label="Fechar o painel" title="Fechar (Esc)">&times;</button>
+</header>
 
-<div class="box aviso">
-  <strong>Esta opção não é oficial.</strong> Ela viola os termos do WhatsApp, e a conta pode ser banida, mesmo com os limites abaixo. Para atendimento de empresa, use a opção "WhatsApp Business (API oficial)" da loja. Não faça envio em massa.
-  <p><label><input type="checkbox" id="risco"> Entendi o risco e quero usar esta conta.</label></p>
-</div>
+<p id="erro" class="error" role="alert" aria-live="assertive"></p>
 
-<div class="box">
-  <strong id="situacao">Carregando…</strong>
-  <div id="detalhe"><small></small></div>
-  <div id="qr" hidden></div>
-  <p id="instrucao" hidden>No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho. Aponte a câmera para o código.</p>
-  <button type="button" class="main" id="conectar" disabled>Conectar WhatsApp</button>
-  <button type="button" id="desconectar" hidden>Desconectar</button>
-</div>
+<!-- Status -->
+<section class="card" aria-labelledby="t-status">
+  <div class="head">
+    <div class="grow">
+      <h2 id="t-status">Conexão</h2>
+      <p class="muted" id="numero-conectado">Número não conectado</p>
+    </div>
+    <span class="badge" id="situacao-badge">Carregando</span>
+  </div>
+  <div id="aviso-risco" class="notice warn stack" hidden>
+    <p><strong>Esta opção não é oficial.</strong> Ela viola os termos do WhatsApp, e a conta pode ser banida, mesmo com os limites. Para atendimento de empresa, use a opção "WhatsApp Business (API oficial)" da loja. Não faça envio em massa.</p>
+    <label class="switch"><input type="checkbox" id="risco"><span class="track"></span><span>Entendi o risco e quero usar esta conta.</span></label>
+  </div>
+  <div id="qr" hidden role="img" aria-label="QR code para conectar o WhatsApp"></div>
+  <p id="instrucao" class="muted" hidden>No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho. Aponte a câmera para o código.</p>
+  <div class="row" style="margin-top: var(--space-3)">
+    <button type="button" class="primary" id="conectar" disabled>Conectar WhatsApp</button>
+    <button type="button" id="desconectar" hidden>Desconectar</button>
+  </div>
+</section>
 
 <div id="conectado" hidden>
-  <input type="search" id="busca" placeholder="Buscar contato ou grupo pelo nome ou número" aria-label="Buscar contato ou grupo">
 
-  <details class="box" id="escopo-box" open>
-    <summary>Conversas liberadas aos agentes</summary>
-    <div class="inner">
-      <p><small id="escopo-atual">Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</small></p>
-      <details class="secao" open>
-        <summary><strong>Contatos</strong> <small id="escopo-contatos-total"></small></summary>
-        <div class="inner" id="escopo-contatos"></div>
-      </details>
-      <details class="secao">
-        <summary><strong>Grupos</strong> <small id="escopo-grupos-total">(nenhum liberado por padrão)</small></summary>
-        <div class="inner">
-          <p><small>Grupos têm muita gente e muito conteúdo de terceiros. Marque só os que você quer que os agentes vejam.</small></p>
-          <div id="escopo-grupos"></div>
-        </div>
-      </details>
-      <p><button type="button" id="escolhidas" class="main">Liberar as escolhidas</button> <button type="button" id="escopo">Liberar todas as conversas (sem grupos)</button></p>
+<!-- Atendimento -->
+<section class="card" aria-labelledby="t-atendimento">
+  <div class="head">
+    <div class="grow">
+      <h2 id="t-atendimento">Atendimento</h2>
+      <p class="muted" id="agente-nome">Agente não definido</p>
     </div>
-  </details>
-
-  <details class="box" id="ponte-box" open>
-    <summary>Atendimento pelo agente</summary>
-    <div class="inner">
-      <p>
-        <span class="badge" id="ponte-estado">Verificando…</span>
-        <span class="badge" id="ponte-modo-atual"></span>
-      </p>
-      <p><small id="ponte-ajuda"></small></p>
-      <div class="box ok" style="margin:10px 0">
-        <strong>As respostas esperam a sua aprovação.</strong>
-        <small>O agente só escreve rascunhos. Nada é enviado sozinho: cada resposta só sai depois que você clicar em "Aprovar e enviar", e passa pelos limites de envio.</small>
-      </div>
-      <label class="modo" id="modo-selected"><input type="radio" name="modo" value="selected"> <strong>Só as escolhidas</strong><br><small>O agente atende apenas os contatos que você marcar abaixo.</small></label>
-      <label class="modo" id="modo-all"><input type="radio" name="modo" value="all"> <strong>Todos os contatos, inclusive novos</strong><br><small>Todo contato, também um que escrever pela primeira vez, é atendido sem você marcar. Marque abaixo os que ficam de fora. Grupos nunca entram: escolha-os um a um.</small></label>
-      <details class="secao" open>
-        <summary><strong id="ponte-contatos-titulo">Contatos atendidos</strong> <small id="ponte-contatos-total"></small></summary>
-        <div class="inner" id="ponte-contatos"></div>
-      </details>
-      <details class="secao">
-        <summary><strong>Grupos atendidos</strong> <small id="ponte-grupos-total"></small></summary>
-        <div class="inner">
-          <p><small>Grupos são sempre escolhidos um a um, em qualquer modo.</small></p>
-          <div id="ponte-grupos"></div>
-        </div>
-      </details>
-      <p><button type="button" class="main" id="salvar-atendimento">Salvar atendimento</button> <small id="atendimento-aviso"></small></p>
+    <label class="switch" for="ligado">
+      <input type="checkbox" id="ligado" aria-describedby="ligado-texto">
+      <span class="track"></span><span id="ligado-texto">Pausado</span>
+    </label>
+  </div>
+  <div class="stack">
+    <div class="row"><span class="badge" id="ponte-estado">Verificando</span></div>
+    <p class="muted" id="ponte-ajuda"></p>
+    <div id="acesso-aviso" class="notice warn stack" hidden>
+      <p id="acesso-texto"></p>
+      <label class="switch"><input type="checkbox" id="acesso-total"><span class="track"></span><span>Aceito que o agente atenda sem acesso restrito</span></label>
     </div>
+    <div id="pausados-box" hidden>
+      <div class="field">Pausados agora</div>
+      <div id="pausados"></div>
+    </div>
+    <div class="row" id="envio-box" hidden>
+      <label class="switch"><input type="checkbox" id="envio"><span class="track"></span><span>Permitir envio pelo motor do WhatsApp</span></label>
+      <span class="muted" id="limites"></span>
+    </div>
+  </div>
+</section>
+
+<!-- Quem o agente atende -->
+<section class="card" aria-labelledby="t-quem">
+  <div class="head"><div class="grow"><h2 id="t-quem">Quem o agente atende</h2></div><span class="muted" id="ponte-modo-atual"></span></div>
+  <div class="seg" role="radiogroup" aria-label="Quem o agente atende">
+    <label><input type="radio" name="modo" value="selected"><strong>Só as escolhidas</strong><small>Apenas os contatos marcados na lista.</small></label>
+    <label><input type="radio" name="modo" value="all"><strong>Todos, inclusive novos</strong><small>Marque os que ficam de fora. Só vale com acesso restrito.</small></label>
+  </div>
+  <div class="toolbar">
+    <input type="search" id="busca" placeholder="Buscar contato pelo nome ou número" aria-label="Buscar contato ou grupo" style="flex:1; min-width: 180px">
+  </div>
+  <div class="field" id="contatos-titulo">Contatos atendidos</div>
+  <div id="ponte-contatos"></div>
+  <details style="margin-top: var(--space-3)">
+    <summary>Equipe interna (recebe avisos quando o agente passa a conversa para uma pessoa)</summary>
+    <p class="muted" style="margin: var(--space-2) 0">Quem estiver marcado aqui nunca é tratado como cliente. Os avisos têm só o nome ou o número mascarado e o motivo.</p>
+    <div id="internos"></div>
   </details>
-
-  <div class="box" id="rascunhos-box" hidden>
-    <strong>Rascunhos de resposta</strong>
-    <p><small>Respostas dos agentes aguardando a sua decisão. Nada sai sem você aprovar.</small></p>
-    <div id="rascunhos"></div>
+  <div class="row" style="margin-top: var(--space-3)">
+    <button type="button" class="primary" id="salvar-atendimento">Salvar</button>
+    <span class="muted" id="atendimento-aviso" role="status"></span>
   </div>
+</section>
 
-  <div class="box" id="envio-box" hidden>
-    <strong>Envio de mensagens</strong>
-    <p><small>Começa desligado. Com ele desligado, os agentes só leem.</small></p>
-    <label><input type="checkbox" id="envio"> Permitir que os agentes enviem</label>
-    <p><small id="limites"></small></p>
+<!-- Grupos -->
+<section class="card" aria-labelledby="t-grupos">
+  <div class="head"><div class="grow"><h2 id="t-grupos">Grupos</h2></div><span class="muted" id="grupos-total"></span></div>
+  <p class="muted">Grupos têm muita gente. O agente só participa dos que você ligar aqui, e cada um tem seu modo. Quem escreve no grupo aparece ao agente só por um código.</p>
+  <div id="grupos" style="margin-top: var(--space-3)"></div>
+</section>
+
+<!-- Atividade -->
+<section class="card" aria-labelledby="t-atividade">
+  <div class="head"><div class="grow"><h2 id="t-atividade">Atividade</h2><p class="muted">Últimas 24 horas, só contagens.</p></div></div>
+  <div class="stats" id="atividade"></div>
+</section>
+
+<!-- Avançado: escopo do motor -->
+<details class="card" id="escopo-box">
+  <summary>Conversas liberadas ao motor (avançado)</summary>
+  <div class="stack" style="margin-top: var(--space-3)">
+    <p class="muted" id="escopo-atual">Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</p>
+    <div><div class="field">Contatos <span id="escopo-contatos-total"></span></div><div id="escopo-contatos"></div></div>
+    <div><div class="field">Grupos <span id="escopo-grupos-total"></span></div><div id="escopo-grupos"></div></div>
+    <div class="row"><button type="button" id="escolhidas" class="primary">Liberar as escolhidas</button><button type="button" id="escopo">Liberar todas (sem grupos)</button></div>
   </div>
+</details>
+
 </div>
-
-<p id="erro" role="alert" style="color:#dc2626"></p>
 
 <script>
   const base = location.pathname.replace(/\/$/, "");
@@ -136,9 +249,19 @@
     return value;
   }
   function failure(error) { $("erro").textContent = error.message; }
-  const NAMES = { connected: "Conectado", disconnected: "Desconectado", linking: "Leia o QR code", connecting: "Conectando", syncing: "Sincronizando", logging_in: "Aguardando o QR code", reconnecting: "Reconectando" };
 
-  /* Lista de contatos com busca, "selecionar todos os visíveis" e "limpar". A busca é uma só para todas as listas. */
+  /* Fechar: botão, Esc e, se a janela não fechar sozinha, a rota /fechar que o OpenCat intercepta. */
+  function closePanel() {
+    try { window.close(); } catch (error) { /* a rota abaixo fecha */ }
+    setTimeout(() => { location.href = `${base}/fechar`; }, 150);
+  }
+  $("fechar").addEventListener("click", closePanel);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closePanel(); });
+
+  const NAMES = { connected: "Conectado", disconnected: "Desconectado", linking: "Leia o QR code", connecting: "Conectando", syncing: "Sincronizando", logging_in: "Aguardando o QR code", reconnecting: "Reconectando" };
+  const REASONS = { agente_pediu_humano: "o agente pediu uma pessoa", resposta_bloqueada: "resposta barrada pelo filtro", limite_por_hora: "limite de respostas por hora", dono_assumiu: "você assumiu a conversa" };
+
+  /* Lista de contatos com busca, avatar, "selecionar todos os visíveis" e "limpar". A busca é uma só. */
   const pickers = [];
   let query = "";
   const digits = (text) => text.replace(/\D/g, "");
@@ -149,7 +272,11 @@
     const typed = digits(text);
     return typed.length > 0 && digits(chat.numero || "").includes(typed);
   }
-  function createPicker(host, totalLabel, onChange) {
+  function initials(name) {
+    const parts = name.replace(/[^\p{L}\p{N}\s]/gu, "").trim().split(/\s+/).filter(Boolean);
+    return ((parts[0] || "?")[0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  }
+  function createPicker(host, totalLabel, onChange, noun) {
     const selected = new Set();
     let chats = [];
     const toolbar = document.createElement("div");
@@ -159,15 +286,17 @@
     const clear = document.createElement("button");
     clear.type = "button"; clear.className = "small"; clear.textContent = "Limpar";
     const count = document.createElement("span");
-    count.className = "count";
+    count.className = "count"; count.setAttribute("aria-live", "polite");
     toolbar.append(all, clear, count);
     const list = document.createElement("div");
     list.className = "list";
+    list.setAttribute("role", "group");
+    list.setAttribute("aria-label", noun || "Conversas");
     host.replaceChildren(toolbar, list);
     const visible = () => chats.filter(matches);
     function update() {
       count.textContent = `${selected.size} de ${chats.length} marcados`;
-      totalLabel.textContent = `(${selected.size} marcados)`;
+      if (totalLabel) totalLabel.textContent = `(${selected.size} marcados)`;
     }
     function draw() {
       const shown = visible();
@@ -177,11 +306,13 @@
         const input = document.createElement("input");
         input.type = "checkbox"; input.value = chat.id; input.checked = selected.has(chat.id);
         input.addEventListener("change", () => { if (input.checked) selected.add(chat.id); else selected.delete(chat.id); update(); if (onChange) onChange(); });
+        const avatar = document.createElement("span");
+        avatar.className = "avatar"; avatar.setAttribute("aria-hidden", "true"); avatar.textContent = initials(chat.nome);
         const name = document.createElement("span");
         name.className = "nome"; name.textContent = chat.nome;
-        row.append(input, name);
+        row.append(input, avatar, name);
         if (chat.numero && chat.numero !== chat.nome) {
-          const number = document.createElement("small");
+          const number = document.createElement("span");
           number.className = "numero"; number.textContent = chat.numero;
           row.append(number);
         }
@@ -189,8 +320,8 @@
       }));
       if (!shown.length) {
         const empty = document.createElement("div");
-        empty.className = "vazio";
-        empty.textContent = chats.length ? "Nada encontrado para essa busca." : "Nenhuma conversa apareceu ainda. Aguarde a sincronização.";
+        empty.className = "empty";
+        empty.textContent = chats.length ? "Nada encontrado para essa busca." : "Nenhuma conversa apareceu ainda. Aguarde a sincronização do WhatsApp.";
         list.replaceChildren(empty);
       }
       update();
@@ -210,20 +341,64 @@
 
   let dirty = false;
   const markDirty = () => { dirty = true; $("atendimento-aviso").textContent = "Mudanças ainda não salvas."; };
-  const scopeContacts = createPicker($("escopo-contatos"), $("escopo-contatos-total"));
-  const scopeGroups = createPicker($("escopo-grupos"), $("escopo-grupos-total"));
-  const ponteContacts = createPicker($("ponte-contatos"), $("ponte-contatos-total"), markDirty);
-  const ponteGroups = createPicker($("ponte-grupos"), $("ponte-grupos-total"), markDirty);
+  const scopeContacts = createPicker($("escopo-contatos"), $("escopo-contatos-total"), null, "Contatos liberados ao motor");
+  const scopeGroups = createPicker($("escopo-grupos"), $("escopo-grupos-total"), null, "Grupos liberados ao motor");
+  const ponteContacts = createPicker($("ponte-contatos"), null, markDirty, "Contatos do atendimento");
+  const internos = createPicker($("internos"), null, markDirty, "Equipe interna");
 
   let mode = "selected";
   function drawMode() {
     document.querySelectorAll("input[name=modo]").forEach((input) => { input.checked = input.value === mode; });
-    $("modo-selected").classList.toggle("atual", mode === "selected");
-    $("modo-all").classList.toggle("atual", mode === "all");
-    $("ponte-contatos-titulo").textContent = mode === "all" ? "Contatos que ficam de fora" : "Contatos atendidos";
+    $("contatos-titulo").textContent = mode === "all" ? "Contatos que ficam de fora" : "Contatos atendidos";
   }
   for (const input of document.querySelectorAll("input[name=modo]")) input.addEventListener("change", () => { mode = input.value; drawMode(); markDirty(); });
   $("busca").addEventListener("input", (event) => { query = event.target.value; for (const picker of pickers) picker.draw(); });
+
+  /* Grupos: cada um com liga/desliga, modo e instruções. */
+  const groupRows = new Map();
+  let allGroups = [];
+  let savedGroups = new Map();
+  function drawGroups() {
+    const host = $("grupos");
+    if (!allGroups.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty"; empty.textContent = "Nenhum grupo apareceu ainda.";
+      host.replaceChildren(empty);
+      return;
+    }
+    host.replaceChildren(...allGroups.map((chat) => {
+      const saved = groupRows.get(chat.id) || savedGroups.get(chat.id) || { on: false, mode: "mention", instructions: "" };
+      groupRows.set(chat.id, saved);
+      const box = document.createElement("div");
+      box.className = "group";
+      const top = document.createElement("div");
+      top.className = "row";
+      const sw = document.createElement("label");
+      sw.className = "switch";
+      const check = document.createElement("input");
+      check.type = "checkbox"; check.checked = saved.on; check.setAttribute("aria-label", `Atender o grupo ${chat.nome}`);
+      const track = document.createElement("span"); track.className = "track";
+      const name = document.createElement("span"); name.textContent = chat.nome; name.style.color = "var(--text)";
+      sw.append(check, track, name);
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", `Modo do grupo ${chat.nome}`);
+      for (const [value, label] of [["mention", "Só quando mencionado"], ["readonly", "Só ler"], ["all", "Responder a todos"]]) {
+        const option = document.createElement("option"); option.value = value; option.textContent = label; select.append(option);
+      }
+      select.value = saved.mode; select.disabled = !saved.on;
+      top.append(sw, select);
+      const text = document.createElement("textarea");
+      text.placeholder = "Instruções para este grupo (opcional)"; text.value = saved.instructions;
+      text.setAttribute("aria-label", `Instruções do grupo ${chat.nome}`); text.maxLength = 1000; text.hidden = !saved.on;
+      check.addEventListener("change", () => { saved.on = check.checked; select.disabled = !check.checked; text.hidden = !check.checked; markDirty(); countGroups(); });
+      select.addEventListener("change", () => { saved.mode = select.value; markDirty(); });
+      text.addEventListener("input", () => { saved.instructions = text.value; markDirty(); });
+      box.append(top, text);
+      return box;
+    }));
+    countGroups();
+  }
+  function countGroups() { const n = [...groupRows.values()].filter((item) => item.on).length; $("grupos-total").textContent = `${n} ligados`; }
 
   async function refresh() {
     try {
@@ -231,21 +406,25 @@
       const state = await response.json();
       if (!response.ok) throw new Error(state.error || "Falhou.");
       $("erro").textContent = "";
-      $("situacao").textContent = NAMES[state.situacao] || state.situacao;
+      const label = NAMES[state.situacao] || state.situacao;
+      $("situacao-badge").textContent = label;
+      $("situacao-badge").className = `badge ${state.conectado ? "on" : "off"}`;
+      $("numero-conectado").textContent = state.conectado ? (state.numero ? `Número conectado ${state.numero}` : "Número conectado") : "Número não conectado";
+      // O aviso de risco só vale ao conectar ou reconectar um número, nunca com ele ligado.
+      $("aviso-risco").hidden = !state.mostrarAviso;
       $("qr").hidden = !state.qr;
       $("instrucao").hidden = !state.qr;
       if (state.qr) $("qr").innerHTML = state.qr;
       $("conectar").hidden = state.conectado || Boolean(state.qr);
       $("conectar").disabled = !$("risco").checked;
       $("desconectar").hidden = !state.conectado;
-      // Sempre acessível com o WhatsApp conectado: antes, sumia assim que o modo saía de "initial".
       $("conectado").hidden = !state.conectado;
       $("escopo-atual").textContent = state.escopo === "initial"
         ? "Os agentes só veem as conversas liberadas. Escolha as que eles podem usar."
         : "Você pode mudar a escolha quando quiser. Só o que estiver marcado fica liberado.";
       $("envio-box").hidden = !state.conectado || state.escopo === "initial";
       $("envio").checked = state.envio;
-      $("limites").textContent = `Usado: ${state.limites.lastHour} de ${state.limites.perHour} por hora, ${state.limites.lastDay} de ${state.limites.perDay} por dia. Há uma pausa de 20 a 40 segundos entre os envios.`;
+      $("limites").textContent = `Usado: ${state.limites.lastHour} de ${state.limites.perHour} por hora, ${state.limites.lastDay} de ${state.limites.perDay} por dia.`;
     } catch (error) { failure(error); }
   }
   $("risco").addEventListener("change", refresh);
@@ -253,12 +432,21 @@
   $("desconectar").addEventListener("click", () => post("/desconectar").then(refresh, failure));
   $("escopo").addEventListener("click", () => post("/escopo-todas").then(refresh, failure));
   $("escolhidas").addEventListener("click", () => {
-    const ids = [...scopeContacts.ids(), ...scopeGroups.ids()];
-    post("/escopo-escolhidas", { ids }).then(refresh, failure);
+    post("/escopo-escolhidas", { ids: [...scopeContacts.ids(), ...scopeGroups.ids()] }).then(refresh, failure);
   });
+  $("envio").addEventListener("change", (event) => post("/envio", { ligado: event.target.checked }).then(refresh, failure));
+  $("ligado").addEventListener("change", (event) => {
+    $("ligado-texto").textContent = event.target.checked ? "Ligado" : "Pausado";
+    post("/ponte/ligado", { ligado: event.target.checked }).then(() => loadBridge(), failure);
+  });
+  $("acesso-total").addEventListener("change", (event) => post("/ponte/acesso", { aceito: event.target.checked }).then(() => loadBridge(), failure));
   // O arquivo guarda uma lista de contatos por modo: "excluidos" no modo "all", "escolhidas" no "selected".
   $("salvar-atendimento").addEventListener("click", () => {
-    const body = { modo: mode, grupos: ponteGroups.ids() };
+    const body = {
+      modo: mode,
+      internos: internos.ids(),
+      grupos: [...groupRows.entries()].filter(([, item]) => item.on).map(([id, item]) => ({ id, mode: item.mode, instructions: item.instructions })),
+    };
     body[mode === "all" ? "excluidos" : "escolhidas"] = ponteContacts.ids();
     post("/ponte/atendimento", body)
       .then(() => { dirty = false; $("atendimento-aviso").textContent = "Salvo."; return loadBridge(true); }, failure);
@@ -273,11 +461,11 @@
     listed = true;
     const byName = (a, b) => a.nome.localeCompare(b.nome, "pt-BR");
     const people = value.chats.filter((chat) => !chat.grupo).sort(byName);
-    const groups = value.chats.filter((chat) => chat.grupo).sort(byName);
+    allGroups = value.chats.filter((chat) => chat.grupo).sort(byName);
     scopeContacts.setChats(people);
-    scopeGroups.setChats(groups);
+    scopeGroups.setChats(allGroups);
     ponteContacts.setChats(people);
-    ponteGroups.setChats(groups);
+    internos.setChats(people);
     await loadBridge(true);
   }
 
@@ -287,63 +475,57 @@
     const value = await response.json();
     if (!response.ok) return;
     const badge = $("ponte-estado");
-    badge.className = `badge ${value.rodando ? "on" : "off"}`;
-    badge.textContent = !value.ativa ? "Ponte desligada" : value.rodando ? "Ponte rodando em segundo plano" : "Ponte ligada, mas parada";
+    badge.className = `badge ${value.ativa && value.rodando ? "on" : "off"}`;
+    badge.textContent = !value.ativa ? "Ponte desligada" : value.rodando ? "Ponte rodando" : "Ponte parada";
     $("ponte-ajuda").textContent = !value.ativa
       ? 'Para ligar, ponha "enabled": true e o agente em opencat-ponte.json (veja a documentação). Ligada, ela roda enquanto o OpenCat estiver aberto, mesmo com este painel fechado.'
-      : value.rodando
-        ? "Ela segue lendo as mensagens e criando rascunhos enquanto o OpenCat estiver aberto, mesmo com este painel fechado."
-        : "Ela inicia sozinha com o OpenCat aberto e volta se cair. Se continuar parada, confira se o Node.js está instalado.";
-    // Não apaga o que a pessoa está editando: só carrega do arquivo enquanto não houver mudança pendente.
+      : value.atendimento === "pause"
+        ? "Atendimento pausado: o agente não lê nem responde ninguém."
+        : "O agente responde sozinho aos contatos liberados, com filtros de segurança. Mensagens suas na conversa pausam o agente naquele contato.";
+    $("agente-nome").textContent = value.agente ? `Agente: ${value.agente}` : (value.configurada ? "Agente não encontrado no OpenCat" : "Agente não definido");
+    $("ligado").checked = value.atendimento !== "pause";
+    $("ligado-texto").textContent = value.atendimento === "pause" ? "Pausado" : "Ligado";
+    $("acesso-total").checked = value.aceitoAcessoTotal;
+    $("acesso-aviso").hidden = !value.ativa || (value.aviso !== "acesso_recusado" && value.aviso !== "acesso_total_aceito");
+    $("acesso-texto").textContent = value.aviso === "acesso_recusado"
+      ? "O atendimento está parado: este agente não tem acesso restrito. Com acesso total, uma pessoa de fora pode tentar fazer o agente ler arquivos ou usar comandos deste computador. Restrinja o acesso do agente em Workspace ou aceite o risco abaixo."
+      : "Você aceitou atender com acesso total. Mesmo restrito a Workspace, o agente ainda lê arquivos e usa a rede. Nesse caso só os contatos listados são atendidos, e o modo \"todos\" fica desligado.";
     if (force === true || !dirty) {
       mode = value.modo;
       ponteContacts.setSelected(mode === "all" ? value.excluidos : value.escolhidas);
-      ponteGroups.setSelected(value.grupos);
+      internos.setSelected(value.internos);
+      savedGroups = new Map(value.grupos.map((group) => [group.id, { on: true, mode: group.mode, instructions: group.instructions }]));
+      groupRows.clear();
+      drawGroups();
       drawMode();
     }
     $("ponte-modo-atual").textContent = value.modo === "all"
-      ? `Modo atual: todos os contatos, inclusive novos (${value.excluidos.length} de fora)`
-      : `Modo atual: só as escolhidas (${value.escolhidas.length})`;
-    $("ponte-modo-atual").className = `badge ${value.ativa ? "on" : "off"}`;
-    $("rascunhos-box").hidden = !value.ativa;
-    if (!value.ativa) return;
-    const pending = value.rascunhos.filter((draft) => draft.status === "pending" || draft.status === "failed");
-    $("rascunhos").replaceChildren(...(pending.length ? pending.map(draftItem) : [note("Nenhum rascunho esperando.")]));
-  }
-  function note(text) {
-    const small = document.createElement("small");
-    small.textContent = text;
-    return small;
-  }
-  function draftItem(draft) {
-    const item = document.createElement("div");
-    item.className = "box";
-    const who = document.createElement("strong");
-    who.textContent = draft.conversa;
-    const text = document.createElement("p");
-    text.style.whiteSpace = "pre-wrap";
-    text.textContent = draft.texto;
-    item.append(who, text);
-    if (draft.status === "failed") {
-      item.append(note("O envio falhou e pode ter saído. Confira a conversa antes de tentar de novo."));
-    } else {
-      const waiting = note("Aguardando a sua aprovação. Ainda não foi enviado.");
-      waiting.style.display = "block";
-      waiting.style.marginBottom = "8px";
-      const approve = document.createElement("button");
-      approve.className = "main";
-      approve.textContent = "Aprovar e enviar";
-      approve.addEventListener("click", () => { approve.disabled = true; post("/ponte/aprovar", { id: draft.id }).then(() => loadBridge(), failure); });
-      const discard = document.createElement("button");
-      discard.textContent = "Descartar";
-      discard.addEventListener("click", () => post("/ponte/descartar", { id: draft.id }).then(() => loadBridge(), failure));
-      item.append(waiting, approve, " ", discard);
-    }
-    return item;
+      ? `Todos (${value.excluidos.length} de fora)`
+      : `Escolhidas (${value.escolhidas.length})`;
+    $("pausados-box").hidden = !value.pausados.length;
+    $("pausados").replaceChildren(...value.pausados.map((item) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const text = document.createElement("span");
+      text.className = "grow"; text.style.flex = "1";
+      text.textContent = `${item.nome}: ${REASONS[item.motivo] || "pausado"}`;
+      const resume = document.createElement("button");
+      resume.type = "button"; resume.className = "small"; resume.textContent = "Retomar";
+      resume.addEventListener("click", () => { resume.disabled = true; post("/ponte/retomar", { id: item.id }).then(() => loadBridge(), failure); });
+      row.append(text, resume);
+      return row;
+    }));
+    const labels = [["recebidas", "Recebidas"], ["respondidas", "Respondidas"], ["bloqueadas", "Barradas"], ["humano", "Passadas a uma pessoa"], ["pausadas", "Pausas"], ["falhas", "Falhas"], ["midias", "Áudios, imagens e PDFs lidos"]];
+    $("atividade").replaceChildren(...labels.map(([key, text]) => {
+      const box = document.createElement("div");
+      box.className = "stat";
+      const number = document.createElement("b"); number.textContent = String(value.atividade[key] ?? 0);
+      box.append(number, text);
+      return box;
+    }));
   }
   setInterval(() => loadBridge().catch(failure), 4000);
   setInterval(() => loadChats().catch(failure), 3000);
-  $("envio").addEventListener("change", (event) => post("/envio", { ligado: event.target.checked }).then(refresh, failure));
   drawMode();
   refresh();
   setInterval(refresh, 2000);

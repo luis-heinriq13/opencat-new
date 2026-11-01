@@ -24,7 +24,7 @@ export const messages = defineMessages("dialog", {
   "dialog.chooseExternalLinkApp": "Choose a browser",
   "dialog.filter.applications": "Applications",
   "dialog.localUpdate.title": "Update OpenCat",
-  "dialog.localUpdate.message": "A new OpenCat build is ready (version {version}).",
+  "dialog.localUpdate.message": "A new OpenCat build is ready: version {version}.",
   "dialog.localUpdate.detail":
     "What changes:\n{changes}\n\nOpenCat makes a copy of your data and keeps the previous app. Then it closes and opens again by itself.",
   "dialog.localUpdate.busy": "An agent is working now. If you update, that work stops.",

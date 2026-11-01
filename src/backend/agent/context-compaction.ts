@@ -20,7 +20,7 @@ interface ThreadContextBudget {
   lastCompactedTokens: number | null;
 }
 
-const CONTEXT_COMPACTION_THRESHOLD = 0.8;
+const CONTEXT_COMPACTION_THRESHOLD = 0.6;
 const CONTEXT_COMPACTION_TIMEOUT_MS = 120_000;
 /**
  * A started compaction of a long thread can take minutes (#3466). Its deadline is this many times

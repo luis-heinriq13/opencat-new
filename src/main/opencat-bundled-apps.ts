@@ -6,6 +6,7 @@ import { chmod, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, shell } from "electron";
+import { isPanelCloseUrl, isPanelUrlAllowed } from "./whatscat-panel-navigation";
 
 /** The address the store's panel button asks for. `openUrl` opens the panel instead of a browser. */
 export const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
@@ -15,7 +16,7 @@ const INSTALL_DIRECTORY = join(homedir(), ".opencat", "whatscat");
  * Raise this when a file in tools/whatscat changes without an app version change: the installed copy
  * refreshes only when the stamp differs, so an older panel would otherwise stay in the home folder.
  */
-const BUNDLE_REVISION = 3;
+const BUNDLE_REVISION = 4;
 const PANEL_START_TIMEOUT_MS = 30_000;
 /** Same folder the scripts use: WHATSCAT_DATA_DIR, or the default under Application Support. */
 const DATA_DIRECTORY =
@@ -45,8 +46,19 @@ export async function installBundledApps(): Promise<void> {
 let panelWindow: BrowserWindow | null = null;
 let panelOpening: Promise<void> | null = null;
 
+/**
+ * The scripts run under plain Node. For voice notes, the bridge starts the app's own speech recognition host
+ * (an unpacked file of the app) against the runtime it ships, so it needs to know where they are.
+ */
+function voiceEnvironment(): NodeJS.ProcessEnv {
+  if (!app.isPackaged) return {};
+  const host = join(process.resourcesPath, "app.asar.unpacked", "out", "main", "voice-transcription-host.js");
+  const runtime = join(process.resourcesPath, "voice", "runtime");
+  return existsSync(host) && existsSync(runtime) ? { OPENCAT_VOICE_HOST: host, OPENCAT_VOICE_RUNTIME: runtime } : {};
+}
+
 function scriptEnvironment(): NodeJS.ProcessEnv {
-  return { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? ""}` };
+  return { ...process.env, ...voiceEnvironment(), PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? ""}` };
 }
 
 function startPanel(): Promise<{ url: string; child: ChildProcessWithoutNullStreams }> {
@@ -165,15 +177,6 @@ export function openWhatsCatPanel(parent: BrowserWindow | null): Promise<void> {
 
 async function createPanel(parent: BrowserWindow | null): Promise<void> {
   const { url, child } = await startPanel();
-  const origin = new URL(url).origin;
-  const allowed = (target: string): boolean => {
-    try {
-      const next = new URL(target);
-      return next.origin === origin && next.pathname.startsWith(new URL(url).pathname);
-    } catch {
-      return false;
-    }
-  };
   const holder = parent && !parent.isDestroyed() ? parent : undefined;
   const window = new BrowserWindow({
     width: 680,
@@ -193,10 +196,22 @@ async function createPanel(parent: BrowserWindow | null): Promise<void> {
     return { action: "deny" };
   });
   const block = (event: { preventDefault: () => void }, target: string) => {
-    if (!allowed(target)) event.preventDefault();
+    if (isPanelCloseUrl(url, target)) {
+      event.preventDefault();
+      if (!window.isDestroyed()) window.close();
+      return;
+    }
+    if (!isPanelUrlAllowed(url, target)) event.preventDefault();
   };
   window.webContents.on("will-navigate", block);
   window.webContents.on("will-redirect", block);
+  // The modal has no title bar: Escape closes it even when the page does not answer.
+  window.webContents.on("before-input-event", (event, input) => {
+    if (input.type === "keyDown" && input.key === "Escape") {
+      event.preventDefault();
+      if (!window.isDestroyed()) window.close();
+    }
+  });
   window.on("closed", () => {
     panelWindow = null;
     child.kill();

@@ -69,6 +69,17 @@ export const PluginAppleAppsConnected = at(plugin("apple-apps"), {
   held: { "apple-apps": "connected" },
 });
 
+const whatsappPage = (nav: MarketplaceNavigation) => nav.go({ kind: "app", id: "whatscat" });
+
+/** WhatsApp (not official), connected, with no agent yet: "No agent" and the agents to pick from. */
+export const WhatsAppNoAgent = at(whatsappPage, { whatsapp: "none" });
+
+/** An agent answers: the pill says On, and Pause stops the replies. Choosing another agent asks first. */
+export const WhatsAppAgentOn = at(whatsappPage, { whatsapp: "on" });
+
+/** The replies are paused: the pill says Paused, and Resume starts them again. */
+export const WhatsAppAgentPaused = at(whatsappPage, { whatsapp: "paused" });
+
 export const OnePassword = at((nav) => {
   nav.go({ kind: "app", id: "onepassword" });
 });

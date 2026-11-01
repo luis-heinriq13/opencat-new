@@ -29,6 +29,7 @@ import { type ConnectorDetail, ConnectorDetailPanel, connectorDescription } from
 import type { ConnectorId } from "../connectors/connectors";
 import { DangerZone, IntegrationPage, StatusPill, WizardDialog } from "../settings/IntegrationLayout";
 import type { MarketplacePluginApp } from "../settings/marketplace-plugins";
+import { AppAgentSection } from "./AppAgentSection";
 import { AppAction } from "./MarketplaceCards";
 import { AppMark, TryCard } from "./MarketplaceParts";
 import { CATEGORY_LABELS } from "./marketplace-listing";
@@ -39,12 +40,10 @@ import {
   type MarketplaceAppStatus,
   type MarketplaceMacAutomation,
   pluginAppSetup,
+  WHATSCAT_PANEL_URL,
 } from "./marketplace-model";
 import { type MarketplaceScope, serverAddress } from "./marketplace-view";
 import { PluginIcon } from "./PluginIcon";
-
-/** Main opens the WhatsCat panel for this address instead of a browser. */
-const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
 
 type PluginApp = Extract<MarketplaceApp, { kind: "plugin" }>;
 type ConnectorApp = Extract<MarketplaceApp, { kind: "connector" }>;
@@ -169,6 +168,11 @@ function PluginAppPage(props: { scope: MarketplaceScope; app: PluginApp }) {
         </Show>
       }
     >
+      <Show when={plugin().slug === "whatscat" && props.app.status !== "idle" && model().canConnectApps()}>
+        <Show when={model().whatsappAgent}>
+          {(control) => <AppAgentSection control={control()} agents={model().agents()} />}
+        </Show>
+      </Show>
       <Show when={plugin().apps.length > 0}>
         <SettingsSection title={t("marketplace.app.connection")}>
           <ItemGroup class="settings-modal-card">

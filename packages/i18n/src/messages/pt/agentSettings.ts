@@ -188,6 +188,17 @@ export const messages = {
   "agentSettings.links.files": "Arquivos",
   "agentSettings.links.routines": "Rotinas",
   "agentSettings.links.routinesCount": { one: "{count} configurada", other: "{count} configuradas" },
+  "agentSettings.links.apps": "Aplicativos",
+  "agentSettings.links.appsCount": { one: "{count} conectado", other: "{count} conectados" },
+  "agentSettings.apps.title": "Aplicativos",
+  "agentSettings.apps.description": "Os aplicativos em que este agente atende.",
+  "agentSettings.apps.close": "Fechar aplicativos",
+  "agentSettings.apps.empty": "Nenhum aplicativo usa este agente ainda.",
+  "agentSettings.apps.whatsapp": "WhatsApp (não oficial)",
+  "agentSettings.apps.on": "Ligado",
+  "agentSettings.apps.paused": "Pausado",
+  "agentSettings.apps.openNamed": "Abrir {name} na loja",
+  "agentSettings.apps.connect": "Conectar aplicativo",
   "agentSettings.runtime.workspaceNote":
     "Somente o espaço de trabalho limita a gravação ao espaço de trabalho deste agente, à pasta compartilhada e às pastas temporárias. A leitura e a rede continuam disponíveis.",
   "agentSettings.runtime.workspaceEnforcedCommand":

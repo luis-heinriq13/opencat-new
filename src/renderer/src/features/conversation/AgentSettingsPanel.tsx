@@ -1,15 +1,18 @@
 import {
   type AgentBrowserProfile,
+  type AppConnectionStatus,
   agentAutomationAllowed,
   agentNotificationLevelMap,
+  appConnectionState,
   assignedSkillCount,
   DEFAULT_AGENT_DEFAULTS,
   type FilePreview,
   type ServerNotificationLevel,
 } from "@openbot/contracts/ipc";
-import { BookMarked, CalendarClock, FileText, Folder, Gauge, Puzzle, Table2, Upload } from "@openbot/ui";
+import { BookMarked, CalendarClock, FileText, Folder, Gauge, Plug, Puzzle, Table2, Upload } from "@openbot/ui";
 import { SettingsLinkGroup, SettingsLinkRow } from "@openbot/ui/components/SettingsPanel";
 import type { AgentProfile } from "@openbot/ui/data";
+import { AgentAppsDialog, type AgentConnectedApp } from "@openbot/ui/features/conversation/AgentAppsDialog";
 import {
   type AgentInstructionsCalls,
   AgentInstructionsView,
@@ -98,7 +101,14 @@ interface AgentSettingsPanelProps
   serverNotificationLevel?: ServerNotificationLevel | undefined;
   /** Opens the notification settings of the server that runs the agent. Absent hides the row. */
   onOpenNotificationSettings?: ((trigger: HTMLElement) => void) | undefined;
+  /** Opens the store, where the user connects an app. */
+  onOpenMarketplace?: (() => void) | undefined;
+  /** Opens the store page of an app. */
+  onOpenMarketplaceApp?: ((request: { appId: string; connect: boolean }) => void) | undefined;
 }
+
+/** The slug of the WhatsApp (not official) page in the store. */
+const WHATSAPP_APP_ID = "whatscat";
 
 export type { AgentSkillsMode };
 
@@ -132,6 +142,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
     files: { open: false },
     instructions: { open: false },
     skills: { count: 0, open: false, reopenAfterMarketplace: false },
+    apps: { open: false },
   });
   // One store per host. It goes with the host, so the list of the last server never shows for the next.
   const browserProfiles = createMemo(() => {
@@ -226,6 +237,35 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   // object. The memo keeps an open view, such as a routine edit, until the agent changes.
   const currentAgentId = createMemo(() => props.agent.id);
 
+  // The apps that answer through this agent. Only this computer keeps them, so a remote agent has none.
+  // The WhatsApp connection is read for each agent and each time the list opens.
+  const appsAvailable = () => props.localHost === true && !props.remoteClient;
+  const [whatsapp, setWhatsapp] = createSignal<AppConnectionStatus | undefined>(undefined);
+  let appsRequest = 0;
+  createEffect(
+    () => ({ agentId: currentAgentId(), available: appsAvailable(), open: draft.apps.open }),
+    ({ available }) => {
+      const request = ++appsRequest;
+      if (!available) {
+        setWhatsapp(undefined);
+        return;
+      }
+      skillsPort()
+        .appConnections.status("whatsapp")
+        .then(
+          (status) => {
+            if (request === appsRequest) setWhatsapp(status);
+          },
+          () => undefined,
+        );
+    },
+  );
+  const connectedApps = createMemo((): AgentConnectedApp[] => {
+    const status = whatsapp();
+    if (!status || status.agentId !== props.agent.id) return [];
+    return [{ id: WHATSAPP_APP_ID, name: t("agentSettings.apps.whatsapp"), state: appConnectionState(status) }];
+  });
+
   // The user's own level of each agent. Undefined while it loads, and when the read fails: the row
   // then stays hidden. Another device can change it, so it loads again for each agent.
   const [ownLevels, setOwnLevels] = createSignal<ReadonlyMap<string, ServerNotificationLevel> | undefined>(undefined);
@@ -288,6 +328,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
         state.instructions.open = false;
         state.skills.open = false;
         state.skills.reopenAfterMarketplace = false;
+        state.apps.open = false;
       });
       if (!remoteClient || tablesVisible) {
         void tableCalls()
@@ -530,6 +571,18 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                   }
                 />
               </Show>
+              <Show when={appsAvailable()}>
+                <SettingsLinkRow
+                  icon={<Plug aria-hidden="true" />}
+                  label={t("agentSettings.links.apps")}
+                  value={t("agentSettings.links.appsCount", { count: connectedApps().length })}
+                  onClick={() =>
+                    setDraft((state) => {
+                      state.apps.open = true;
+                    })
+                  }
+                />
+              </Show>
               <Show when={!props.remoteClient && props.onOpenUsage}>
                 <SettingsLinkRow
                   icon={<Gauge aria-hidden="true" />}
@@ -600,6 +653,29 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
             onOpenRun={props.onOpenRoutineRun}
           />
         </div>
+      </Show>
+      <Show when={appsAvailable()}>
+        <AgentAppsDialog
+          open={draft.apps.open}
+          apps={connectedApps()}
+          onOpenChange={(open) =>
+            setDraft((state) => {
+              state.apps.open = open;
+            })
+          }
+          onOpenApp={(id) => {
+            setDraft((state) => {
+              state.apps.open = false;
+            });
+            props.onOpenMarketplaceApp?.({ appId: id, connect: false });
+          }}
+          onConnect={() => {
+            setDraft((state) => {
+              state.apps.open = false;
+            });
+            props.onOpenMarketplace?.();
+          }}
+        />
       </Show>
       <Show when={props.tablesVisible !== false}>
         <SharedTablesModal

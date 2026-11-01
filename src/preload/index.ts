@@ -116,6 +116,7 @@ import {
   decodeTables,
 } from "./agent-decoding";
 import { decodeScopedAgentEvent } from "./agent-event-decoding";
+import { decodeAppConnectionStatus } from "./app-connection-decoding";
 import {
   decodeAccountSessions,
   decodeAgentDefaults,
@@ -867,6 +868,10 @@ const openbotApi: OpenBotDesktopApi = {
     hostRepositories: decodeGitHubConnectorRepositories,
     hostOpenVerification: decodeVoid,
     hostOpenInstall: decodeVoid,
+  }),
+  appConnections: bridgeGroup(IPC_ENDPOINTS.appConnections, {
+    status: decodeAppConnectionStatus,
+    change: decodeAppConnectionStatus,
   }),
   bitwardenConnector: bridgeGroup(IPC_ENDPOINTS.bitwardenConnector, {
     status: decodeBitwardenConnectorStatus,

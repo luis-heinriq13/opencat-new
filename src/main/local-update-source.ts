@@ -15,6 +15,14 @@ export interface LocalUpdateManifest extends LocalUpdateInfo {
   schema: 1;
   version: string;
   appPath: string;
+  /** The version stays that of the package; the build tells two builds of it apart. */
+  build?: LocalUpdateBuild;
+}
+
+/** `number` is `git rev-list --count HEAD`; `commit` is the short commit of that build. */
+export interface LocalUpdateBuild {
+  number: number;
+  commit: string;
 }
 
 export interface LocalUpdateSourcePaths {
@@ -37,10 +45,15 @@ export interface LocalUpdateDependencies {
   paths: LocalUpdateSourcePaths;
   /** The uid that must own the files. */
   uid: number;
+  /** Clock for the age of the installation markers. Tests set it. */
+  now?: () => number;
   /** The Team ID of the running app. A build with another Team ID is never offered. */
   ownTeamId: () => Promise<string | null>;
   codesign: (appPath: string) => Promise<CodesignResult>;
 }
+
+/** What the updater holds for a local update: the public fields, the version and the build. */
+export type LocalUpdateOffer = LocalUpdateInfo & { version: string; build?: LocalUpdateBuild };
 
 export type LocalUpdateResult = { ok: true; update: LocalUpdateManifest } | { ok: false; reason: string };
 
@@ -48,6 +61,16 @@ const MAX_MANIFEST_BYTES = 64 * 1024;
 const COMMIT_PATTERN = /^[0-9a-f]{40}(?:-dirty-[0-9a-f]{8})?$/u;
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/u;
 const MANIFEST_KEYS = ["appPath", "builtAt", "changes", "commit", "schema", "version"];
+const BUILD_COMMIT_PATTERN = /^[0-9a-f]{7,12}$/u;
+const MAX_BUILD_NUMBER = 10_000_000;
+/**
+ * The installer holds `installacao.lock` for the whole install and parks `pending.json` as
+ * `pending.instalando.json` before it opens the new app. While either exists nothing is offered, or
+ * the new app would offer the update it is part of. A marker an interrupted installer left behind
+ * stops counting after this long.
+ */
+const INSTALL_MARKERS = ["installacao.lock", "pending.instalando.json"];
+const INSTALL_MARKER_MAX_AGE_MS = 45 * 60 * 1000;
 const MAX_CHANGES = 50;
 const MAX_CHANGE_LENGTH = 200;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: the check rejects control characters.
@@ -59,6 +82,20 @@ function isRecord(value: JsonValue): value is { [key: string]: JsonValue } {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parseBuild(value: JsonValue | undefined): LocalUpdateBuild | null {
+  if (value === undefined || !isRecord(value)) return null;
+  if (Object.keys(value).sort().join() !== "commit,number") return null;
+  const { number, commit } = value;
+  if (typeof number !== "number" || !Number.isInteger(number) || number < 1 || number > MAX_BUILD_NUMBER) return null;
+  if (typeof commit !== "string" || !BUILD_COMMIT_PATTERN.test(commit)) return null;
+  return { number, commit };
+}
+
+/** "0.57.0 (build 2841 · 5ffe2bc)", or the bare version when the build is unknown. */
+export function formatVersionLabel(version: string, build: LocalUpdateBuild | null | undefined): string {
+  return build ? `${version} (build ${build.number} \u00b7 ${build.commit})` : version;
+}
+
 /** Returns the manifest when every field is valid, or the reason it is not. */
 export function parseLocalUpdateManifest(text: string, expectedAppPath: string): LocalUpdateResult {
   let value: JsonValue;
@@ -68,8 +105,11 @@ export function parseLocalUpdateManifest(text: string, expectedAppPath: string):
     return { ok: false, reason: "pending.json is not JSON" };
   }
   if (!isRecord(value)) return { ok: false, reason: "pending.json is not an object" };
-  if (Object.keys(value).sort().join() !== MANIFEST_KEYS.join()) return { ok: false, reason: "unexpected fields" };
+  const expectedKeys = "build" in value ? [...MANIFEST_KEYS, "build"].sort() : MANIFEST_KEYS;
+  if (Object.keys(value).sort().join() !== expectedKeys.join()) return { ok: false, reason: "unexpected fields" };
   const { schema, commit, version, builtAt, appPath, changes } = value;
+  const build = "build" in value ? parseBuild(value.build) : undefined;
+  if (build === null) return { ok: false, reason: "invalid build" };
   if (schema !== 1) return { ok: false, reason: "unknown schema" };
   if (typeof commit !== "string" || !COMMIT_PATTERN.test(commit)) return { ok: false, reason: "invalid commit" };
   if (typeof version !== "string" || !VERSION_PATTERN.test(version)) return { ok: false, reason: "invalid version" };
@@ -87,7 +127,10 @@ export function parseLocalUpdateManifest(text: string, expectedAppPath: string):
   ) {
     return { ok: false, reason: "invalid changes" };
   }
-  return { ok: true, update: { schema, commit, version, builtAt, appPath, changes: lines } };
+  return {
+    ok: true,
+    update: { schema, commit, version, builtAt, appPath, changes: lines, ...(build ? { build } : {}) },
+  };
 }
 
 async function checkOwnedEntry(
@@ -110,11 +153,29 @@ async function checkOwnedEntry(
   return null;
 }
 
-/** Reads and validates the local update. Never throws. */
-export async function readLocalUpdate(deps: LocalUpdateDependencies): Promise<LocalUpdateResult> {
+async function installationInProgress(deps: LocalUpdateDependencies): Promise<string | null> {
+  const now = (deps.now ?? Date.now)();
+  for (const name of INSTALL_MARKERS) {
+    try {
+      const info = await lstat(join(deps.paths.updatesDirectory, name));
+      if (now - info.mtimeMs <= INSTALL_MARKER_MAX_AGE_MS) return name;
+    } catch {
+      // Absent is the normal case.
+    }
+  }
+  return null;
+}
+
+/**
+ * The manifest checks that need no signature: the folder, the installation markers, `pending.json`
+ * and `installed.json`. Cheap enough for the click on "Update". Never throws.
+ */
+export async function readPendingManifest(deps: LocalUpdateDependencies): Promise<LocalUpdateResult> {
   const { paths, uid } = deps;
   const directoryProblem = await checkOwnedEntry(paths.updatesDirectory, "directory", uid);
   if (directoryProblem) return { ok: false, reason: directoryProblem };
+  const marker = await installationInProgress(deps);
+  if (marker) return { ok: false, reason: `an installation is in progress (${marker})` };
   const pendingPath = join(paths.updatesDirectory, "pending.json");
   const pendingProblem = await checkOwnedEntry(pendingPath, "file", uid, MAX_MANIFEST_BYTES);
   if (pendingProblem) return { ok: false, reason: pendingProblem };
@@ -139,7 +200,14 @@ export async function readLocalUpdate(deps: LocalUpdateDependencies): Promise<Lo
       return { ok: false, reason: "installed.json cannot be read" };
     }
   }
+  return parsed;
+}
 
+/** Reads and validates the local update. Never throws. */
+export async function readLocalUpdate(deps: LocalUpdateDependencies): Promise<LocalUpdateResult> {
+  const parsed = await readPendingManifest(deps);
+  if (!parsed.ok) return parsed;
+  const { paths, uid } = deps;
   const appProblem = await checkOwnedEntry(paths.expectedAppPath, "directory", uid);
   if (appProblem) return { ok: false, reason: appProblem };
   const ownTeamId = await deps.ownTeamId();
@@ -148,6 +216,35 @@ export async function readLocalUpdate(deps: LocalUpdateDependencies): Promise<Lo
   if (!signature.valid) return { ok: false, reason: "the signature of the build is not valid" };
   if (signature.teamId !== ownTeamId) return { ok: false, reason: "the Team ID of the build is different" };
   return parsed;
+}
+
+/**
+ * Asked on the click on "Update", before and after the question: the manifest must still exist, be
+ * new and be the one that was offered. False means the offer is stale and must not quit the app.
+ */
+export async function localUpdateStillOffered(deps: LocalUpdateDependencies, commit: string): Promise<boolean> {
+  const result = await readPendingManifest(deps);
+  return result.ok && result.update.commit === commit;
+}
+
+/** The build of the installed app, from `installed.json`. Null when it is missing or has none. Never throws. */
+export async function readInstalledBuild(
+  updatesDirectory: string,
+  uid: number,
+): Promise<{ version: string | null; build: LocalUpdateBuild } | null> {
+  const path = join(updatesDirectory, "installed.json");
+  if ((await checkOwnedEntry(path, "file", uid, MAX_MANIFEST_BYTES)) !== null) return null;
+  try {
+    const installed: JsonValue = JSON.parse(await readFile(path, "utf8"));
+    if (!isRecord(installed)) return null;
+    const build = parseBuild(installed.build);
+    if (!build) return null;
+    const version =
+      typeof installed.version === "string" && VERSION_PATTERN.test(installed.version) ? installed.version : null;
+    return { version, build };
+  } catch {
+    return null;
+  }
 }
 
 export function codesignWithSystemTool(appPath: string): Promise<CodesignResult> {

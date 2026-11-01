@@ -220,7 +220,11 @@ import {
   bundlePathFromExecutable,
   codesignWithSystemTool,
   defaultLocalUpdatePaths,
+  formatVersionLabel,
+  type LocalUpdateDependencies,
   LocalUpdateSource,
+  localUpdateStillOffered,
+  readInstalledBuild,
   spawnLocalInstaller,
 } from "./local-update-source";
 import { createLoginItem } from "./login-item";
@@ -2973,6 +2977,9 @@ export async function createApplicationServices({
     }
   }
   const localUpdatePaths = defaultLocalUpdatePaths();
+  // Set below, once the local update source exists. The click re-checks the manifest through it.
+  let localUpdateDependencies: LocalUpdateDependencies | null = null;
+  let clearLocalUpdateOffer: () => void = () => {};
   const updater = new UpdateService(updateAdapter, {
     currentVersion,
     enabled: updaterEnabled,
@@ -2981,11 +2988,23 @@ export async function createApplicationServices({
     installLocalUpdate: async (update) => {
       const bundlePath = bundlePathFromExecutable(app.getPath("exe"));
       if (!app.isPackaged || !bundlePath) return false;
+      // The offer can be stale: the installer may already be running, or the manifest gone. A stale
+      // offer is cleared and never quits the app.
+      const stillOffered = async () =>
+        localUpdateDependencies !== null && (await localUpdateStillOffered(localUpdateDependencies, update.commit));
+      if (!(await stillOffered())) {
+        logger.warn(`Local update ${update.commit} is no longer offered; the offer was cleared.`);
+        clearLocalUpdateOffer();
+        return false;
+      }
+      const build = update.build;
       const busy = service.hasActiveWork().length > 0;
       const choice = await dialog.showMessageBox({
         type: "question",
         title: language.translate("dialog.localUpdate.title"),
-        message: language.translate("dialog.localUpdate.message", { version: update.version }),
+        message: language.translate("dialog.localUpdate.message", {
+          version: formatVersionLabel(update.version, build),
+        }),
         detail: [
           language.translate("dialog.localUpdate.detail", {
             changes: update.changes.map((line) => `- ${line}`).join("\n"),
@@ -2998,6 +3017,11 @@ export async function createApplicationServices({
         noLink: true,
       });
       if (choice.response !== 0) return false;
+      if (!(await stillOffered())) {
+        logger.warn(`Local update ${update.commit} changed while the question was open; the offer was cleared.`);
+        clearLocalUpdateOffer();
+        return false;
+      }
       logger.info(`Local update ${update.commit} accepted by the user.`);
       await spawnLocalInstaller({
         resourcesPath: process.resourcesPath,
@@ -3057,17 +3081,24 @@ export async function createApplicationServices({
     typeof process.getuid === "function"
   ) {
     let ownTeamId: Promise<string | null> | undefined;
+    const sourceDependencies: LocalUpdateDependencies = {
+      paths: localUpdatePaths,
+      uid: process.getuid(),
+      codesign: codesignWithSystemTool,
+      ownTeamId: () => {
+        ownTeamId ??= codesignWithSystemTool(localBundlePath).then((result) => (result.valid ? result.teamId : null));
+        return ownTeamId;
+      },
+    };
+    localUpdateDependencies = sourceDependencies;
+    clearLocalUpdateOffer = () => updater.setLocalUpdate(null);
+    // The settings show which build runs: the version stays the package's, the build comes from installed.json.
+    void readInstalledBuild(localUpdatePaths.updatesDirectory, process.getuid()).then((installed) => {
+      if (installed) updater.setDisplayVersion(formatVersionLabel(currentVersion, installed.build));
+    });
     const localUpdateSource = new LocalUpdateSource({
       onUpdate: (update) => updater.setLocalUpdate(update),
-      dependencies: {
-        paths: localUpdatePaths,
-        uid: process.getuid(),
-        codesign: codesignWithSystemTool,
-        ownTeamId: () => {
-          ownTeamId ??= codesignWithSystemTool(localBundlePath).then((result) => (result.valid ? result.teamId : null));
-          return ownTeamId;
-        },
-      },
+      dependencies: sourceDependencies,
     });
     localUpdateSource.start();
     teardown.push(TEARDOWN_ORDER.updater, "the local update source", () => localUpdateSource.stop());

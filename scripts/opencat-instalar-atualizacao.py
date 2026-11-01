@@ -5,6 +5,11 @@ Roda desacoplado do app (o app fecha logo depois de iniciar este script). Faz co
 troca o app, reabre e confere a saude. Se o app novo nao abrir ou se faltarem agentes, volta ao app
 anterior. Se a saude nao puder ser determinada, mantem o app novo e so registra no log.
 
+Marcadores: durante a instalacao o app novo NAO pode oferecer a mesma atualizacao de novo. Por isso,
+antes de abrir o app novo, o instalador grava installed.json e move pending.json para
+pending.instalando.json (alem da trava installacao.lock). Num rollback os dois voltam ao que eram.
+Toda recusa depois que o app pode ter fechado reabre o app.
+
 Uso: python3 -I opencat-instalar-atualizacao.py --commit <commit> [--atual /Applications/OpenCat.app] [--wait-pid N]
 """
 import argparse
@@ -29,6 +34,9 @@ BUNDLE_ID = "app.openbot.desktop"
 AUTO = DATA / "automation"
 LOG = UPDATES / "instalacao.log"
 LOCK = UPDATES / "instalacao.lock"
+PENDING = UPDATES / "pending.json"
+EM_ANDAMENTO = UPDATES / "pending.instalando.json"
+INSTALLED = UPDATES / "installed.json"
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}(-dirty-[0-9a-f]{8})?$")
 HEALTH_ROUNDS = 90  # 90 x 10 s = 15 min: o Mac pode estar esperando a senha do usuario.
 
@@ -37,6 +45,9 @@ ANTERIOR = None
 COPIA = None
 PREPARADO = None
 TROCADO = False
+MARCADO = False
+INSTALADO_ANTERIOR = None
+OUTRA_INSTALACAO = False
 
 
 def log(text):
@@ -138,6 +149,88 @@ def contar_agentes_api():
         return None
 
 
+def escrever_bytes(path, data):
+    fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def dados_instalado(manifest, confirmado, em_andamento):
+    dados = {
+        "commit": manifest["commit"],
+        "version": manifest.get("version"),
+        "installedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "backup": str(COPIA),
+        "healthConfirmed": confirmado,
+    }
+    if isinstance(manifest.get("build"), dict):
+        dados["build"] = manifest["build"]
+    if em_andamento:
+        dados["installing"] = True
+    return dados
+
+
+def marcar_em_andamento(manifest):
+    """Antes de abrir o app novo: installed.json ja diz que este commit esta instalado e pending.json sai do caminho."""
+    global MARCADO, INSTALADO_ANTERIOR
+    try:
+        INSTALADO_ANTERIOR = INSTALLED.read_bytes()
+    except OSError:
+        INSTALADO_ANTERIOR = None
+    MARCADO = True
+    escrever_json(INSTALLED, dados_instalado(manifest, False, True))
+    os.replace(PENDING, EM_ANDAMENTO)
+
+
+def desmarcar_em_andamento():
+    """Rollback: pending.json e installed.json voltam ao que eram antes da instalacao."""
+    global MARCADO
+    if not MARCADO:
+        return
+    MARCADO = False
+    try:
+        if EM_ANDAMENTO.exists():
+            os.replace(EM_ANDAMENTO, PENDING)
+    except OSError as error:
+        log(f"nao consegui devolver pending.json: {error}")
+    try:
+        if INSTALADO_ANTERIOR is None:
+            INSTALLED.unlink(missing_ok=True)
+        else:
+            escrever_bytes(INSTALLED, INSTALADO_ANTERIOR)
+    except OSError as error:
+        log(f"nao consegui restaurar installed.json: {error}")
+
+
+def reabrir_se_fechado(args):
+    """Recusa depois que o app pode ter fechado: espera o app sair e, se nada o reabriu, abre de novo."""
+    alvo = pathlib.Path(args.atual)
+    try:
+        if alvo.suffix != ".app" or not alvo.is_dir() or alvo.is_symlink() or alvo.resolve() == FONTE.resolve():
+            return
+    except OSError:
+        return
+    if args.wait_pid:
+        for _ in range(90):
+            if not pid_vivo(args.wait_pid):
+                break
+            time.sleep(2)
+    if not rodando():
+        log("o app esta fechado depois da recusa; reabrindo")
+        run("open", str(alvo))
+
+
 def reabrir_apos_interrupcao():
     if ANTERIOR is not None and ANTERIOR.is_dir() and not ATUAL.exists():
         shutil.move(str(ANTERIOR), str(ATUAL))
@@ -149,6 +242,11 @@ def interromper(signum, _frame):
     log("interrompido; reabrindo o app")
     if not TROCADO:
         reabrir_apos_interrupcao()
+    else:
+        try:
+            EM_ANDAMENTO.unlink(missing_ok=True)
+        except OSError:
+            pass
     raise SystemExit(128 + signum)
 
 
@@ -173,6 +271,7 @@ def tomar_trava():
 
 
 def voltar(dados_ruins, wait_pid):
+    desmarcar_em_andamento()
     log("voltando ao app anterior" + (" e aos dados anteriores" if dados_ruins else ""))
     fechar(None)
     if ATUAL.exists():
@@ -192,6 +291,20 @@ def main():
     parser.add_argument("--wait-pid", type=int, default=0)
     args = parser.parse_args()
 
+    try:
+        codigo = executar(args)
+    except Exception:
+        codigo = 1  # ja registrado em executar()
+    if codigo != 0 and not OUTRA_INSTALACAO:
+        try:
+            reabrir_se_fechado(args)
+        except Exception as error:
+            log(f"nao consegui reabrir o app: {error}")
+    return codigo
+
+
+def executar(args):
+    global ATUAL, OUTRA_INSTALACAO
     UPDATES.mkdir(mode=0o700, exist_ok=True)
     os.chmod(UPDATES, 0o700)
     if not COMMIT_RE.match(args.commit):
@@ -202,12 +315,19 @@ def main():
         log(f"app atual invalido: {ATUAL}; nada foi alterado")
         return 1
     if not tomar_trava():
+        # A outra instalacao e dona do app: reabrir aqui atrapalharia a troca dela.
+        OUTRA_INSTALACAO = True
         log("ja existe uma instalacao em andamento; nada foi alterado")
         return 1
     signal.signal(signal.SIGINT, interromper)
     signal.signal(signal.SIGTERM, interromper)
     try:
         return instalar(args)
+    except BaseException as error:
+        log(f"erro inesperado: {error!r}")
+        if TROCADO and ANTERIOR is not None and ANTERIOR.is_dir():
+            voltar(False, None)
+        raise
     finally:
         try:
             LOCK.unlink()
@@ -218,7 +338,7 @@ def main():
 def instalar(args):
     global ANTERIOR, COPIA, PREPARADO, TROCADO
     log(f"inicio: commit {args.commit}")
-    pending = UPDATES / "pending.json"
+    pending = PENDING
     try:
         manifest = json.loads(pending.read_text())
     except (OSError, ValueError):
@@ -272,6 +392,12 @@ def instalar(args):
         run("open", str(ATUAL))
         return 1
     TROCADO = True
+    try:
+        marcar_em_andamento(manifest)
+    except OSError as error:
+        log(f"nao consegui marcar a instalacao em andamento: {error}")
+        voltar(False, None)
+        return 1
     run("open", str(ATUAL))
 
     veredito = "indeterminado"
@@ -305,20 +431,10 @@ def instalar(args):
     else:
         log("OK: app novo abriu com os agentes")
 
-    escrever_json(
-        UPDATES / "installed.json",
-        {
-            "commit": manifest["commit"],
-            "version": manifest.get("version"),
-            "installedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "backup": str(COPIA),
-            "healthConfirmed": veredito == "ok",
-        },
-    )
+    escrever_json(INSTALLED, dados_instalado(manifest, veredito == "ok", False))
     try:
-        if json.loads(pending.read_text()).get("commit") == manifest["commit"]:
-            pending.unlink()
-    except (OSError, ValueError):
+        EM_ANDAMENTO.unlink(missing_ok=True)
+    except OSError:
         pass
     log(f"concluido. Copia de seguranca em {COPIA}")
     return 0

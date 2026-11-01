@@ -1,4 +1,9 @@
-import type { AddedAgent, InstallMarketplaceAgentInput, McpSignInRelayPage } from "@openbot/contracts/ipc";
+import type {
+  AddedAgent,
+  InstallMarketplaceAgentInput,
+  McpSignInRelayPage,
+  OpenBotDesktopApi,
+} from "@openbot/contracts/ipc";
 import { appPort } from "../../app-port";
 import { type AgentSkillCalls, agentSkillCalls, type SkillsPort, skillsPort } from "../../skills-port";
 
@@ -27,6 +32,8 @@ export interface MarketplaceCalls {
   signInRelay?: MarketplaceSignInRelay | undefined;
   /** Asks macOS on this computer for Automation access to Apple apps. Absent: this client cannot. */
   macAutomation?: SkillsPort["macAutomation"]["request"] | undefined;
+  /** Which agent answers for WhatsApp (not official) on this computer. Absent: this client cannot reach it. */
+  appConnections?: Pick<OpenBotDesktopApi["appConnections"], "status" | "change"> | undefined;
   /**
    * The origin of a copied agent or skill link. Absent: `openbot.run`, as for a plugin link. The
    * browser client gives the local Worker's origin while a developer runs it.
@@ -58,5 +65,6 @@ export function desktopMarketplaceCalls(): MarketplaceCalls {
       paste: (url, address, serverId) => port.agent.completeMcpSignInRelay({ url, address }, serverId),
     },
     macAutomation: (targets) => port.macAutomation.request(targets),
+    appConnections: port.appConnections,
   };
 }
