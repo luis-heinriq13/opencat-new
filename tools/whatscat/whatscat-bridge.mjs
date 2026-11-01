@@ -159,6 +159,9 @@ export function loadBridgeConfig(file) {
     groupConfigs,
     excludes,
     internalContacts: list(raw.internalContacts).filter((id) => !isGroupChat(id)),
+    // Para testar com um número só: o mesmo contato recebe o aviso e continua sendo atendido.
+    internoTambemCliente: raw.internoTambemCliente === true,
+    nomeAgente: typeof raw.nomeAgente === "string" ? raw.nomeAgente : "",
     sendTool: typeof raw.sendTool === "string" && raw.sendTool ? raw.sendTool : "send_text",
     pollSeconds: clampNumber(raw.pollSeconds, 3, 1, 300),
     pollIdleSeconds: clampNumber(raw.pollIdleSeconds, 15, 1, 300),
@@ -198,7 +201,7 @@ export function loadBridgeConfig(file) {
 export function checkAllowed(config, chatId) {
   if (isGroupChat(chatId)) return config.groups.includes(chatId) ? null : "grupo_nao_liberado";
   if (/@(broadcast|newsletter)$/.test(String(chatId))) return "tipo_nao_suportado";
-  if ((config.internalContacts ?? []).includes(chatId)) return "contato_interno";
+  if (!config.internoTambemCliente && (config.internalContacts ?? []).includes(chatId)) return "contato_interno";
   if ((config.excludes ?? []).includes(chatId)) return "conversa_excluida";
   if (config.mode === "all") return PRIVATE_ID.test(String(chatId)) ? null : "tipo_nao_suportado";
   return config.chats.includes(chatId) ? null : "conversa_nao_liberada";
@@ -619,12 +622,26 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     metric("humano", chatId, timing);
     await notifyOwner(code, chatId);
     const until = state.contacts[chatId].pausedUntil;
+    if (code === "agente_pediu_humano") {
+      enqueue(state, {
+        chatId,
+        kind: "aviso_interno",
+        requestId: `wc-hum-cli-${shortHash(`${chatId}|${until}`)}`,
+        text: "Vou chamar uma pessoa da equipe para continuar com você. Já já alguém te responde por aqui.",
+        receivedAt: now(),
+      });
+    }
     for (const internal of config.internalContacts ?? []) {
       enqueue(state, {
         chatId: internal,
         kind: "aviso_interno",
         requestId: `wc-hum-${shortHash(`${chatId}|${internal}|${until}`)}`,
-        text: `WhatsCat: ${labelOf(chatId)} precisa de uma pessoa. Motivo: ${REASON_TEXT[code] ?? code}. O agente está pausado para esse contato até alguém retomar no painel.`,
+        text: [
+          `*${sanitizeLabel(config.nomeAgente) || "Atendimento"}: precisa de uma pessoa*`,
+          `Contato: ${labelOf(chatId)}`,
+          `Motivo: ${REASON_TEXT[code] ?? code}`,
+          "O agente parou de responder este contato. Retome pelo painel do WhatsApp.",
+        ].join("\n"),
         receivedAt: now(),
       });
     }

@@ -396,7 +396,9 @@ test("passagem para uma pessoa: [[HUMANO]] pausa, avisa a equipe sem conteúdo e
   assert.ok(toTeam.text.includes("Ana Souza"));
   assert.ok(toTeam.text.includes("o agente pediu uma pessoa"));
   assert.ok(!toTeam.text.includes("4471") && !toTeam.text.includes("CPF") && !toTeam.text.includes("5511911112222"));
-  assert.ok(!run.sent.some((item) => item.chatId === PERSON), "o cliente não recebe a marca");
+  const toPerson = run.sent.filter((item) => item.chatId === PERSON);
+  assert.equal(toPerson.length, 1, "o cliente recebe só o aviso de que uma pessoa vai assumir");
+  assert.ok(!toPerson[0].text.includes("[[HUMANO]]"), "o cliente não recebe a marca");
   assert.equal(run.notices().length, 1);
   // A equipe escrevendo para o número não vira entrada do agente.
   run.queue.push(msg("T1", TEAM, "pode retomar"));
@@ -628,4 +630,17 @@ test("sem o reconhecimento de voz do OpenCat a transcrição falha de verdade, e
   utimesSync(old, longAgo, longAgo);
   assert.equal(pruneOldFiles(join(dir, "anexos"), 30), 1);
   assert.ok(!existsSync(old) && existsSync(fresh));
+});
+
+test("modo de teste: o contato interno também é atendido como cliente", async () => {
+  const { checkAllowed } = await import("./whatscat-bridge.mjs");
+  const base = {
+    mode: "selected",
+    chats: ["1@s.whatsapp.net"],
+    groups: [],
+    excludes: [],
+    internalContacts: ["1@s.whatsapp.net"],
+  };
+  assert.equal(checkAllowed(base, "1@s.whatsapp.net"), "contato_interno");
+  assert.equal(checkAllowed({ ...base, internoTambemCliente: true }, "1@s.whatsapp.net"), null);
 });
