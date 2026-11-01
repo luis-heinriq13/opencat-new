@@ -302,6 +302,33 @@ test("palavras de parada: confirma uma vez, exclui o contato e nunca mais respon
   assert.equal(run.deliveries().length, 0);
   assert.equal(run.sent.length, 1, "a confirmação sai uma vez só");
   assert.equal(matchesStopWord("STOP", ["stop"]), true);
+  for (const optOut of [
+    "remover",
+    "Remover, por favor",
+    "pode me remover",
+    "Não tenho interesse, obrigado",
+    "Boa tarde, agradeço o contato, mas não quero mais receber mensagens de vocês, obrigado.",
+    "Olá, peço por gentileza que me tire da lista de vocês, não trabalho mais nessa área.",
+    "Por favor, parem de me enviar, já pedi isso antes e continuo recebendo toda semana.",
+    "Tudo bem? Peço que removam meu número do cadastro de vocês, por favor, muito obrigado.",
+    "Gostaria de me descadastrar deste contato, obrigado pela atenção e um bom dia para vocês.",
+    "Muito obrigado pela atenção, mas não me mandem mais nada por este canal, por favor.",
+  ]) {
+    assert.equal(matchesStopWord(optOut, ["pare"]), true, optOut);
+  }
+  for (const normal of [
+    "Como faço para remover uma mancha do dente depois do clareamento de ontem?",
+    "Você pode me tirar uma dúvida sobre o plano mais barato de vocês?",
+    "Não quero receber o boleto por email, só pelo WhatsApp mesmo, pode ser?",
+    "Pode parar de enviar a fatura por email e mandar só por aqui?",
+    "Queria sair da lista de espera da terça e marcar para a quarta de manhã.",
+    "Não quero parar de receber mensagens de vocês, gosto muito das novidades da clínica.",
+    "Não tenho interesse nesse plano, mas gostaria de saber o valor do outro.",
+    "Não me ligue agora, estou em reunião, pode ligar depois das quatro?",
+    "Preciso de ajuda para parar o pedido de ontem e trocar o endereço da entrega",
+  ]) {
+    assert.equal(matchesStopWord(normal), false, normal);
+  }
   assert.equal(
     matchesStopWord("Preciso de ajuda para parar o pedido de ontem e trocar o endereço da entrega", ["parar"]),
     false,

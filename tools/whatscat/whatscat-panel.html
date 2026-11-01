@@ -104,7 +104,12 @@
   button.icon { width: var(--control-md); padding: 0; display: grid; place-items: center; font-size: 18px; line-height: 1; background: transparent; border-color: transparent; color: var(--text-muted); }
   button.icon:hover:not(:disabled) { color: var(--text); background: var(--bg-control-hover); }
   :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
-  input[type="search"], select, textarea { font: inherit; width: 100%; background: var(--bg-control); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 0 var(--space-3); height: var(--control-md); }
+  input[type="search"], input[type="number"], input[type="time"], select, textarea { font: inherit; width: 100%; background: var(--bg-control); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 0 var(--space-3); height: var(--control-md); }
+  input[type="number"], input[type="time"] { width: 110px; }
+  .fu-item { border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: var(--space-3); background: var(--bg-control); }
+  .fu-item + .fu-item { margin-top: var(--space-2); }
+  .fu-item .fu-name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-weight: 600; }
+  .fu-item .fu-text { margin: var(--space-2) 0; min-height: 96px; }
   textarea { height: auto; min-height: 64px; padding: var(--space-2) var(--space-3); resize: vertical; }
   select { width: auto; }
   ::placeholder { color: var(--text-dim); }
@@ -250,6 +255,58 @@
   <div class="head"><div class="grow"><h2 id="t-grupos">Grupos</h2></div><span class="muted" id="grupos-total"></span></div>
   <p class="muted">Grupos têm muita gente. O agente só participa dos que você ligar aqui, e cada um tem seu modo. Quem escreve no grupo aparece ao agente só por um código.</p>
   <div id="grupos" style="margin-top: var(--space-3)"></div>
+</section>
+
+<!-- Follow-up -->
+<section class="card" aria-labelledby="t-followup">
+  <div class="head">
+    <div class="grow">
+      <h2 id="t-followup">Follow-up</h2>
+      <p class="muted" id="fu-resumo">O agente só propõe. Nada sai sem a sua aprovação aqui.</p>
+    </div>
+    <label class="switch" for="fu-ativo">
+      <input type="checkbox" id="fu-ativo" aria-describedby="fu-ativo-texto">
+      <span class="track"></span><span id="fu-ativo-texto">Desligado</span>
+    </label>
+  </div>
+  <div class="stack">
+    <div class="notice warn"><strong>Risco de banimento.</strong> Mandar mensagem a quem nunca falou com você pelo WhatsApp não oficial pode fazer o número ser banido, mesmo com estes limites. Aprove poucas, só para quem tem um motivo real, e nunca use isto para envio em massa.</div>
+    <div class="row">
+      <div><label class="field" for="fu-limite">Limite por dia (até 20)</label><input type="number" id="fu-limite" min="1" max="20" step="1"></div>
+      <div><label class="field" for="fu-inicio">Início</label><input type="time" id="fu-inicio"></div>
+      <div><label class="field" for="fu-fim">Fim</label><input type="time" id="fu-fim"></div>
+      <button type="button" id="fu-salvar" style="align-self: flex-end">Salvar</button>
+    </div>
+    <p class="muted">Só de segunda a sexta, no horário deste computador, com 4 a 8 minutos entre os envios. Quem responder passa ao atendimento normal.</p>
+    <fieldset style="border: 0; padding: 0; margin: 0">
+      <legend class="field">Quem aprova</legend>
+      <div class="row">
+        <label class="row"><input type="radio" name="fu-autonomia" id="fu-modo-aprovar" value="aprovar"> Eu aprovo cada mensagem</label>
+        <label class="row"><input type="radio" name="fu-autonomia" id="fu-modo-auto" value="auto"> Automático</label>
+      </div>
+    </fieldset>
+    <div class="notice warn" id="fu-auto-confirma" role="alertdialog" aria-label="Confirmar o modo automático" hidden>
+      <strong>Risco de banimento.</strong> No modo automático, o que o agente propõe e passa nos filtros sai sem a sua leitura, dentro do limite por dia, do horário, do intervalo e da lista de não contatar. Mandar mensagem a quem nunca falou com você pelo WhatsApp não oficial pode fazer o número ser banido. O interruptor acima continua valendo.
+      <div class="row" style="margin-top: var(--space-1)">
+        <button type="button" class="small primary" id="fu-auto-sim">Aceito o risco: ligar o automático</button>
+        <button type="button" class="small" id="fu-auto-nao">Cancelar</button>
+      </div>
+    </div>
+    <div class="stats" id="fu-numeros"></div>
+    <div class="toolbar">
+      <button type="button" class="small primary" id="fu-aprovar-selecionadas" disabled>Aprovar selecionadas</button>
+      <span class="count" id="fu-aviso" role="status"></span>
+    </div>
+    <div id="fu-itens"></div>
+    <div id="fu-enviadas-box" hidden>
+      <div class="field">Últimas enviadas</div>
+      <div id="fu-enviadas"></div>
+    </div>
+    <div id="fu-recentes-box" hidden>
+      <div class="field">Precisam de atenção</div>
+      <div id="fu-recentes"></div>
+    </div>
+  </div>
 </section>
 
 <!-- Atividade -->
@@ -563,6 +620,157 @@
       return box;
     }));
   }
+
+  /* Follow-up. O texto na tela é o que vai ser aprovado, e a atualização nunca apaga uma edição. */
+  const FU_REASONS = { nao_contatar: "está em não contatar", contato_interno: "é da equipe interna", texto_barrado: "o texto foi barrado pelo filtro", texto_vazio: "o texto está vazio", texto_longo: "o texto passou de 600 caracteres", marcador_humano: "o texto tem um marcador interno", ja_processado: "já foi processada", nao_encontrado: "não está mais na fila", aprovacao_invalida: "a mensagem mudou depois da aprovação, ou a aprovação não pôde ser conferida", motor_recusou: "o motor recusou o envio (o número pode estar registrado em outra forma, com ou sem o nono dígito)" };
+  const fuDrafts = new Map();
+  const fuPicked = new Set();
+  let fuConfigLoaded = false;
+  let fuSignature = "";
+  const fuReason = (code) => FU_REASONS[code] || "foi recusada";
+  function fuDescribe(result) {
+    const refused = (result.resultados || []).filter((item) => !item.ok);
+    return refused.length ? `${refused.length} não aprovada(s): ${fuReason(refused[0].motivo)}.` : "Salvo.";
+  }
+  async function fuPost(path, body) {
+    const response = await fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const value = await response.json();
+    if (!response.ok) {
+      if (value.resultados) return value;
+      throw new Error(value.error || `Não foi salvo: ${fuReason(value.motivo)}.`);
+    }
+    return value;
+  }
+  function fuAct(path, body) {
+    fuPost(path, body)
+      .then((value) => { $("fu-aviso").textContent = fuDescribe(value); for (const item of value.resultados || []) if (item.ok) { fuDrafts.delete(item.id); fuPicked.delete(item.id); } return loadFollowUp(true); })
+      .catch(failure);
+  }
+  const fuEntry = (id, text) => ({ id, texto: fuDrafts.has(id) ? fuDrafts.get(id) : text });
+  function fuDrawItem(item) {
+    const box = document.createElement("div");
+    box.className = "fu-item";
+    const top = document.createElement("label");
+    top.className = "row";
+    const pick = document.createElement("input");
+    pick.type = "checkbox"; pick.checked = fuPicked.has(item.id); pick.disabled = item.status !== "proposta";
+    pick.setAttribute("aria-label", `Selecionar ${item.nome || item.numero}`);
+    pick.addEventListener("change", () => { if (pick.checked) fuPicked.add(item.id); else fuPicked.delete(item.id); $("fu-aprovar-selecionadas").disabled = !fuPicked.size; });
+    const name = document.createElement("span");
+    name.className = "fu-name"; name.textContent = item.nome || "Sem nome";
+    const number = document.createElement("span");
+    number.className = "numero muted"; number.textContent = item.numero;
+    const badge = document.createElement("span");
+    badge.className = `badge ${item.status === "aprovada" ? "on" : ""}`; badge.textContent = item.status === "aprovada" ? "Aprovada" : "Proposta";
+    top.append(pick, name, number, badge);
+    const about = document.createElement("p");
+    about.className = "muted"; about.style.marginTop = "var(--space-1)";
+    about.textContent = `${item.nicho || "Sem nicho"}. Motivo: ${item.motivo}`;
+    box.append(top, about);
+    if (item.avisoNumero === "sem_nono_digito") {
+      const warn = document.createElement("p");
+      warn.className = "muted"; warn.style.marginTop = "var(--space-1)";
+      warn.textContent = "Número de celular sem o nono dígito. Confira: o envio só passa com a forma registrada no WhatsApp.";
+      box.append(warn);
+    }
+    const text = document.createElement("textarea");
+    text.className = "fu-text"; text.maxLength = 600; text.value = fuDrafts.has(item.id) ? fuDrafts.get(item.id) : item.texto;
+    text.setAttribute("aria-label", `Texto para ${item.nome || item.numero}`);
+    text.addEventListener("input", () => fuDrafts.set(item.id, text.value));
+    const actions = document.createElement("div");
+    actions.className = "row";
+    const button = (label, action, primary) => {
+      const element = document.createElement("button");
+      element.type = "button"; element.className = primary ? "small primary" : "small"; element.textContent = label;
+      element.addEventListener("click", action);
+      return element;
+    };
+    const save = button("Salvar texto", () => fuAct("/follow-up/texto", { id: item.id, texto: text.value }));
+    const refuse = button("Recusar", () => { fuDrafts.delete(item.id); fuPicked.delete(item.id); fuAct("/follow-up/recusar", { id: item.id }); });
+    if (item.status === "proposta") actions.append(button("Aprovar", () => fuAct("/follow-up/aprovar", { itens: [{ id: item.id, texto: text.value }] }), true));
+    actions.append(save, refuse);
+    box.append(text, actions);
+    return box;
+  }
+  let fuLast = [];
+  async function loadFollowUp(force) {
+    if ($("conectado").hidden) return;
+    const response = await fetch(`${base}/follow-up`);
+    const value = await response.json();
+    if (!response.ok) throw new Error(value.error || "Falhou.");
+    $("fu-ativo").checked = value.ativo;
+    $("fu-ativo-texto").textContent = value.ativo ? "Ligado" : "Desligado";
+    if ($("fu-auto-confirma").hidden) {
+      $("fu-modo-auto").checked = value.autonomia === "auto";
+      $("fu-modo-aprovar").checked = value.autonomia !== "auto";
+    }
+    $("fu-resumo").textContent = value.autonomia === "auto"
+      ? "Automático: o que o agente propõe e passa nos filtros sai sem a sua aprovação, dentro dos limites."
+      : "O agente só propõe. Nada sai sem a sua aprovação aqui.";
+    if (!fuConfigLoaded) {
+      fuConfigLoaded = true;
+      $("fu-limite").value = value.limiteDia; $("fu-inicio").value = value.inicio; $("fu-fim").value = value.fim;
+    }
+    const numbers = [[`${value.enviadasHoje} de ${value.limiteDia}`, "Enviadas hoje"], [value.contagem.proposta, "Propostas"], [value.contagem.aprovada, "Aprovadas"], [value.contagem.respondeu, "Responderam"]];
+    $("fu-numeros").replaceChildren(...numbers.map(([number, label]) => {
+      const box = document.createElement("div");
+      box.className = "stat";
+      const bold = document.createElement("b"); bold.textContent = String(number);
+      box.append(bold, label);
+      return box;
+    }));
+    const sentRows = value.ultimasEnviadas || [];
+    $("fu-enviadas-box").hidden = !sentRows.length;
+    $("fu-enviadas").replaceChildren(...sentRows.map((item) => {
+      const row = document.createElement("p");
+      row.className = "muted";
+      const when = new Date(item.enviadaEm).toLocaleString("pt-BR");
+      const notes = [item.automatica ? "automática" : "", item.incerto ? "pode ter saído" : "", item.status === "respondeu" ? "respondeu" : ""].filter(Boolean);
+      row.textContent = `${when}, ${item.nome || "Sem nome"} (${item.numero})${notes.length ? `, ${notes.join(", ")}` : ""}: ${item.texto}`;
+      return row;
+    }));
+    const attention = value.recentes.filter((item) => item.status === "falhou" || item.incerto || item.motivoFalha === "aprovacao_invalida");
+    $("fu-recentes-box").hidden = !attention.length;
+    $("fu-recentes").replaceChildren(...attention.map((item) => {
+      const row = document.createElement("p");
+      row.className = "muted";
+      row.textContent = item.incerto ? `${item.nome || "Sem nome"}: pode ter saído. Confira a conversa no celular; ela não será reenviada.` : `${item.nome || "Sem nome"}: ${fuReason(item.motivoFalha)}. Nada foi enviado.`;
+      return row;
+    }));
+    const signature = JSON.stringify(value.itens);
+    const editing = $("fu-itens").contains(document.activeElement);
+    if (force !== true && (signature === fuSignature || editing)) return;
+    fuSignature = signature;
+    fuLast = value.itens;
+    for (const id of [...fuPicked]) if (!value.itens.some((item) => item.id === id && item.status === "proposta")) fuPicked.delete(id);
+    $("fu-aprovar-selecionadas").disabled = !fuPicked.size;
+    if (!value.itens.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty"; empty.textContent = "Nenhuma proposta na fila.";
+      $("fu-itens").replaceChildren(empty);
+      return;
+    }
+    $("fu-itens").replaceChildren(...value.itens.map(fuDrawItem));
+  }
+  function fuSaveConfig() {
+    const body = { ativo: $("fu-ativo").checked, limiteDia: Number($("fu-limite").value), inicio: $("fu-inicio").value, fim: $("fu-fim").value };
+    return fuPost("/follow-up/config", body).then((value) => { $("fu-limite").value = value.limiteDia; $("fu-aviso").textContent = "Salvo."; return loadFollowUp(true); }).catch((error) => { failure(error); return loadFollowUp(true); });
+  }
+  function fuSaveMode(autonomia, confirmo) {
+    return fuPost("/follow-up/autonomia", { autonomia, confirmo })
+      .then(() => { $("fu-auto-confirma").hidden = true; $("fu-aviso").textContent = "Salvo."; return loadFollowUp(true); })
+      .catch(failure);
+  }
+  $("fu-modo-auto").addEventListener("change", () => { $("fu-auto-confirma").hidden = false; });
+  $("fu-modo-aprovar").addEventListener("change", () => fuSaveMode("aprovar", false));
+  $("fu-auto-sim").addEventListener("click", () => fuSaveMode("auto", true));
+  $("fu-auto-nao").addEventListener("click", () => { $("fu-auto-confirma").hidden = true; loadFollowUp(true).catch(failure); });
+  $("fu-ativo").addEventListener("change", fuSaveConfig);
+  $("fu-salvar").addEventListener("click", fuSaveConfig);
+  $("fu-aprovar-selecionadas").addEventListener("click", () => {
+    fuAct("/follow-up/aprovar", { itens: fuLast.filter((item) => fuPicked.has(item.id)).map((item) => fuEntry(item.id, item.texto)) });
+  });
+  setInterval(() => loadFollowUp().catch(failure), 4000);
   setInterval(() => loadBridge().catch(failure), 4000);
   setInterval(() => loadChats().catch(failure), 3000);
   drawMode();

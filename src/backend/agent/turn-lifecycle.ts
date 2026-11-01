@@ -830,12 +830,15 @@ export class TurnLifecycle {
         };
         // A provider error moves an agent set to switch without asking to its next backup model. The
         // error waits for the end of the turn: a turn that did nothing yet runs again there instead.
+        // Gemini's spent model quota counts: the usage reading can still show room, so no usage notice
+        // moves the agent, and the error text names no plan window to wait for.
         if (
           notification.method === "error" &&
           agentId &&
           errorTurnId !== null &&
           this.#runningTurns.has(errorTurnId) &&
-          FAILOVER_CAUSES.has(context.causeCode) &&
+          (FAILOVER_CAUSES.has(context.causeCode) ||
+            (source.provider === "antigravity" && context.causeCode === "usage_limit")) &&
           this.#hooks.mayFailOver(agentId)
         ) {
           this.#failoverTurns.set(errorTurnId, { message, context });

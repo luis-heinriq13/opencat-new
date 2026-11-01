@@ -18,6 +18,7 @@
 // current authentication method", which reads as no usage.
 
 import { usageGroupForModel } from "@openbot/contracts/ipc";
+import type { AntigravityShortWindows } from "./antigravity-short-window";
 import type {
   AccountRateLimitGroupResult,
   AccountRateLimitsReadResult,
@@ -28,6 +29,8 @@ export const ANTIGRAVITY_USAGE_PROMPT = "/usage";
 
 const FIVE_HOUR_WINDOW_MINS = 300;
 const WEEKLY_WINDOW_MINS = 10_080;
+/** `/usage` writes a reset in whole minutes and Google in seconds. */
+const SAME_RESET_SECONDS = 120;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const NO_USAGE: AccountRateLimitsReadResult = { rateLimits: null, rateLimitsByLimitId: null };
@@ -49,8 +52,19 @@ type QuotaGroup = AccountRateLimitGroupResult & { primary: UsageWindow | null; s
  * When Google lists no models at all, the Gemini group covers every model, as one group did before.
  * `groups` holds every group that has a window.
  */
-export function antigravityRateLimits(answer: string, model: string | null = null): AccountRateLimitsReadResult {
+export function antigravityRateLimits(
+  answer: string,
+  model: string | null = null,
+  shortWindows: AntigravityShortWindows = {},
+): AccountRateLimitsReadResult {
   const groups = quotaGroups(answer);
+  for (const group of groups) {
+    // Google's short window is the first (five-hour) window; the `/usage` weekly stays the second.
+    const short = /gemini/iu.test(group.name) ? shortWindows.gemini : shortWindows.other;
+    if (short && !group.primary && !isSameReset(short, group.secondary)) {
+      group.primary = { ...short, usedPercent: short.usedPercent ?? 0 };
+    }
+  }
   const listed = groups.some((group) => group.models.length > 0);
   const group = model && listed ? usageGroupForModel(groups, model) : geminiGroup(groups);
   if (!group || (!group.primary && !group.secondary)) return NO_USAGE;
@@ -59,6 +73,12 @@ export function antigravityRateLimits(answer: string, model: string | null = nul
     rateLimitsByLimitId: null,
     groups: groups.filter((candidate) => candidate.primary || candidate.secondary),
   };
+}
+
+/** A weekly quota that resets within six hours is not a short window. */
+function isSameReset(short: AccountRateLimitWindowResult, weekly: UsageWindow | null): boolean {
+  if (short.resetsAt == null || weekly?.resetsAt == null) return false;
+  return Math.abs(short.resetsAt - weekly.resetsAt) <= SAME_RESET_SECONDS;
 }
 
 function quotaGroups(answer: string): QuotaGroup[] {

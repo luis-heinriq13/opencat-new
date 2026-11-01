@@ -113,16 +113,60 @@ export const hasHandoffMarker = (answer) => /\[\[\s*humano\s*\]\]|@@\s*humano\s*
 /** O filtro de segredos do app apagou parte da resposta. Esse texto nunca pode chegar ao contato. */
 export const hasRedactedAnswer = (answer) => /\[redacted-[a-z-]+\]/i.test(String(answer ?? ""));
 
-/** A pessoa pediu para parar? Vale a mensagem curta que é a palavra ou a contém inteira ("eu não quero mais"). */
+const STOP_WORD_MAX_WORDS = 8;
+const OPT_OUT_MAX_WORDS = 40;
+const POLITE =
+  "(?:por favor|favor|pf|pfv|pfvr|obrigad[oa]|grat[oa]|oi|ola|bom dia|boa tarde|boa noite|eu|quero|queria|gostaria de|pode|me|ja)";
+/** Valem só como a mensagem inteira: "remover" sozinho é um pedido, "como remover a mancha" não é. */
+const OPT_OUT_WHOLE = new RegExp(
+  `^(?:${POLITE} )*(?:remover|remova|remove|descadastrar|descadastre|descadastra|nao tenho (?:mais )?interesse|sem interesse)(?: ${POLITE})*$`,
+);
+const OUTREACH = "(?:mensag\\w*|contatos?|propaganda\\w*|promoc\\w*|spam|isso|nada)";
+const QUANTIFIER = "(?:(?:mais|nenhuma?|essas?|esses?|estas?|estes?|suas?|seus?) )*";
+const LIST = "(?:lista|base|cadastro|contatos|envios?|disparos?|mailing)";
+const MY_NUMBER = "(?:meu (?:numero|contato|telefone|celular|whatsapp|cadastro)|este numero|esse numero)";
+const FROM_LIST = `d[aeo]s? (?:\\w+ )?${LIST}`;
+const CONTACTING = "(?:enviar|mandar|chamar|contatar|ligar|incomodar|escrever|procurar)";
+const CONTACT_ME =
+  "(?:envie|enviem|mande|mandem|chame|chamem|contate|contatem|procure|procurem|ligue|liguem|escreva|escrevam|incomode|incomodem)";
+/** Frases que só um pedido para sair escreve. Cada uma nomeia a mensagem, a lista ou o número da pessoa. */
+const OPT_OUT_PHRASES = [
+  `\\bnao (?:quero|desejo|preciso|gostaria de|tenho interesse em)(?: mais)? (?:receber|ter) ${QUANTIFIER}${OUTREACH}\\b`,
+  "\\bnao (?:quero|desejo|gostaria de)(?: mais)? ser (?:contatad|incomodad|procurad)",
+  "\\bnao (?:quero|desejo) mais contato\\b",
+  `(?<!nao quero )(?<!nao vou )\\b(?:pare|parem|parar|para|deixe|deixem|deixar) de me ${CONTACTING}\\b`,
+  `(?<!nao quero )(?<!nao vou )\\b(?:pare|parem|parar|para|deixe|deixem|deixar) de (?:enviar|mandar|receber) ${QUANTIFIER}${OUTREACH}\\b`,
+  "(?<!nao )\\bme (?:remov(?:a|am|e|er)|exclu(?:a|am|i|ir))\\b",
+  `(?<!nao )\\b(?:remov|retir|tir|exclu|apag|delet)\\w* ${MY_NUMBER}\\b`,
+  `(?<!nao )\\b(?:me (?:remov|retir|tir|exclu)\\w*|(?:remov|retir|tir|exclu)\\w* me) ${FROM_LIST}\\b`,
+  `(?<!nao quero )\\bsair ${FROM_LIST}\\b(?! de espera)`,
+  "\\bdescadastr\\w*",
+  "\\bcancelar (?:a |minha )?inscricao\\b",
+  `\\bnao me ${CONTACT_ME}(?: (?:mais|novamente|de novo)\\b| ${QUANTIFIER}${OUTREACH}\\b|$)`,
+  "\\bnao (?:entre|entrem) (?:mais )?em contato(?: comigo\\b| mais\\b| novamente\\b|$)",
+].map((source) => new RegExp(source));
+
+/**
+ * A pessoa pediu para parar? Uma frase de saída explícita vale até em mensagem longa e educada, com qualquer
+ * `stopWords`. A palavra solta ("pare", "sair", "não quero") só vale em mensagem curta: em frase longa ela é conversa.
+ */
 export function matchesStopWord(text, stopWords = DEFAULT_STOP_WORDS) {
   const normalized = normalizeText(text);
-  if (!normalized || normalized.split(" ").length > 8) return false;
+  if (!normalized) return false;
+  const count = normalized.split(" ").length;
+  if (
+    count <= OPT_OUT_MAX_WORDS &&
+    (OPT_OUT_WHOLE.test(normalized) || OPT_OUT_PHRASES.some((phrase) => phrase.test(normalized)))
+  ) {
+    return true;
+  }
+  if (count > STOP_WORD_MAX_WORDS) return false;
   const padded = ` ${normalized} `;
   return stopWords.map(normalizeText).some((word) => word && padded.includes(` ${word} `));
 }
 
 /** "HH:MM" em minutos desde a meia-noite, ou null. */
-function minutesOf(value) {
+export function minutesOf(value) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? "").trim());
   if (!match) return null;
   const hour = Number(match[1]);

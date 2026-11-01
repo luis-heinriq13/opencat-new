@@ -18,7 +18,27 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, platform } from "node:os";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, extname, join } from "node:path";
+import {
+  appendDoNotContact,
+  approvalIsValid,
+  approvalKeyFile,
+  approveItems,
+  blockedReason,
+  checkFollowUpText,
+  FOLLOW_UP_FILE,
+  FOLLOW_UP_MIN_GAP_MS,
+  followUpConfigOf,
+  followUpRequestId,
+  insideFollowUpHours,
+  numberKey,
+  readApprovalKey,
+  readDoNotContact,
+  readFollowUpQueue,
+  sentToday,
+  updateFollowUpQueue,
+  writePrivate,
+} from "./whatscat-followup.mjs";
 import { FAILURE_TEXT, MAX_EXTRACTED_CHARS, MEDIA_CAPS, mediaKind, pruneOldFiles } from "./whatscat-media.mjs";
 import { adaptiveWindowMs, partPauseMs, splitReply } from "./whatscat-reply.mjs";
 import {
@@ -64,6 +84,11 @@ const ATTACHMENTS_KEPT = 20;
 const DEFAULT_RETENTION_DAYS = 30;
 const STOP_CONFIRMATION = "Tudo bem, não vou mais responder por aqui. Se precisar, é só chamar a equipe.";
 const QUIET_NOTICE = "Recebemos sua mensagem. Retorno em breve.";
+/** Depois de mudar o escopo o motor reinicia a sessão: o envio espera a rodada seguinte, com esta folga. */
+const FOLLOW_UP_SCOPE_SETTLE_MS = 30_000;
+/** Escopo somado que não virou envio neste tempo é desfeito: uma queda ou uma espera nunca o deixa para sempre. */
+const FOLLOW_UP_SCOPE_MAX_MS = 300_000;
+let lastFollowUpFailure = 0;
 
 export const isGroupChat = (chatId) => String(chatId).endsWith("@g.us");
 /** Hash curto: o registro e o agente nunca veem o número ou o ID da conversa. */
@@ -191,6 +216,7 @@ export function loadBridgeConfig(file) {
     retentionDays: clampNumber(raw.retentionDays, DEFAULT_RETENTION_DAYS, 1, 365),
     workspaceDir: typeof raw.workspaceDir === "string" ? raw.workspaceDir : "",
     agentSendTools: raw.agentSendTools === true,
+    followUp: followUpConfigOf(raw.followUp),
   };
 }
 
@@ -229,6 +255,8 @@ export function readBridgeSettings(file) {
     aceitoAcessoTotal: record.aceitoAcessoTotal === true,
     agentSendTools: record.agentSendTools === true,
     quietHours: quietOf(record.quietHours),
+    instructionsFile: typeof record.instructionsFile === "string" ? record.instructionsFile : "",
+    followUp: followUpConfigOf(record.followUp),
   };
 }
 
@@ -247,6 +275,10 @@ export function saveBridgeSettings(file, patch) {
   if (typeof patch.nomeAgente === "string") next.nomeAgente = patch.nomeAgente.trim().slice(0, 60);
   if (patch.aceitoAcessoTotal !== undefined) next.aceitoAcessoTotal = patch.aceitoAcessoTotal === true;
   if (patch.quietHours !== undefined) next.quietHours = quietOf(patch.quietHours);
+  if (patch.followUp !== undefined) {
+    const { naoContatarArquivo: _path, ...choices } = followUpConfigOf({ ...next.followUp, ...patch.followUp });
+    next.followUp = { ...next.followUp, ...choices };
+  }
   if (patch.groupConfigs !== undefined || patch.groups !== undefined) {
     const previous = new Map(groupConfigsOf(raw).map((group) => [group.id, group]));
     const wanted =
@@ -380,6 +412,19 @@ export function wrapInbound(input, chatLabel, history = [], options = {}) {
   ].join("\n");
 }
 
+/**
+ * O número de uma mensagem que chega por @lid, se o motor o informar. Os nomes dos campos não foram confirmados com
+ * uma conta real: sem nenhum deles, a conversa não pode ser ligada ao item.
+ */
+function phoneOfMessage(raw) {
+  for (const value of [raw.sender_pn, raw.sender_alt, raw.chat_pn, raw.chat_phone, raw.phone, raw.sender_id]) {
+    const digits =
+      chatDigits(value) ?? (/^\+?\d{10,15}$/.test(String(value ?? "")) ? String(value).replace("+", "") : null);
+    if (digits) return digits;
+  }
+  return null;
+}
+
 export function normalizeMessage(raw) {
   if (!raw || typeof raw !== "object") return null;
   const id = raw.message_id ?? raw.msg_id ?? raw.id;
@@ -392,6 +437,7 @@ export function normalizeMessage(raw) {
     chatId,
     fromMe: (raw.from_me ?? raw.fromMe) === true,
     senderId: typeof raw.sender_id === "string" ? raw.sender_id : null,
+    phone: phoneOfMessage(raw),
     text: typeof (raw.text ?? raw.body) === "string" ? (raw.text ?? raw.body) : "",
     mediaType: raw.media_type || null,
     filename: raw.filename ?? raw.file_name ?? null,
@@ -404,14 +450,6 @@ function toIso(value) {
   if (value === null) return null;
   const date = new Date(typeof value === "number" && value < 1e12 ? value * 1000 : value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-function writePrivate(file, value) {
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
-  renameSync(temporary, file);
-  chmodSync(file, 0o600);
 }
 
 function readJson(file, fallback) {
@@ -460,6 +498,9 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     names: join(dir, "opencat-ponte-nomes.json"),
     contacts: join(dir, "contatos"),
     attachments: join(dir, "anexos"),
+    followUp: join(dir, FOLLOW_UP_FILE),
+    config: join(dir, "opencat-ponte.json"),
+    approvalKey: approvalKeyFile(join(dir, FOLLOW_UP_FILE)),
   };
   // Um arquivo antigo de rascunhos (opencat-rascunhos.json) é ignorado: não existe mais aprovação manual.
   /** Um arquivo privado (0600) por contato: as últimas mensagens só dele. Nunca se mistura com outro contato. */
@@ -677,6 +718,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     if (state.seen.includes(key)) return audit("duplicada", { conversa: label });
     state.seen.push(key);
     const group = isGroupChat(message.chatId);
+    if (!group) noteFollowUpReply(message.chatId);
     if (group) {
       const settings = groupConfigFor(message.chatId);
       if (settings.mode === "readonly") return;
@@ -736,6 +778,17 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     if (state.stopped.includes(message.chatId)) return;
     state.stopped.push(message.chatId);
     active = { ...active, excludes: [...(active.excludes ?? []), message.chatId] };
+    // Quem saiu por @lid sai também pelo número: o mesmo contato não volta pela outra forma.
+    const linked = recordFollowUpStop(message.chatId);
+    if (linked && linked !== message.chatId && !state.stopped.includes(linked)) {
+      state.stopped.push(linked);
+      active = { ...active, excludes: [...active.excludes, linked] };
+      try {
+        deps.addExclude?.(linked);
+      } catch {
+        audit("falha_ao_excluir", { conversa: shortHash(linked) });
+      }
+    }
     try {
       deps.addExclude?.(message.chatId);
     } catch {
@@ -752,6 +805,95 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     });
     audit("parada_pedida", { conversa: shortHash(message.chatId) });
     metric("pausada", message.chatId, { erro: "parada" });
+  }
+
+  const followUpMatches = (item, chatId) => {
+    const digits = chatDigits(chatId);
+    return (
+      item.chatId === chatId ||
+      item.lidChatId === chatId ||
+      Boolean(digits && numberKey(digits) === numberKey(item.numero))
+    );
+  };
+  const followUpEvent = (event, chatId, fields = {}) => {
+    audit(event, { conversa: shortHash(chatId), ...fields });
+    metric(event, chatId, fields);
+  };
+
+  /** Uma resposta de @lid que traz o número: a conversa fica ligada ao item, e a parada e a resposta chegam nele. */
+  function linkFollowUpLid(message) {
+    if (!message.phone || !/@lid$/.test(message.chatId) || !existsSync(files.followUp)) return false;
+    try {
+      const linked = updateFollowUpQueue(files.followUp, (queue) => {
+        const item = queue.itens.find(
+          (candidate) =>
+            (candidate.status === "enviada" || candidate.status === "respondeu") &&
+            numberKey(candidate.numero) === numberKey(message.phone),
+        );
+        if (!item) return false;
+        if (item.lidChatId !== message.chatId) {
+          item.lidChatId = message.chatId;
+          item.lidLigado = false;
+        }
+        return true;
+      });
+      if (linked && !active.chats.includes(message.chatId)) {
+        active = { ...active, chats: [...active.chats, message.chatId] };
+      }
+      return linked;
+    } catch {
+      audit("falha_na_fila_follow_up", { conversa: shortHash(message.chatId) });
+      return false;
+    }
+  }
+
+  /** A primeira mensagem de um contato que recebeu o follow-up. O resto do atendimento segue igual. */
+  function noteFollowUpReply(chatId) {
+    if (!existsSync(files.followUp)) return;
+    try {
+      const replied = updateFollowUpQueue(files.followUp, (queue) => {
+        const item = queue.itens.find(
+          (candidate) => candidate.status === "enviada" && followUpMatches(candidate, chatId),
+        );
+        if (!item) return false;
+        item.status = "respondeu";
+        item.respondeuEm = new Date(now()).toISOString();
+        return true;
+      });
+      if (replied) followUpEvent("follow_up_respondeu", chatId);
+    } catch {
+      audit("falha_na_fila_follow_up", { conversa: shortHash(chatId) });
+    }
+  }
+
+  /**
+   * Palavra de parada: o número vai para nao-contatar.csv, só com o follow-up ligado ou se o contato veio da fila.
+   * Com o recurso desligado e sem item na fila, a parada continua sendo só a de sempre.
+   */
+  function recordFollowUpStop(chatId) {
+    const settings = config.followUp ?? followUpConfigOf(null);
+    try {
+      const item = existsSync(files.followUp)
+        ? readFollowUpQueue(files.followUp).itens.find((candidate) => followUpMatches(candidate, chatId))
+        : null;
+      if (!settings.ativo && !item) return null;
+      const numero = chatDigits(chatId) ?? item?.numero;
+      if (!numero) {
+        audit("parada_sem_numero", { conversa: shortHash(chatId) });
+        return null;
+      }
+      appendDoNotContact(settings.naoContatarArquivo, {
+        numero,
+        empresa: item?.nome ?? "",
+        motivo: "pediu_para_parar",
+        at: new Date(now()).toISOString().slice(0, 10),
+      });
+      audit("nao_contatar_gravado", { conversa: shortHash(chatId) });
+      return item?.chatId ?? null;
+    } catch {
+      audit("falha_ao_gravar_nao_contatar", { conversa: shortHash(chatId) });
+      return null;
+    }
   }
 
   /** Rajada pronta (janela sem novas mensagens, ou cheia) vira uma entrega na fila, se o contato não está ocupado. */
@@ -1185,6 +1327,291 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     state.outgoing = remaining;
   }
 
+  /** Lida de novo do arquivo: a pausa geral ou o interruptor podem ter mudado durante a rodada. */
+  const liveConfig = () => (existsSync(files.config) ? loadBridgeConfig(files.config) : config);
+
+  /** Por que nada sai agora, ou null. Vale antes de começar e de novo logo antes do envio. */
+  function followUpHold(live, state, queue) {
+    const time = now();
+    if (live.enabled !== true || live.reply === "pause" || state.killed) return "pausa";
+    if (live.followUp?.ativo !== true) return "desligado";
+    if (!insideFollowUpHours(live.followUp, time)) return "fora_do_horario";
+    if (quietWindow(live.quietHours, time)) return "silencio";
+    if (sentToday(queue, time) >= live.followUp.limiteDia) return "limite_do_dia";
+    if (Number(queue.proximoEnvioEm) > time) return "intervalo";
+    const last = Math.max(0, ...queue.itens.map((item) => Date.parse(item.enviadaEm ?? "") || 0));
+    if (last + FOLLOW_UP_MIN_GAP_MS > time) return "intervalo";
+    return null;
+  }
+
+  /** O número barrado agora, com a lista e o estado de agora. Lança se a lista não puder ser lida. */
+  const followUpBlock = (item, live, state) =>
+    blockedReason(item, {
+      doNotContact: readDoNotContact(live.followUp.naoContatarArquivo),
+      stopped: state.stopped,
+      excludes: live.excludes ?? [],
+      internalContacts: live.internoTambemCliente ? [] : (live.internalContacts ?? []),
+    });
+
+  const patchFollowUpItem = (id, change) =>
+    updateFollowUpQueue(files.followUp, (queue) => {
+      const item = queue.itens.find((candidate) => candidate.id === id);
+      if (item) Object.assign(item, change);
+    });
+
+  /**
+   * Termina o que ficou aberto: um envio que uma queda interrompeu nunca é repetido, o escopo somado para uma
+   * mensagem que não saiu é desfeito, e o contato que recebeu ou pode ter recebido a mensagem passa ao atendimento
+   * normal: um "pare" depois de um envio incerto precisa ser lido. Cada rodada confere tudo de novo, então isto também
+   * é a reconciliação depois de uma queda.
+   */
+  async function settleFollowUp() {
+    updateFollowUpQueue(files.followUp, (queue) => {
+      for (const item of queue.itens) {
+        if (item.status !== "enviada" || item.emEnvio !== true) continue;
+        delete item.emEnvio;
+        item.incerto = true;
+        audit("follow_up_incerto", { conversa: shortHash(item.chatId) });
+      }
+    });
+    for (const item of readFollowUpQueue(files.followUp).itens) {
+      const wentOut =
+        (item.confirmada === true || item.incerto === true) &&
+        (item.status === "enviada" || item.status === "respondeu");
+      const scopeExpired =
+        item.status === "aprovada" && item.escopoEm && now() - item.escopoEm >= FOLLOW_UP_SCOPE_MAX_MS;
+      try {
+        if (wentOut && item.atendimentoLigado !== true) {
+          await deps.scopeAdd?.(item.chatId);
+          await deps.addChat?.(item.chatId);
+          // O agente precisa saber o que pode ter sido dito, se a pessoa responder.
+          if (item.confirmada !== true) appendHistory(item.chatId, { de: "voce", texto: item.texto });
+          patchFollowUpItem(item.id, { atendimentoLigado: true, escopoAdicionado: false });
+          audit("follow_up_atendimento_ligado", { conversa: shortHash(item.chatId) });
+        } else if (!wentOut && item.escopoAdicionado === true && (item.status !== "aprovada" || scopeExpired)) {
+          await deps.scopeRemove?.(item.chatId);
+          patchFollowUpItem(item.id, { escopoAdicionado: false, escopoEm: null });
+        }
+        if (item.lidChatId && item.lidLigado !== true) {
+          await deps.addChat?.(item.lidChatId);
+          patchFollowUpItem(item.id, { lidLigado: true });
+        }
+      } catch {
+        audit("falha_ao_ajustar_escopo", { conversa: shortHash(item.chatId) });
+      }
+    }
+  }
+
+  /** Item em espera não fica com escopo: a conversa entra só na hora do envio. */
+  async function releaseFollowUpScope(items) {
+    for (const item of items) {
+      if (item.escopoAdicionado === true) await deps.scopeRemove?.(item.chatId);
+      if (item.escopoAdicionado === true || item.escopoEm) {
+        patchFollowUpItem(item.id, { escopoAdicionado: false, escopoEm: null });
+      }
+    }
+  }
+
+  /** Com a ponte em pausa ou sem permissão não há envio, então nada fica no escopo por causa dela. */
+  async function releaseWaitingFollowUps() {
+    if (!existsSync(files.followUp)) return;
+    try {
+      await releaseFollowUpScope(readFollowUpQueue(files.followUp).itens.filter((item) => item.status === "aprovada"));
+    } catch {
+      audit("falha_ao_ajustar_escopo");
+    }
+  }
+
+  const closeFollowUp = (item, change, event, fields) => {
+    patchFollowUpItem(item.id, change);
+    followUpEvent(event, item.chatId, fields);
+  };
+
+  /**
+   * Modo "auto": aprova a proposta mais antiga só quando ela pode sair agora, então desligar o modo vale na hora e não
+   * sobra fila aprovada. Passa pelos mesmos filtros e recebe o mesmo selo. Número sem o nono dígito espera o dono.
+   */
+  function autoApproveFollowUp(live, state, queue) {
+    if (live.followUp.autonomia !== "auto") return null;
+    const proposals = queue.itens
+      .filter((candidate) => candidate.status === "proposta" && !candidate.avisoNumero)
+      .sort((a, b) => String(a.criadaEm).localeCompare(String(b.criadaEm)));
+    for (const proposal of proposals) {
+      const [result] = approveItems(files.followUp, [{ id: proposal.id }], {
+        blocks: {
+          doNotContact: readDoNotContact(live.followUp.naoContatarArquivo),
+          stopped: state.stopped,
+          excludes: live.excludes ?? [],
+          internalContacts: live.internoTambemCliente ? [] : (live.internalContacts ?? []),
+        },
+        instructionTexts: instructionTexts(proposal.chatId),
+        now,
+        por: "auto",
+      }).resultados;
+      if (result?.ok) {
+        followUpEvent("follow_up_auto_aprovado", proposal.chatId);
+        return readFollowUpQueue(files.followUp).itens.find((candidate) => candidate.id === proposal.id) ?? null;
+      }
+      if (result?.motivo === "ja_processado") continue;
+      // Ninguém revisa no modo automático: a proposta barrada sai da fila, com o motivo no painel.
+      closeFollowUp(proposal, { status: "recusada", motivoRecusa: result?.motivo }, "follow_up_barrado", {
+        erro: result?.motivo,
+      });
+    }
+    return null;
+  }
+
+  /** No máximo um item aprovado por rodada. A marca "enviada" é gravada antes do envio: uma queda nunca reenvia. */
+  async function sendFollowUp(state) {
+    const random = deps.random ?? Math.random;
+    const live = liveConfig();
+    const queue = readFollowUpQueue(files.followUp);
+    const approved = queue.itens
+      .filter((candidate) => candidate.status === "aprovada")
+      .sort((a, b) => String(a.aprovadaEm).localeCompare(String(b.aprovadaEm)));
+    if (followUpHold(live, state, queue)) return releaseFollowUpScope(approved);
+    const item = approved[0] ?? autoApproveFollowUp(live, state, queue);
+    if (!item) return;
+    const key = readApprovalKey(files.approvalKey);
+    if (!approvalIsValid(key, item)) {
+      return closeFollowUp(item, { status: "recusada", motivoRecusa: "aprovacao_invalida" }, "follow_up_barrado", {
+        erro: "aprovacao_invalida",
+      });
+    }
+    const blocked = followUpBlock(item, live, state);
+    if (blocked) {
+      return closeFollowUp(item, { status: "recusada", motivoRecusa: blocked }, "follow_up_barrado", { erro: blocked });
+    }
+    const verdict = checkFollowUpText(item.texto, {
+      chatId: item.chatId,
+      instructionTexts: instructionTexts(item.chatId),
+    });
+    if (!verdict.ok) {
+      return closeFollowUp(item, { status: "recusada", motivoRecusa: verdict.motivo }, "follow_up_barrado", {
+        erro: verdict.motivo,
+      });
+    }
+    const entry = contactOf(state, item.chatId);
+    entry.replies = entry.replies.filter((time) => now() - time < HOUR_MS);
+    // Os limites do motor (por hora, por dia, pausa): sem folga, a mensagem espera e não gasta o item.
+    if (
+      isPaused(state, item.chatId) ||
+      entry.replies.length >= (config.maxRepliesPerHour ?? 30) ||
+      (entry.lastReplyAt ?? 0) + (config.minGapSeconds ?? 20) * 1000 > now() ||
+      (deps.sendCapacity && !deps.sendCapacity())
+    ) {
+      return releaseFollowUpScope([item]);
+    }
+    // O motor recusa a conversa fora do escopo: ela entra só agora, com tudo já conferido, e sai se o envio falhar.
+    if (!item.escopoEm) {
+      const scope = (await deps.scopeAdd?.(item.chatId, () =>
+        patchFollowUpItem(item.id, { escopoEm: now(), escopoAdicionado: true }),
+      )) ?? { added: false };
+      patchFollowUpItem(item.id, {
+        escopoEm: now(),
+        escopoAdicionado: scope.added === true || item.escopoAdicionado === true,
+      });
+      if (scope.added === true) return;
+    } else if (item.escopoAdicionado === true && now() - item.escopoEm < FOLLOW_UP_SCOPE_SETTLE_MS) {
+      return;
+    }
+    // A conversa saiu do escopo (uma edição no painel) ou a conta caiu: a próxima rodada confere o escopo de novo.
+    if (deps.engineReady && !(await deps.engineReady(item.chatId))) {
+      return patchFollowUpItem(item.id, { escopoEm: null });
+    }
+    try {
+      await deps.typing?.(item.chatId);
+    } catch {
+      // Sem indicador a mensagem sai igual.
+    }
+    await sleep(partPauseMs(item.texto, pauseOptions()));
+    // Última conferência, depois de toda a espera. A marca e o intervalo vão juntos, na mesma gravação.
+    const current = liveConfig();
+    if (current.enabled !== true || followUpBlock(item, current, state)) return;
+    const time = now();
+    const text = updateFollowUpQueue(files.followUp, (fresh) => {
+      if (followUpHold(current, state, fresh)) return null;
+      const target = fresh.itens.find((candidate) => candidate.id === item.id);
+      if (target?.status !== "aprovada") return null;
+      // O arquivo pode ter mudado durante a espera: confere de novo o selo e o filtro, dentro da trava.
+      const refused =
+        !approvalIsValid(key, target) || target.selo !== item.selo
+          ? "aprovacao_invalida"
+          : (() => {
+              const check = checkFollowUpText(target.texto, {
+                chatId: target.chatId,
+                instructionTexts: instructionTexts(target.chatId),
+              });
+              return check.ok ? null : check.motivo;
+            })();
+      if (refused) {
+        target.status = "recusada";
+        target.motivoRecusa = refused;
+        audit("follow_up_barrado", { conversa: shortHash(target.chatId), erro: refused });
+        return null;
+      }
+      target.status = "enviada";
+      target.enviadaEm = new Date(time).toISOString();
+      target.emEnvio = true;
+      fresh.proximoEnvioEm = time + FOLLOW_UP_MIN_GAP_MS + Math.floor(random() * FOLLOW_UP_MIN_GAP_MS);
+      return target.texto;
+    });
+    if (text === null) return;
+    registerSent(state, item.chatId, text);
+    saveState(state);
+    let outcome;
+    try {
+      const result = await deps.send({ chatId: item.chatId, text, requestId: followUpRequestId(item.id) });
+      outcome = structured(result)?.status ?? "accepted";
+    } catch (error) {
+      // O limitador recusa antes de chamar o motor; o motor recusa sem enviar. O resto pode ter saído.
+      const category = errorCategory(error);
+      if (category === "limite") {
+        patchFollowUpItem(item.id, { status: "aprovada", enviadaEm: null, emEnvio: false });
+        return audit("follow_up_adiado", { conversa: shortHash(item.chatId) });
+      }
+      outcome = category === "motor" ? "failed" : "uncertain";
+    }
+    if (outcome === "accepted" || outcome === "sent") {
+      patchFollowUpItem(item.id, { confirmada: true, emEnvio: false });
+      entry.replies.push(now());
+      entry.lastReplyAt = now();
+      try {
+        appendHistory(item.chatId, { de: "voce", texto: text });
+      } catch {
+        audit("falha_ao_guardar_historico", { conversa: shortHash(item.chatId) });
+      }
+      followUpEvent("follow_up_enviado", item.chatId);
+      await settleFollowUp();
+    } else if (outcome === "failed") {
+      closeFollowUp(
+        item,
+        { status: "falhou", enviadaEm: null, emEnvio: false, motivoFalha: "motor_recusou" },
+        "follow_up_falhou",
+        { erro: "motor" },
+      );
+      await settleFollowUp();
+    } else {
+      closeFollowUp(item, { incerto: true, emEnvio: false }, "follow_up_incerto", { erro: "incerto" });
+      await settleFollowUp();
+    }
+  }
+
+  /** Nada daqui derruba o atendimento. Sem arquivo de fila, não há nada a fazer. */
+  async function followUpRound(state) {
+    if (!existsSync(files.followUp)) return;
+    try {
+      await settleFollowUp();
+      await sendFollowUp(state);
+    } catch {
+      // Lista ilegível ou fila corrompida: nada sai. Registra uma vez por hora, não a cada leitura.
+      if (now() - lastFollowUpFailure >= HOUR_MS) {
+        lastFollowUpFailure = now();
+        audit("falha_na_fila_follow_up");
+      }
+    }
+  }
+
   /** Porta de permissões: sem acesso restrito, só com `aceitoAcessoTotal`, e então nunca no modo "todos". */
   async function accessGate() {
     let level = null;
@@ -1250,6 +1677,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
         state.killed = true;
         clearWork(state);
         saveState(state);
+        await releaseWaitingFollowUps();
         return;
       }
       if (state.killed) {
@@ -1267,6 +1695,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       if (!gate.ok) {
         clearWork(state);
         saveState(state);
+        await releaseWaitingFollowUps();
         return;
       }
       let selfId = config.selfId;
@@ -1296,6 +1725,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       const take = (raw) => {
         const message = normalizeMessage(raw);
         if (!message) return null;
+        linkFollowUpLid(message);
         ingest(message, state);
         arrived += 1;
         const at = toIso(message.at);
@@ -1312,7 +1742,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
             const wanted = new Set(chats);
             for (const raw of batch.messages) {
               const message = normalizeMessage(raw);
-              if (!message || !wanted.has(message.chatId)) continue;
+              if (!message || !(wanted.has(message.chatId) || linkFollowUpLid(message))) continue;
               const at = toIso(message.at);
               // Na primeira leitura não há ponto de controle: só vale o que veio depois de a ponte ligar.
               if (batch.firstRead && (!at || at < state.after)) continue;
@@ -1345,6 +1775,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       freeze(state);
       await deliver(state);
       await sendReady(state);
+      await followUpRound(state);
       // A resposta saiu: o que chegou enquanto ela era enviada já pode seguir, junto.
       freeze(state);
       await deliver(state);
@@ -1435,7 +1866,11 @@ export function createDispatcher({
     const wait = limiter.check(gapMs === undefined ? undefined : { gapMs });
     if (wait > 0) await sleep(wait);
     const result = await callEngine(sendTool, { chat_id: chatId, text, request_id: requestId });
-    if (result?.isError) throw new Error("O motor recusou o envio.");
+    // Incerto vem primeiro, mesmo com isError: pode ter saído, então conta no limite e nunca vira uma falha.
+    const status = structured(result)?.status;
+    if (status !== "uncertain" && (result?.isError || status === "failed")) {
+      throw new Error("O motor recusou o envio.");
+    }
     limiter.record();
     return result;
   };

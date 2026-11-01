@@ -470,6 +470,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:backup-model-failover
 
+      - name: Run the Gemini quota failover E2E test
+        if: ${{ !cancelled() }}
+        run: bun run test:antigravity-quota-failover
+
       - name: Run the ZIP attachment E2E test
         if: ${{ !cancelled() }}
         run: bun run test:zip-attachments
@@ -576,6 +580,7 @@ jobs:
             .openbot-build/claude-late-steer-e2e/
             .openbot-build/provider-session-reuse-e2e/
             .openbot-build/backup-model-failover-e2e/
+            .openbot-build/antigravity-quota-failover-e2e/
             .openbot-build/zip-attachment-e2e/
             .openbot-build/mp4-attachment-e2e/
             .openbot-build/agent-mcp-tools-e2e/

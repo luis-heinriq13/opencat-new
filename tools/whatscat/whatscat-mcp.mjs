@@ -30,6 +30,16 @@ import {
   saveBridgeSettings,
   writeBridgeHeartbeat,
 } from "./whatscat-bridge.mjs";
+import {
+  callFollowUpTool,
+  engineAllows,
+  FOLLOW_UP_FILE,
+  FOLLOW_UP_TOOLS,
+  handleFollowUpRoute,
+  isFollowUpTool,
+  narrowEngineScope,
+  widenEngineScope,
+} from "./whatscat-followup.mjs";
 import { createMediaExtractor } from "./whatscat-media.mjs";
 import { createPollPacer, createUpdatesReader, inspectEngineTools } from "./whatscat-reply.mjs";
 import { maskNumber } from "./whatscat-safety.mjs";
@@ -258,6 +268,11 @@ function agentMaySend() {
 }
 
 async function callTool(name, args) {
+  // Só acrescenta à fila ou lê contagens: nenhuma das duas envia, e a aprovação só existe no painel.
+  if (isFollowUpTool(name)) {
+    const { texto, erro } = callFollowUpTool(name, args, followUpContext());
+    return toolText(texto, erro);
+  }
   if (name === STATUS_TOOL.name) return toolText(JSON.stringify(publicState(await ensureService())));
   if (isSendTool(name) && !agentMaySend()) {
     return toolText("O envio pelo agente está desligado: a ponte do WhatsCat responde sozinha, com filtros.", true);
@@ -271,6 +286,12 @@ async function callTool(name, args) {
 }
 
 const BRIDGE_CONFIG_FILE = join(DATA_DIR, "opencat-ponte.json");
+const followUpContext = () => ({
+  queueFile: join(DATA_DIR, FOLLOW_UP_FILE),
+  stateFile: join(DATA_DIR, "opencat-ponte-estado.json"),
+  readSettings: () => readBridgeSettings(BRIDGE_CONFIG_FILE),
+  saveSettings: (patch) => saveBridgeSettings(BRIDGE_CONFIG_FILE, patch),
+});
 /** Código de saída de quem encontra outra ponte viva: o aplicativo espera antes de tentar de novo. */
 const EXIT_ALREADY_RUNNING = 75;
 
@@ -363,6 +384,28 @@ function bridgeDeps(config) {
     fetchAttachment: createAttachmentFetcher(callEngine),
     extractMedia: createMediaExtractor(),
     send: createDispatcher({ limiter, callEngine, sendTool: config.sendTool }),
+    // Só o follow-up usa estes. Sem o estado guardado: `extendScope` não pode regravar um escopo antigo.
+    scopeAdd: async (chatId, beforePut) => {
+      const result = await widenEngineScope(control, chatId, beforePut);
+      serviceStateAt = 0;
+      return result;
+    },
+    scopeRemove: async (chatId) => {
+      await narrowEngineScope(control, chatId);
+      serviceStateAt = 0;
+    },
+    engineReady: async (chatId) => engineAllows(await control("GET", "/state"), chatId),
+    addChat: (chatId) => {
+      const { chats } = readBridgeSettings(BRIDGE_CONFIG_FILE);
+      if (!chats.includes(chatId)) saveBridgeSettings(BRIDGE_CONFIG_FILE, { chats: [...chats, chatId] });
+    },
+    sendCapacity: () => {
+      try {
+        return limiter.check() === 0;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 
@@ -567,8 +610,14 @@ async function startPanel() {
           })),
         });
       }
+      if (request.method === "GET" && path === "/follow-up") {
+        const answer = handleFollowUpRoute("GET", path, {}, followUpContext());
+        return reply(response, answer.status, answer.value);
+      }
       if (request.method !== "POST") return reply(response, 404, { error: "Não encontrado." });
       const body = await readBody(request);
+      const followUpAnswer = handleFollowUpRoute("POST", path, body, followUpContext());
+      if (followUpAnswer) return reply(response, followUpAnswer.status, followUpAnswer.value);
       if (path === "/ponte/retomar") {
         const bridge = currentBridge();
         if (!bridge || typeof body.id !== "string") return reply(response, 400, { error: "A ponte está desligada." });
@@ -650,11 +699,11 @@ if (process.argv.includes("--bridge")) {
     listTools: async () => {
       const state = await ensureService();
       // Sem WhatsApp conectado e conversas escolhidas, só o status existe: ele indica o painel.
-      if (state?.scope?.mode === "initial") return [STATUS_TOOL];
+      if (state?.scope?.mode === "initial") return [STATUS_TOOL, ...FOLLOW_UP_TOOLS];
       const tools = ((await remote("tools/list", {})).tools ?? []).filter(
         (tool) => agentMaySend() || !isSendTool(tool?.name),
       );
-      return [STATUS_TOOL, ...tools];
+      return [STATUS_TOOL, ...FOLLOW_UP_TOOLS, ...tools];
     },
     callTool,
   }).on("close", () => process.exit(0));

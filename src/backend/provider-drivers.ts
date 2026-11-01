@@ -25,6 +25,7 @@ import {
   modelsAfterOpenCodeDiscoveryFailure,
 } from "./agent/provider-models";
 import type { AgentClient } from "./agent-client";
+import { readAntigravityShortWindows } from "./antigravity-short-window";
 import { ANTIGRAVITY_USAGE_PROMPT, antigravityRateLimits } from "./antigravity-usage";
 import { CodexAppServerClient } from "./app-server-client";
 import { ClaudeAgentClient } from "./claude-client";
@@ -883,7 +884,15 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
         history: context.history?.("antigravity"),
         readRateLimits: (_connection, privatePrompt, model) =>
           antigravityAnswersUsageCommand(cli.version)
-            ? privatePrompt(ANTIGRAVITY_USAGE_PROMPT).pipe(Effect.map((answer) => antigravityRateLimits(answer, model)))
+            ? Effect.all(
+                [
+                  privatePrompt(ANTIGRAVITY_USAGE_PROMPT),
+                  // The account's own `GEMINI_HOME`; the default account uses the process one.
+                  readAntigravityShortWindows({ ...process.env, ...context.accountEnvironment }),
+                  // Concurrent: a slow prompt plus the Google calls must not pass the read timeout.
+                ],
+                { concurrency: "unbounded" },
+              ).pipe(Effect.map(([answer, short]) => antigravityRateLimits(answer, model, short)))
             : Effect.succeed({ rateLimits: null, rateLimitsByLimitId: null }),
       }),
     // A profile-generation client asks one question and must not act: no MCP servers, and every
