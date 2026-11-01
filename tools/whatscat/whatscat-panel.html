@@ -275,6 +275,7 @@
       <div><label class="field" for="fu-limite">Limite por dia (até 20)</label><input type="number" id="fu-limite" min="1" max="20" step="1"></div>
       <div><label class="field" for="fu-inicio">Início</label><input type="time" id="fu-inicio"></div>
       <div><label class="field" for="fu-fim">Fim</label><input type="time" id="fu-fim"></div>
+    <div><label class="row" style="margin-top: var(--space-3)"><input type="checkbox" id="fu-todos-dias"><span>Enviar também sábado e domingo</span></label></div>
       <button type="button" id="fu-salvar" style="align-self: flex-end">Salvar</button>
     </div>
     <p class="muted">Só de segunda a sexta, no horário deste computador, com 4 a 8 minutos entre os envios. Quem responder passa ao atendimento normal.</p>
@@ -709,7 +710,7 @@
       : "O agente só propõe. Nada sai sem a sua aprovação aqui.";
     if (!fuConfigLoaded) {
       fuConfigLoaded = true;
-      $("fu-limite").value = value.limiteDia; $("fu-inicio").value = value.inicio; $("fu-fim").value = value.fim;
+      $("fu-todos-dias").checked = value.todosOsDias === true; $("fu-limite").value = value.limiteDia; $("fu-inicio").value = value.inicio; $("fu-fim").value = value.fim;
     }
     const numbers = [[`${value.enviadasHoje} de ${value.limiteDia}`, "Enviadas hoje"], [value.contagem.proposta, "Propostas"], [value.contagem.aprovada, "Aprovadas"], [value.contagem.respondeu, "Responderam"]];
     $("fu-numeros").replaceChildren(...numbers.map(([number, label]) => {
@@ -753,7 +754,7 @@
     $("fu-itens").replaceChildren(...value.itens.map(fuDrawItem));
   }
   function fuSaveConfig() {
-    const body = { ativo: $("fu-ativo").checked, limiteDia: Number($("fu-limite").value), inicio: $("fu-inicio").value, fim: $("fu-fim").value };
+    const body = { ativo: $("fu-ativo").checked, todosOsDias: $("fu-todos-dias").checked, limiteDia: Number($("fu-limite").value), inicio: $("fu-inicio").value, fim: $("fu-fim").value };
     return fuPost("/follow-up/config", body).then((value) => { $("fu-limite").value = value.limiteDia; $("fu-aviso").textContent = "Salvo."; return loadFollowUp(true); }).catch((error) => { failure(error); return loadFollowUp(true); });
   }
   function fuSaveMode(autonomia, confirmo) {

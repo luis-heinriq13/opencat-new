@@ -204,7 +204,7 @@ test("a proposta recusa número barrado, duplicado, grupo, inválido e texto rui
   assert.equal(propose({ numero: "551111112222" }).motivo, "nao_contatar");
   assert.equal(propose({ numero: "120363000000000001@g.us" }).motivo, "grupo");
   assert.equal(propose({ numero: "123" }).motivo, "numero_invalido");
-  assert.equal(propose({ numero: "+1 415 555 1234" }).motivo, "numero_invalido");
+  assert.equal(propose({ numero: "+1 415" }).motivo, "numero_invalido");
   assert.equal(propose({ numero: `${NUM}@lid` }).motivo, "numero_invalido");
   const ok = { numero: NUM2 };
   assert.equal(propose({ ...ok, texto: "  " }).motivo, "texto_vazio");
@@ -1001,4 +1001,14 @@ test("processo real com motor falso: ferramentas do agente e rotas do painel com
     // O painel termina sozinho quando a entrada fecha.
     panel.stdin.end();
   }
+});
+
+test("número de outro país só com + e fim de semana só se o dono escolher", async () => {
+  const { normalizeNumber, insideFollowUpHours, followUpConfigOf } = await import("./whatscat-followup.mjs");
+  assert.equal(normalizeNumber("+351912345678").numero, "351912345678");
+  assert.equal(normalizeNumber("351912345678").ok, false);
+  assert.equal(normalizeNumber("+123").ok, false);
+  const sunday = new Date(2026, 10, 1, 10, 0).getTime();
+  assert.equal(insideFollowUpHours(followUpConfigOf({}), sunday), false);
+  assert.equal(insideFollowUpHours(followUpConfigOf({ todosOsDias: true }), sunday), true);
 });
