@@ -57,6 +57,7 @@ export function followUpConfigOf(raw) {
   const hoursOk = start !== null && end !== null && start < end;
   return {
     ativo: record.ativo === true,
+    todosOsDias: record.todosOsDias === true,
     autonomia: record.autonomia === "auto" ? "auto" : "aprovar",
     limiteDia:
       record.limiteDia !== null && record.limiteDia !== "" && Number.isFinite(limit)
@@ -71,11 +72,11 @@ export function followUpConfigOf(raw) {
   };
 }
 
-/** Segunda a sexta, dentro do horário, no relógio local. */
+/** Segunda a sexta, ou todos os dias se o dono escolheu, dentro do horário, no relógio local. */
 export function insideFollowUpHours(settings, time) {
   const date = new Date(time);
   const day = date.getDay();
-  if (day === 0 || day === 6) return false;
+  if (!settings.todosOsDias && (day === 0 || day === 6)) return false;
   const minutes = date.getHours() * 60 + date.getMinutes();
   return minutes >= minutesOf(settings.inicio) && minutes < minutesOf(settings.fim);
 }
@@ -89,7 +90,12 @@ export function normalizeNumber(value) {
   if (!raw) return { ok: false, motivo: "numero_invalido" };
   if (/@g\.us\b/i.test(raw) || /^\d{5,}-\d+$/.test(raw)) return { ok: false, motivo: "grupo" };
   if (/[^\d\s().+-]/.test(raw)) return { ok: false, motivo: "numero_invalido" };
-  if (raw.startsWith("+") && !raw.startsWith("+55")) return { ok: false, motivo: "numero_invalido" };
+  if (raw.startsWith("+") && !raw.startsWith("+55")) {
+    // Outro país: só com o + explícito, no formato internacional. Quem veio sem + segue a regra do Brasil.
+    const international = raw.replace(/\D/g, "");
+    if (!/^[1-9]\d{7,14}$/.test(international)) return { ok: false, motivo: "numero_invalido" };
+    return { ok: true, numero: international, chatId: `${international}@s.whatsapp.net` };
+  }
   let digits = raw.replace(/\D/g, "").replace(/^0+/, "");
   if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
   const match = /^55([1-9]\d)(\d{8,9})$/.exec(digits);
@@ -402,7 +408,7 @@ const countByStatus = (queue) => {
 
 /** O que o agente pode fazer agora, em palavras simples: o dono pergunta no chat e o agente responde daqui. */
 function agentGuidance(settings, counts, left, time) {
-  const hours = `de segunda a sexta, das ${settings.inicio} às ${settings.fim}`;
+  const hours = `${settings.todosOsDias ? "todos os dias" : "de segunda a sexta"}, das ${settings.inicio} às ${settings.fim}`;
   if (!settings.ativo) {
     return {
       situacao: "desligado",
@@ -660,7 +666,13 @@ export function handleFollowUpRoute(
       return { status: 400, value: { error: "O horário de início precisa ser antes do fim." } };
     }
     const saved = saveSettings({
-      followUp: { ativo: body.ativo === true, limiteDia: body.limiteDia, inicio: body.inicio, fim: body.fim },
+      followUp: {
+        ativo: body.ativo === true,
+        todosOsDias: body.todosOsDias === true,
+        limiteDia: body.limiteDia,
+        inicio: body.inicio,
+        fim: body.fim,
+      },
     });
     return { status: 200, value: { ok: true, ...saved.followUp, naoContatarArquivo: undefined } };
   }
