@@ -55,6 +55,7 @@ export const messages = defineMessages("app", {
   "app.rail.schedule": "Schedule",
   "app.rail.tasks": "Tasks",
   "app.rail.workflows": "Workflows",
+  "app.rail.attendance": "Attendance",
   "app.rail.usage": "Usage",
   "app.rail.marketplace": "Marketplace",
   "app.rail.settings": "Settings",

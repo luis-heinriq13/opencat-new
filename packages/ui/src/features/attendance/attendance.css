@@ -1,0 +1,485 @@
+/* The Attendance page. It reuses the shell of the usage page (.agent-usage, its header and body) and adds
+ * its own parts. One gold accent, --attendance-accent, marks three things only: the hero number, the
+ * selected period and the main series. Everything else is neutral. */
+.attendance {
+  --attendance-hairline: var(--openbot-border-strong);
+}
+.attendance .attendance-body {
+  gap: calc(var(--openbot-space-6) + var(--openbot-space-1));
+}
+.attendance h3 {
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-medium);
+}
+
+.attendance-state {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+  white-space: nowrap;
+}
+.attendance-state::before {
+  content: "";
+  display: inline-block;
+  width: var(--openbot-space-2);
+  height: var(--openbot-space-2);
+  margin-right: var(--openbot-space-2);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-text-muted);
+}
+.attendance-state[data-state="on"]::before {
+  background: var(--openbot-success);
+}
+.attendance-state[data-state="paused"]::before {
+  background: var(--openbot-warning);
+}
+
+/* The period is a segmented group. Only the selected one wears the accent. */
+.attendance-periods {
+  display: flex;
+  gap: var(--openbot-space-1);
+}
+.attendance-period[aria-pressed="true"] {
+  color: var(--attendance-accent);
+  box-shadow: inset 0 -2px 0 var(--attendance-accent);
+  border-radius: var(--openbot-radius-sm);
+}
+
+.attendance-kicker {
+  font-size: var(--openbot-text-md);
+  color: var(--openbot-text-muted);
+  letter-spacing: 0.02em;
+}
+.attendance-note {
+  display: block;
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.attendance-tag {
+  margin-left: var(--openbot-space-1);
+  padding: 0 var(--openbot-space-2);
+  border: 1px solid var(--attendance-hairline);
+  border-radius: var(--openbot-radius-pill);
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+
+/* The hero: one big number with its sentence and trend, and a ledger beside it, not a row of boxes. */
+.attendance-hero {
+  display: grid;
+  gap: var(--openbot-space-6);
+  align-items: end;
+  padding-bottom: calc(var(--openbot-space-6) + var(--openbot-space-1));
+  border-bottom: 1px solid var(--attendance-hairline);
+}
+.attendance-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  min-width: 0;
+}
+.attendance-hero-number {
+  font-size: var(--openbot-text-hero);
+  font-weight: var(--openbot-weight-semibold);
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--attendance-accent);
+  overflow-wrap: anywhere;
+}
+.attendance-hero-summary {
+  max-width: 52ch;
+  font-size: var(--openbot-text-xl);
+  color: var(--openbot-text-secondary);
+}
+.attendance-hero-trend {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-4);
+  flex-wrap: wrap;
+}
+.attendance-spark {
+  width: 160px;
+  height: 44px;
+  flex: none;
+}
+.attendance-spark path {
+  stroke: var(--attendance-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.attendance-trend-text {
+  font-size: var(--openbot-text-md);
+  color: var(--openbot-text-muted);
+}
+
+.attendance-ledger {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.attendance-ledger > div {
+  display: grid;
+  gap: var(--openbot-space-1);
+  padding: var(--openbot-space-3) 0;
+  border-top: 1px solid var(--attendance-hairline);
+}
+.attendance-ledger > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.attendance-ledger dt {
+  font-size: var(--openbot-text-md);
+  color: var(--openbot-text-muted);
+}
+.attendance-ledger dd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  margin: 0;
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+.attendance-minutes {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  margin-top: var(--openbot-space-2);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-regular);
+  color: var(--openbot-text-muted);
+}
+.attendance-minutes .ui-input {
+  width: 72px;
+}
+
+/* An asymmetric grid: a wide chart beside a narrow funnel, then two equal-weight hour views, then the lists. */
+.attendance-grid {
+  display: grid;
+  gap: calc(var(--openbot-space-6) + var(--openbot-space-2));
+  min-width: 0;
+}
+.attendance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-3);
+  min-width: 0;
+}
+.attendance-panel .agent-usage-section-header {
+  margin-bottom: 0;
+}
+.attendance-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--openbot-space-3);
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.attendance-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+}
+.attendance-dot,
+.attendance-swatch {
+  display: inline-block;
+  width: var(--openbot-space-2);
+  height: var(--openbot-space-2);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-text-muted);
+}
+.attendance-dot[data-series="answered"] {
+  background: var(--attendance-accent);
+}
+.attendance-swatch[data-kind="median"] {
+  background: var(--openbot-text-secondary);
+}
+.attendance-swatch[data-kind="slow"] {
+  background: var(--openbot-text-muted);
+  opacity: 0.45;
+}
+.attendance-swatch[data-kind="failure"] {
+  background: var(--openbot-danger);
+  border-radius: var(--openbot-radius-sm);
+}
+
+.attendance-chart .ui-chart {
+  height: 260px;
+}
+
+/* The funnel: bars sized against the received messages, in neutral tones. */
+.attendance-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.attendance-funnel li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--openbot-space-1) var(--openbot-space-3);
+  font-size: var(--openbot-text-md);
+}
+.attendance-funnel strong {
+  font-size: var(--openbot-text-xl);
+  font-weight: var(--openbot-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+.attendance-funnel-label {
+  align-self: end;
+  color: var(--openbot-text-secondary);
+}
+.attendance-funnel-track {
+  grid-column: 1 / -1;
+  height: var(--openbot-space-2);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-bg-control-active);
+  overflow: hidden;
+}
+.attendance-bar {
+  display: block;
+  height: 100%;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-text-muted);
+}
+.attendance-bar[data-tone="strong"] {
+  background: var(--openbot-text-primary);
+}
+.attendance-bar[data-tone="danger"] {
+  background: var(--openbot-danger);
+}
+.attendance-funnel li > .attendance-note {
+  grid-column: 1 / -1;
+}
+.attendance-funnel-aside {
+  display: flex;
+  gap: var(--openbot-space-6);
+  margin: 0;
+  padding-top: var(--openbot-space-3);
+  border-top: 1px solid var(--attendance-hairline);
+}
+.attendance-funnel-aside dt {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.attendance-funnel-aside dd {
+  margin: 0;
+  font-size: var(--openbot-text-xl);
+  font-variant-numeric: tabular-nums;
+}
+.attendance-funnel-aside [data-step="failed"]:not([data-empty]) dd,
+.attendance-funnel-aside [data-step="blocked"]:not([data-empty]) dd {
+  color: var(--openbot-danger);
+}
+
+/* The heatmap: weekday by hour, in steps of the primary text color. */
+.attendance-heatmap {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.attendance-heat-hours,
+.attendance-heat-cells {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+.attendance-heat-hours {
+  margin-left: 36px;
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.attendance-heat-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+.attendance-heat-day {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+  text-transform: capitalize;
+}
+.attendance-heat-cell,
+.attendance-heat-key {
+  display: block;
+  height: 16px;
+  border-radius: var(--openbot-radius-sm);
+  background: var(--openbot-bg-control-active);
+}
+.attendance-heat-key {
+  width: 16px;
+  height: 12px;
+}
+:is(.attendance-heat-cell, .attendance-heat-key)[data-level="1"] {
+  background: color-mix(in srgb, var(--openbot-text-primary) 22%, var(--openbot-bg-control-active));
+}
+:is(.attendance-heat-cell, .attendance-heat-key)[data-level="2"] {
+  background: color-mix(in srgb, var(--openbot-text-primary) 42%, var(--openbot-bg-control-active));
+}
+:is(.attendance-heat-cell, .attendance-heat-key)[data-level="3"] {
+  background: color-mix(in srgb, var(--openbot-text-primary) 66%, var(--openbot-bg-control-active));
+}
+:is(.attendance-heat-cell, .attendance-heat-key)[data-level="4"] {
+  background: var(--openbot-text-primary);
+}
+
+/* Response time by hour: a pale bar for the slowest 10%, a darker one for the median, a cap in the danger tone for failures. */
+.attendance-latency {
+  width: 100%;
+  height: 170px;
+  border-bottom: 1px solid var(--attendance-hairline);
+}
+.attendance-latency:focus-visible {
+  outline: 0;
+  box-shadow: var(--openbot-focus-ring);
+}
+.attendance-bar-slow {
+  fill: var(--openbot-text-muted);
+  opacity: 0.4;
+}
+.attendance-bar-median {
+  fill: var(--openbot-text-secondary);
+}
+.attendance-bar-failure {
+  fill: var(--openbot-danger);
+}
+.attendance-latency-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+
+/* The lists. */
+.attendance-attention,
+.attendance-failures {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.attendance-attention li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3) 0;
+  border-top: 1px solid var(--attendance-hairline);
+  font-size: var(--openbot-text-md);
+}
+.attendance-attention li:first-child {
+  border-top: 0;
+}
+.attendance-attention-icon {
+  display: flex;
+  color: var(--openbot-text-muted);
+}
+.attendance-attention-icon svg {
+  width: var(--openbot-icon-md);
+  height: var(--openbot-icon-md);
+}
+.attendance-attention li[data-event="falhou"] .attendance-attention-icon {
+  color: var(--openbot-danger);
+}
+.attendance-attention li[data-event="bloqueada"] .attendance-attention-icon {
+  color: var(--openbot-warning);
+}
+.attendance-attention-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.attendance-attention-meta {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+time.attendance-attention-meta {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.attendance-failures li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--openbot-space-1) var(--openbot-space-3);
+  padding: var(--openbot-space-2) 0;
+  font-size: var(--openbot-text-md);
+}
+.attendance-failures strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--openbot-weight-medium);
+}
+
+/* No data yet. */
+.attendance-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--openbot-space-3);
+  max-width: 44ch;
+  margin: var(--openbot-space-8) auto;
+  text-align: center;
+}
+.attendance-empty p {
+  color: var(--openbot-text-secondary);
+}
+.attendance-empty-icon {
+  width: var(--openbot-icon-lg);
+  height: var(--openbot-icon-lg);
+  color: var(--openbot-text-muted);
+}
+
+/* The page sizes by its own width, as the usage page does. */
+@container (min-width: 760px) {
+  .attendance-hero {
+    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr);
+    gap: calc(var(--openbot-space-6) * 2);
+  }
+  .attendance-ledger {
+    padding-left: calc(var(--openbot-space-6) * 2);
+    border-left: 1px solid var(--attendance-hairline);
+  }
+  .attendance-grid-main {
+    grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  }
+  .attendance-grid-hours {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+  .attendance-grid-attention {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+}
+@container (max-width: 480px) {
+  .attendance-hero-number {
+    font-size: var(--openbot-text-display);
+  }
+  .attendance-heat-day {
+    display: none;
+  }
+  .attendance-heat-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .attendance-heat-hours {
+    margin-left: 0;
+  }
+  .attendance-chart .ui-chart {
+    height: 200px;
+  }
+  .attendance-funnel-aside {
+    flex-wrap: wrap;
+  }
+}
+
+/* Motion only when the user allows it. */
+@media (prefers-reduced-motion: no-preference) {
+  .attendance-bar {
+    transition: width var(--openbot-duration-fast) ease-out;
+  }
+}

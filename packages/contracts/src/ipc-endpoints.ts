@@ -186,6 +186,7 @@ import type {
   PreviewWorkspaceFileInput,
   WorkspaceDirectory,
 } from "./ipc-attachments";
+import type { AttendancePeriod, AttendanceReport } from "./ipc-attendance";
 import type { BitwardenConnectorStatus, BitwardenHostConnectInput } from "./ipc-bitwarden-connector";
 import type {
   BrowserBounds,
@@ -1178,6 +1179,11 @@ export const IPC_ENDPOINTS = {
     status: request<AppConnectionApp, AppConnectionStatus>()("app-connections:status"),
     change: request<AppConnectionChange, AppConnectionStatus>()("app-connections:change"),
   },
+  // The attendance report of the WhatsApp (not official) connection: counts, times and hash labels,
+  // read from the local metrics file. No message, phone number or name crosses.
+  attendance: {
+    report: request<AttendancePeriod, AttendanceReport>()("attendance:report"),
+  },
   // The Bitwarden connection of this computer. The session key goes from the renderer to main once,
   // in `connect`; every answer is the status only. The `host*` endpoints do the same for a joined
   // server (`bitwarden-connector-v1`), with an API key and the master password: a session key from
@@ -1912,6 +1918,7 @@ export const IPC_GROUP_PATHS = {
   githubConnector: "githubConnector",
   onePasswordConnector: "onePasswordConnector",
   appConnections: "appConnections",
+  attendance: "attendance",
   bitwardenConnector: "bitwardenConnector",
   vault: "vault",
   hostedSites: "hostedSites",

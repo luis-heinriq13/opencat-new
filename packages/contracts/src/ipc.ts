@@ -30,6 +30,7 @@ export * from "./ipc-app-behavior";
 export * from "./ipc-app-connections";
 export * from "./ipc-approvals";
 export * from "./ipc-attachments";
+export * from "./ipc-attendance";
 export * from "./ipc-bitwarden-connector";
 export * from "./ipc-browser";
 export * from "./ipc-browser-dock";

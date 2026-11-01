@@ -4267,6 +4267,19 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     sender?: ConversationMessageSender,
     timezone?: string,
   ): Effect.fn.Return<AgentTask, AgentLifecycleFailed> {
+    return (yield* this.startTaskWithReceipt(input, sender, timezone)).task;
+  }).bind(this);
+
+  /**
+   * `startTask` that also returns the receipt of the first message, so a caller can follow its delivery.
+   * `title` names the task; without it, the first line of the message does.
+   */
+  readonly startTaskWithReceipt = Effect.fn("AgentService.startTaskWithReceipt")(function* (
+    this: AgentService,
+    input: StartAgentTaskInput & { title?: string },
+    sender?: ConversationMessageSender,
+    timezone?: string,
+  ): Effect.fn.Return<{ task: AgentTask; receipt: QueuedMessageReceipt }, AgentLifecycleFailed> {
     const task = yield* lifecycleStep("start task", () => {
       if (!this.listAgents().some((agent) => agent.id === input.agentId))
         throw new Error(sourceText("error.agent.unknown", { id: input.agentId }));
@@ -4274,10 +4287,13 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       // A start with files and no text takes its title from the first file.
       const firstDraft = input.attachmentDraftIds?.[0];
       const titleText = input.text.trim() || (firstDraft ? (this.#mailbox.draftName(firstDraft) ?? "") : "");
-      return this.#tasks.create(input.agentId, titleText, "user");
+      const created = this.#tasks.create(input.agentId, input.title?.trim() || titleText, "user");
+      // A title that the caller chose is kept like a rename by a person.
+      if (input.title?.trim()) this.#tasks.rename(created, input.title);
+      return created;
     });
     this.#tasks.changed(task.agentId);
-    yield* this.sendMessage(
+    const receipt = yield* this.sendMessage(
       {
         agentId: task.agentId,
         taskId: task.taskId,
@@ -4296,7 +4312,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         }),
       ),
     );
-    return this.#tasks.publicTask(task);
+    // Read again: a rename after `create` changed the stored title.
+    return { task: this.#tasks.publicTask(this.#tasks.require(task.agentId, task.taskId)), receipt };
   }).bind(this);
 
   /** Moves a message that waits in the agent's own queue into a new task, so it starts beside the chat. */

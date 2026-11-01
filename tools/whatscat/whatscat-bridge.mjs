@@ -20,6 +20,7 @@ import {
 import { homedir, platform } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import { FAILURE_TEXT, MAX_EXTRACTED_CHARS, MEDIA_CAPS, mediaKind, pruneOldFiles } from "./whatscat-media.mjs";
+import { adaptiveWindowMs, partPauseMs, splitReply } from "./whatscat-reply.mjs";
 import {
   chatDigits,
   cleanOwnerText,
@@ -40,8 +41,16 @@ const BLOCK = "whatscat_mensagem_nao_confiavel";
 const HISTORY_SENT = 10;
 const HISTORY_KEPT = 30;
 const HISTORY_TEXT = 1000;
-/** Janela padrão (segundos) para juntar as mensagens seguidas de um contato numa só entrega. */
-const DEFAULT_GROUP_SECONDS = 20;
+/**
+ * Silêncio padrão (segundos) que fecha uma rajada de mensagens do contato. A janela é adaptativa e uma rajada
+ * nunca espera mais que `DEFAULT_GROUP_MAX_SECONDS` desde a primeira mensagem.
+ */
+const DEFAULT_GROUP_SECONDS = 6;
+const DEFAULT_GROUP_MAX_SECONDS = 15;
+/** Uma conversa sem mensagem há mais que isso tem a tarefa encerrada, para nunca chegar ao limite de abertas. */
+const THREAD_IDLE_HOURS = 24;
+const THREAD_SWEEP_MS = 600_000;
+const THREAD_FORCE_IDLE_MS = 600_000;
 /** Uma rajada nunca espera mais que isso a mais que a janela, nem passa deste tamanho. */
 const MAX_BATCH = 20;
 /** Entrega que falha fica na fila e tenta de novo com espera crescente, até este limite. */
@@ -151,8 +160,20 @@ export function loadBridgeConfig(file) {
     excludes,
     internalContacts: list(raw.internalContacts).filter((id) => !isGroupChat(id)),
     sendTool: typeof raw.sendTool === "string" && raw.sendTool ? raw.sendTool : "send_text",
-    pollSeconds: Math.min(300, Math.max(5, Number(raw.pollSeconds) || 15)),
+    pollSeconds: clampNumber(raw.pollSeconds, 3, 1, 300),
+    pollIdleSeconds: clampNumber(raw.pollIdleSeconds, 15, 1, 300),
+    idleMinutes: clampNumber(raw.idleMinutes, 5, 1, 120),
     groupSeconds: groupSecondsOf(raw.groupSeconds),
+    groupMaxSeconds: clampNumber(raw.groupMaxSeconds, DEFAULT_GROUP_MAX_SECONDS, 1, 300),
+    maxPartes: Math.floor(clampNumber(raw.maxPartes, 4, 1, 10)),
+    parteChars: Math.floor(clampNumber(raw.parteChars, 300, 80, 1000)),
+    pausaMinSegundos: clampNumber(raw.pausaMinSegundos, 1.5, 0, 30),
+    pausaMaxSegundos: Math.max(
+      clampNumber(raw.pausaMinSegundos, 1.5, 0, 30),
+      clampNumber(raw.pausaMaxSegundos, 5, 0, 60),
+    ),
+    threadsPorContato: raw.threadsPorContato !== false,
+    maxThreadsAbertas: Math.floor(clampNumber(raw.maxThreadsAbertas, 40, 1, 49)),
     stopWords: stopWords.length ? stopWords : DEFAULT_STOP_WORDS,
     takeoverMinutes: clampNumber(raw.takeoverMinutes, 60, 1, 1440),
     handoffMinutes: clampNumber(raw.handoffMinutes, 1440, 1, 10_080),
@@ -485,6 +506,12 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       /** Por contato: pausa, horários das respostas e o aviso de silêncio. */
       contacts: record(state.contacts),
       stopped: Array.isArray(state.stopped) ? state.stopped : [],
+      /** Uma tarefa do agente por contato: { taskId, at }. Os avisos ao dono não passam por ela. */
+      threads: record(state.threads),
+      threadsFallback: state.threadsFallback === true,
+      lastThreadSweep: Number(state.lastThreadSweep) || 0,
+      /** Ponto de controle de `get_updates`, se o motor o oferece. */
+      updatesCursor: typeof state.updatesCursor === "string" ? state.updatesCursor : "",
       killed: state.killed === true,
       lastPrune: Number(state.lastPrune) || 0,
     };
@@ -503,6 +530,9 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
   /** O que vale nesta rodada: o modo efetivo (a porta de permissões pode estreitá-lo) e as exclusões da parada. */
   let active = config;
   const windowMs = () => (config.groupSeconds === undefined ? DEFAULT_GROUP_SECONDS : config.groupSeconds) * 1000;
+  /** O teto desde a primeira mensagem: nunca menor que o silêncio configurado. */
+  const hardMs = () => Math.max(windowMs(), (config.groupMaxSeconds ?? DEFAULT_GROUP_MAX_SECONDS) * 1000);
+  const sleep = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const openDelivery = (state, chatId) => state.pending.some((item) => item.chatId === chatId);
   const contactOf = (state, chatId) => {
     state.contacts[chatId] ??= { replies: [] };
@@ -626,6 +656,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       ...(group && message.senderId ? { remetente: shortHash(message.senderId) } : {}),
     });
     buffered.firstAt = Math.min(buffered.firstAt, at);
+    if (buffered.messages.length > 1) buffered.prevAt = buffered.lastAt;
     buffered.lastAt = Math.max(buffered.lastAt, at);
     state.buffer[message.chatId] = buffered;
     metric("recebida", message.chatId);
@@ -679,8 +710,8 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
         continue;
       }
       if (state.outbox.some((item) => item.chatId === chatId) || openDelivery(state, chatId)) continue;
-      const quiet = current - entry.lastAt >= windowMs();
-      const tooOld = current - entry.firstAt >= windowMs() * 3;
+      const quiet = current - entry.lastAt >= adaptiveWindowMs(entry, windowMs(), hardMs());
+      const tooOld = current - entry.firstAt >= hardMs();
       if (!(quiet || tooOld || entry.messages.length >= MAX_BATCH)) continue;
       const keys = entry.messages.map((message) => message.key);
       const single = keys.length === 1 ? keys[0] : `whatscat:g${shortHash(keys.join("|"))}`;
@@ -775,6 +806,55 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     }
   }
 
+  const threadBusy = (state, chatId) =>
+    Boolean(state.buffer[chatId]) ||
+    openDelivery(state, chatId) ||
+    state.outbox.some((item) => item.chatId === chatId) ||
+    state.outgoing.some((item) => item.chatId === chatId && item.kind === "resposta");
+
+  /**
+   * Encerra as tarefas de contatos parados (mais de 24 h) para o limite de tarefas abertas do agente nunca
+   * chegar. Com `room`, também encerra as mais antigas já paradas há 10 minutos até sobrar espaço. Nunca
+   * encerra a de um contato com trabalho em andamento. Falha ao encerrar só é registrada.
+   */
+  async function closeIdleThreads(state, { room = false } = {}) {
+    if (!deps.closeTask) return;
+    const idleMs = THREAD_IDLE_HOURS * HOUR_MS;
+    const cap = config.maxThreadsAbertas ?? 40;
+    const entries = Object.entries(state.threads)
+      .filter(([, thread]) => thread && typeof thread.taskId === "string")
+      .sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0));
+    let open = entries.length;
+    for (const [chatId, thread] of entries) {
+      const idle = now() - (thread.at ?? 0);
+      const old = idle >= idleMs;
+      const needRoom = room && open >= cap && idle >= THREAD_FORCE_IDLE_MS;
+      if (!(old || needRoom) || threadBusy(state, chatId)) continue;
+      try {
+        await deps.closeTask({ agentId: config.agentId, taskId: thread.taskId });
+        delete state.threads[chatId];
+        open -= 1;
+        audit("tarefa_encerrada", { conversa: shortHash(chatId), motivo: old ? "parada_24h" : "espaco" });
+      } catch {
+        audit("falha_ao_encerrar_tarefa", { conversa: shortHash(chatId) });
+      }
+    }
+  }
+
+  /** Guarda a tarefa do contato que a resposta do OpenBot informou, e registra quando a rota não existe. */
+  function trackThread(state, chatId, receipt) {
+    if (receipt?.taskId) {
+      state.threads[chatId] = { taskId: receipt.taskId, at: now() };
+      if (state.threadsFallback) {
+        state.threadsFallback = false;
+        audit("fio_por_contato_disponivel");
+      }
+    } else if (receipt?.fallback && !state.threadsFallback) {
+      state.threadsFallback = true;
+      audit("fio_por_contato_indisponivel", { conversa: shortHash(chatId) });
+    }
+  }
+
   /** Tenta entregar cada item da fila. Falha de um contato não segura os outros; o item volta com espera maior. */
   async function deliver(state) {
     const remaining = [];
@@ -791,6 +871,8 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       try {
         await saveAttachments(item.chatId, item.messages);
         const group = isGroupChat(item.chatId);
+        const threaded = config.threadsPorContato !== false;
+        if (threaded && !state.threads[item.chatId]) await closeIdleThreads(state, { room: true });
         const receipt = await deps.postToAgent({
           agentId: config.agentId,
           text: wrapInbound(
@@ -800,7 +882,9 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
             group ? { group: { instructions: groupConfigFor(item.chatId).instructions } } : {},
           ),
           clientMessageId: item.clientMessageId,
+          ...(threaded ? { key: `WhatsApp #${label}`, taskId: state.threads[item.chatId]?.taskId } : {}),
         });
+        if (threaded) trackThread(state, item.chatId, receipt);
         if (receipt?.deliveryId) {
           state.pending.push({
             deliveryId: receipt.deliveryId,
@@ -877,14 +961,22 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       await notifyOwner("resposta_bloqueada", chatId);
       return;
     }
-    enqueue(state, {
-      chatId,
-      kind: "resposta",
-      requestId: `wc-${shortHash(item.inboundId)}`,
-      text,
-      receivedAt: item.receivedAt,
-      deliveredAt: item.deliveredAt,
-      answeredAt: now(),
+    // O filtro já olhou a resposta inteira. Só então ela vira mensagens curtas, cada uma com seu request_id.
+    const parts = splitReply(text, { maxChars: config.parteChars ?? 300, maxParts: config.maxPartes ?? 4 });
+    const base = `wc-${shortHash(item.inboundId)}`;
+    parts.forEach((part, index) => {
+      enqueue(state, {
+        chatId,
+        kind: "resposta",
+        requestId: index === 0 ? base : `${base}-p${index + 1}`,
+        replyKey: base,
+        parte: index + 1,
+        partes: parts.length,
+        text: part,
+        receivedAt: item.receivedAt,
+        deliveredAt: item.deliveredAt,
+        answeredAt: now(),
+      });
     });
   }
 
@@ -910,11 +1002,24 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
     state.pending = stillPending;
   }
 
-  /** Envia o que está pronto, pelos limites de sempre. Só a ponte envia, e só estes itens. */
+  const pauseOptions = () => ({
+    minMs: (config.pausaMinSegundos ?? 1.5) * 1000,
+    maxMs: (config.pausaMaxSegundos ?? 5) * 1000,
+    maxChars: config.parteChars ?? 300,
+  });
+
+  /**
+   * Envia o que está pronto, pelos limites de sempre. Só a ponte envia, e só estes itens. Uma resposta em
+   * várias partes sai na ordem, com uma pausa proporcional entre elas; se uma parte falha, as seguintes
+   * esperam por ela, e se ela desiste, as seguintes são descartadas.
+   */
   async function sendReady(state) {
     const remaining = [];
+    const blocked = new Set();
+    const dropped = new Set();
     for (const item of state.outgoing) {
       const answer = item.kind === "resposta";
+      const continuation = answer && (item.parte ?? 1) > 1;
       if (config.reply === "pause") {
         audit("envio_cancelado_pausa", { conversa: shortHash(item.chatId) });
         continue;
@@ -923,12 +1028,21 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
         audit("resposta_descartada_pausa", { conversa: shortHash(item.chatId) });
         continue;
       }
-      if (item.notBefore > now()) {
+      if (answer && item.replyKey && dropped.has(item.replyKey)) {
+        audit("parte_descartada", { conversa: shortHash(item.chatId), parte: item.parte });
+        continue;
+      }
+      if (answer && blocked.has(item.chatId)) {
         remaining.push(item);
         continue;
       }
+      if (item.notBefore > now()) {
+        remaining.push(item);
+        if (answer) blocked.add(item.chatId);
+        continue;
+      }
       const entry = contactOf(state, item.chatId);
-      if (answer) {
+      if (answer && !continuation) {
         entry.replies = entry.replies.filter((time) => now() - time < HOUR_MS);
         if (entry.replies.length >= (config.maxRepliesPerHour ?? 10)) {
           pauseContact(state, item.chatId, 60, "limite_por_hora");
@@ -941,25 +1055,53 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
         if (gap > 0) {
           item.notBefore = now() + gap;
           remaining.push(item);
+          blocked.add(item.chatId);
           continue;
+        }
+      }
+      let pause = 0;
+      if (answer) {
+        // O indicador de digitação só existe se o motor o oferece; falhar nele nunca impede o envio.
+        try {
+          await deps.typing?.(item.chatId);
+        } catch {
+          // Sem indicador a resposta sai igual.
+        }
+        if (continuation) {
+          pause = partPauseMs(item.text, pauseOptions());
+          await sleep(pause);
+          // O dono pode ter assumido durante a pausa.
+          if (isPaused(state, item.chatId)) {
+            audit("resposta_descartada_pausa", { conversa: shortHash(item.chatId) });
+            continue;
+          }
         }
       }
       registerSent(state, item.chatId, item.text);
       const started = now();
       try {
-        await deps.send({ chatId: item.chatId, text: item.text, requestId: item.requestId });
+        await deps.send({
+          chatId: item.chatId,
+          text: item.text,
+          requestId: item.requestId,
+          ...(continuation ? { gapMs: pause } : {}),
+        });
         const finished = now();
         if (answer) {
-          entry.replies.push(finished);
+          if (!continuation) entry.replies.push(finished);
           entry.lastReplyAt = finished;
           appendHistory(item.chatId, { de: "voce", texto: item.text });
         }
-        audit(answer ? "resposta_enviada" : `${item.kind}_enviado`, { conversa: shortHash(item.chatId) });
-        if (answer) {
+        audit(answer ? "resposta_enviada" : `${item.kind}_enviado`, {
+          conversa: shortHash(item.chatId),
+          ...((item.partes ?? 1) > 1 ? { parte: item.parte, de: item.partes } : {}),
+        });
+        if (answer && !continuation) {
           metric("respondida", item.chatId, {
             esperaMs: Math.max(0, (item.deliveredAt ?? started) - (item.receivedAt ?? started)),
             agenteMs: Math.max(0, (item.answeredAt ?? started) - (item.deliveredAt ?? started)),
             envioMs: Math.max(0, finished - started),
+            ...((item.partes ?? 1) > 1 ? { partes: item.partes } : {}),
           });
         }
       } catch (error) {
@@ -968,10 +1110,12 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
         if (item.attempts >= MAX_ATTEMPTS) {
           audit("envio_desistido", { conversa: shortHash(item.chatId) });
           metric("falhou", item.chatId, { erro: errorCategory(error) });
+          if (item.replyKey) dropped.add(item.replyKey);
           continue;
         }
         item.notBefore = now() + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (item.attempts - 1));
         remaining.push(item);
+        if (answer) blocked.add(item.chatId);
       }
     }
     state.outgoing = remaining;
@@ -1073,20 +1217,49 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       }
       // O dono falando num contato excluído pelo número também conta como pausa, então ele é lido.
       let newest = state.after;
-      for (const chatId of chats) {
-        let raws;
+      let arrived = 0;
+      const take = (raw) => {
+        const message = normalizeMessage(raw);
+        if (!message) return null;
+        ingest(message, state);
+        arrived += 1;
+        const at = toIso(message.at);
+        if (at && at > newest) newest = at;
+        return message;
+      };
+      let updated = false;
+      if (deps.updates?.usable) {
+        // Uma leitura só para todas as conversas, com ponto de controle; só avança depois de ingerir.
         try {
-          raws = await deps.readMessages({ chatId, after: state.after });
+          const batch = await deps.updates.read({ cursor: state.updatesCursor });
+          if (batch.unusable) audit("get_updates_indisponivel");
+          else {
+            const wanted = new Set(chats);
+            for (const raw of batch.messages) {
+              const message = normalizeMessage(raw);
+              if (!message || !wanted.has(message.chatId)) continue;
+              const at = toIso(message.at);
+              // Na primeira leitura não há ponto de controle: só vale o que veio depois de a ponte ligar.
+              if (batch.firstRead && (!at || at < state.after)) continue;
+              take(raw);
+            }
+            state.updatesCursor = batch.cursor;
+            updated = true;
+          }
         } catch {
-          audit("falha_ao_ler", { conversa: shortHash(chatId) });
-          continue;
+          audit("falha_ao_ler_updates");
         }
-        for (const raw of raws ?? []) {
-          const message = normalizeMessage(raw);
-          if (!message) continue;
-          ingest(message, state);
-          const at = toIso(message.at);
-          if (at && at > newest) newest = at;
+      }
+      if (!updated) {
+        for (const chatId of chats) {
+          let raws;
+          try {
+            raws = await deps.readMessages({ chatId, after: state.after });
+          } catch {
+            audit("falha_ao_ler", { conversa: shortHash(chatId) });
+            continue;
+          }
+          for (const raw of raws ?? []) take(raw);
         }
       }
       state.after = newest;
@@ -1097,7 +1270,17 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       freeze(state);
       await deliver(state);
       await sendReady(state);
+      if (config.threadsPorContato !== false && now() - state.lastThreadSweep > THREAD_SWEEP_MS) {
+        state.lastThreadSweep = now();
+        await closeIdleThreads(state);
+      }
       saveState(state);
+      // Para o ritmo da leitura: houve mensagem nova ou ainda há trabalho em andamento.
+      return {
+        activity:
+          arrived > 0 ||
+          Object.keys(state.buffer).length + state.outbox.length + state.pending.length + state.outgoing.length > 0,
+      };
     },
     /** Contatos pausados agora (para o painel). */
     paused() {
@@ -1169,8 +1352,9 @@ export function createDispatcher({
   sendTool = "send_text",
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
-  return async ({ chatId, text, requestId }) => {
-    const wait = limiter.check();
+  return async ({ chatId, text, requestId, gapMs }) => {
+    // Parte seguinte de uma resposta: a pausa dela já foi esperada; os limites por hora e por dia continuam.
+    const wait = limiter.check(gapMs === undefined ? undefined : { gapMs });
     if (wait > 0) await sleep(wait);
     const result = await callEngine(sendTool, { chat_id: chatId, text, request_id: requestId });
     if (result?.isError) throw new Error("O motor recusou o envio.");
@@ -1253,17 +1437,54 @@ export function createAgentApi({ dir = automationDir(), fetchImpl = fetch } = {}
     const value = await response.json();
     return Array.isArray(value) ? value : [];
   };
+  const postMain = async (base, headers, body) => {
+    const response = await fetchImpl(`${base}/messages`, { method: "POST", headers, body: JSON.stringify(body) });
+    if (response.status !== 202) throw new Error(`OpenBot recusou (${response.status}).`);
+    const value = await response.json();
+    return { deliveryId: value?.deliveries?.[0]?.id ?? null };
+  };
   return {
-    async postToAgent({ agentId, text, clientMessageId }) {
+    /**
+     * Sem `key`, a mensagem vai ao chat do próprio agente (avisos ao dono). Com `key`, vai à tarefa do contato
+     * (`POST /tasks`). Se o OpenBot não tem essa rota (404/405), cai no chat do agente e avisa com
+     * `fallback: true`, para a ponte registrar. Qualquer outra recusa (limite de tarefas, token) é erro.
+     */
+    async postToAgent({ agentId, text, clientMessageId, key, taskId }) {
       const { url, token } = connect();
-      const response = await fetchImpl(`${url}/v1/agents/${encodeURIComponent(agentId)}/messages`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ text, clientMessageId }),
-      });
-      if (response.status !== 202) throw new Error(`OpenBot recusou (${response.status}).`);
-      const value = await response.json();
-      return { deliveryId: value?.deliveries?.[0]?.id ?? null };
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const base = `${url}/v1/agents/${encodeURIComponent(agentId)}`;
+      if (key) {
+        const response = await fetchImpl(`${base}/tasks`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ key, text, clientMessageId, ...(taskId ? { taskId } : {}) }),
+        });
+        if (response.status === 202) {
+          const value = await response.json();
+          return {
+            deliveryId: value?.deliveries?.[0]?.id ?? null,
+            taskId: typeof value?.taskId === "string" ? value.taskId : null,
+          };
+        }
+        if (response.status !== 404 && response.status !== 405)
+          throw new Error(`OpenBot recusou (${response.status}).`);
+        const receipt = await postMain(base, headers, { text, clientMessageId });
+        return { ...receipt, taskId: null, fallback: true };
+      }
+      return postMain(base, headers, { text, clientMessageId });
+    },
+    /** Encerra a tarefa de um contato. Tarefa que já não existe (404) conta como encerrada. */
+    async closeTask({ agentId, taskId }) {
+      const { url, token } = connect();
+      const response = await fetchImpl(
+        `${url}/v1/agents/${encodeURIComponent(agentId)}/tasks/${encodeURIComponent(taskId)}/close`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: "{}",
+        },
+      );
+      if (!response.ok && response.status !== 404) throw new Error(`OpenBot respondeu ${response.status}.`);
     },
     async getDelivery({ agentId, deliveryId }) {
       const { url, token } = connect();

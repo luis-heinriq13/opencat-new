@@ -18,7 +18,7 @@ import { RailHelpMenu } from "./RailHelpMenu";
 import { useWindowPage } from "./window-page-context";
 
 /**
- * The page rail of the desktop window. Agents, Routines, Workflows, Schedule, Usage, Marketplace and
+ * The page rail of the desktop window. Agents, Routines, Workflows, Schedule, Attendance, Usage, Marketplace and
  * Settings change the page in the card.
  */
 export function WorkspacePageRail(props: { hidden: boolean }) {
@@ -76,6 +76,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       // A joined server without workflows shows its notice on the page.
       onWorkflows={() => windowPage.openWorkflows(null)}
       onSchedule={windowPage.openSchedule}
+      onAttendance={windowPage.openAttendance}
       onTasks={tasksAvailable() ? windowPage.openTasks : undefined}
       onUsage={windowPage.openUsage}
       onMarketplace={() => setSkillsMarketplaceOpen(true)}

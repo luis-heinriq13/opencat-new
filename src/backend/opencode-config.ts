@@ -79,13 +79,16 @@ type OpenCodePermissionLayer = Readonly<Record<string, "allow" | "ask" | "deny">
 
 /** The config layer OpenBot owns on `OPENCODE_CONFIG_CONTENT`. The user's own file is untouched. */
 interface OpenCodeConfig {
-  readonly agent?: { readonly title: { readonly disable: true } };
+  readonly agent?: {
+    readonly title?: { readonly disable: true };
+    readonly build?: { readonly steps: number };
+  };
   readonly permission?: OpenCodePermissionLayer;
   readonly provider?: Readonly<Record<string, OpenCodeProviderEntry | OpenCodeKeyEntry>>;
 }
 
 /** What a caller starts from: every layer except the ones this module adds. */
-export type OpenCodeConfigBase = Omit<OpenCodeConfig, "agent" | "provider">;
+export type OpenCodeConfigBase = Omit<OpenCodeConfig, "provider">;
 
 /**
  * OpenBot names its own chats and never reads OpenCode's titles. OpenCode asks its `small_model` for
@@ -109,6 +112,14 @@ const OPENCODE_TITLE_OFF = { title: { disable: true } } as const;
 export const OPENCODE_PROFILE_CONFIG: OpenCodeConfigBase = { permission: { "*": "deny", bash: "ask", read: "ask" } };
 
 /**
+ * The most agentic iterations (model calls) that one turn of the OpenCode `build` agent may take.
+ * At the cap OpenCode forces a text-only answer, so a looping model ends the turn and the user can
+ * continue it. Hour-long OpenCode turns were such loops. `agent.<name>.steps` is in the OpenCode 1.18.26
+ * config schema ("Maximum number of agentic iterations before forcing text-only response").
+ */
+export const OPENCODE_MAX_STEPS = 40;
+
+/**
  * OpenCode 2.2.5 lists its `session_*` and `worktree_*` tools in the Code Mode catalog of each
  * request, about 1.2k characters. OpenBot names its own chats, and `session_move` would move the
  * session out of the agent's workspace. OpenCode leaves a denied tool out of the catalog. A rule names
@@ -116,6 +127,7 @@ export const OPENCODE_PROFILE_CONFIG: OpenCodeConfigBase = { permission: { "*": 
  * that tool stays.
  */
 export const OPENCODE_AGENT_CONFIG: OpenCodeConfigBase = {
+  agent: { build: { steps: OPENCODE_MAX_STEPS } },
   permission: { "opencode_session_*": "deny", "opencode_worktree_*": "deny" },
 };
 
@@ -222,7 +234,11 @@ function mergeOpenCodeConfig(
     ...(apiKey ? Object.fromEntries(OPENCODE_KEY_PROVIDERS.map((id) => [id, { options: { apiKey } }])) : {}),
     ...customProviderEntries(providers),
   };
-  return { ...base, agent: OPENCODE_TITLE_OFF, ...(Object.keys(entries).length > 0 ? { provider: entries } : {}) };
+  return {
+    ...base,
+    agent: { ...base.agent, ...OPENCODE_TITLE_OFF },
+    ...(Object.keys(entries).length > 0 ? { provider: entries } : {}),
+  };
 }
 
 /**

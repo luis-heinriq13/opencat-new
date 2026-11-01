@@ -1828,8 +1828,11 @@ export async function createApplicationServices({
   teardown.push(TEARDOWN_ORDER.service, "the agent service", () => runCauseEffect(service.stop()));
   const agentMemoryLimitSetting = reloadingAgentMemoryLimit(agentMemoryLimit, service);
   /** The answer an agent gave in one turn, for routine flows, routine results and local scripts. */
-  const turnAnswer = (agentId: string, turnId: string): string | null => {
-    const threadId = store.list().find((agent) => agent.id === agentId)?.threadId;
+  const turnAnswer = (agentId: string, turnId: string, taskId?: string | null): string | null => {
+    // A task has its own thread, so its answer is not in the agent's own chat.
+    const threadId = taskId
+      ? service.listTasks(agentId).tasks.find((task) => task.id === taskId)?.threadId
+      : store.list().find((agent) => agent.id === agentId)?.threadId;
     if (!threadId) return null;
     return latestTurnAnswer(store.database.readTurnAssistantMessages(agentId, threadId, turnId), turnId)?.text ?? null;
   };
@@ -1844,8 +1847,14 @@ export async function createApplicationServices({
     sendMessage: (input) => service.sendMessage(input),
     getLocalAttention: (agentId) => service.getLocalAttention(agentId),
     respondToLocalAttention: (agentId, input) => service.respondToLocalAttention(agentId, input),
-    delivery: (deliveryId) => mailbox.getDelivery(deliveryId)?.delivery ?? null,
+    delivery: (deliveryId) => {
+      const found = mailbox.getDelivery(deliveryId)?.delivery;
+      return found ? { ...found, taskId: mailbox.taskIdForDelivery(deliveryId) } : null;
+    },
     turnAnswer,
+    listTasks: (agentId) => service.listTasks(agentId),
+    startTask: (input) => service.startTaskWithReceipt(input),
+    closeTask: (input) => service.closeTask(input),
     updateAgent: (input) => service.updateAgent(input),
     clearAgentContext: (agentId) => service.clearAgentContext(agentId),
   });

@@ -86,7 +86,8 @@ export function createSendLimiter({
         perDay,
       };
     },
-    check() {
+    /** `gapMs` troca a pausa mínima entre envios (a de uma parte seguinte da mesma resposta). Os tetos continuam. */
+    check({ gapMs } = {}) {
       const time = now();
       const sent = read().filter((at) => time - at < 86_400_000);
       if (sent.length >= perDay) throw new Error(`Limite diário de ${perDay} mensagens atingido. Nada foi enviado.`);
@@ -94,7 +95,8 @@ export function createSendLimiter({
         throw new Error(`Limite de ${perHour} mensagens por hora atingido. Nada foi enviado.`);
       const last = sent.at(-1);
       if (last === undefined) return 0;
-      return Math.max(0, last + minGapMs + Math.floor(random() * jitterMs) - time);
+      const gap = gapMs === undefined ? minGapMs + Math.floor(random() * jitterMs) : gapMs;
+      return Math.max(0, last + gap - time);
     },
     record() {
       const time = now();

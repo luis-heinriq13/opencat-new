@@ -156,6 +156,35 @@ Keep `clientMessageId` (1–128 characters) stable when you retry the same messa
 returns the first receipt for that agent and key for 24 hours, including after a restart. Use a new
 key for new work. Attachments are not supported by this route.
 
+### `POST /v1/agents/:agentId/tasks`
+
+Sends text to a task of the agent, one task for each `key`. The task has its own thread and provider
+session beside the agent's own chat, so a script can keep one conversation for each person it serves
+and the messages do not enter the agent's own chat. Send
+`{ "key": "WhatsApp #a1b2c3d4e5", "text": "...", "clientMessageId": "bridge-message-123", "taskId": "task-1" }`
+with `Content-Type: application/json`. `taskId` is optional.
+
+- The route finds the open task with that `taskId`, or else the open task whose title is `key`, and sends the
+  text to it. If there is none, it starts a task titled `key` with the text as its first message.
+  `created` tells which one happened. Rename the task in the app and the next call starts a new one.
+- `key` is 1–120 characters: letters, digits, spaces and `# : . _ -`, starting with a letter or digit.
+  Use a label, never a phone number or a chat ID: it shows in the agent's Tasks tab.
+- Same auth, `Origin` and `Host` rules, body limit, hidden-agent rule, `clientMessageId` retry key and hourly
+  request limit as `messages`. Calls run one at a time, so two calls with the same `key` never start two tasks.
+- The response is `202`, the same receipt as `messages`, and `{ "taskId": string, "created": boolean }`.
+  Follow the answer with `GET .../deliveries/:deliveryId`.
+- An agent can have 50 open tasks. At the limit a new key gets `409`. Close tasks
+  that you do not use any more with the route below.
+- The agent keeps its files, memories and workspace in a task. Only the conversation is separate.
+- A task shows in the Tasks tab like any other. A task turn does not write to the agent's own chat. With the
+  notification level "All", a finished task turn still notifies like a turn of the own chat; use "Needs me"
+  to silence it.
+
+### `POST /v1/agents/:agentId/tasks/:taskId/close`
+
+Stops the task and closes it. No body. `200 { "ok": true }`, also when it is closed already. `404` for a task that
+the agent does not have. The next call to `tasks` with the same `key` starts a new task.
+
 ### `GET /v1/agents/:agentId/deliveries/:deliveryId`
 
 The state of one message delivery to this agent. Use the delivery ID from the message receipt.
@@ -165,7 +194,8 @@ The state of one message delivery to this agent. Use the delivery ID from the me
 ```
 
 `status` is `queued`, `starting`, `running`, `completed`, `failed`, `interrupted` or `cancelled`.
-`answer` is the agent's last answer in the turn. It is `null` until the delivery ends, and when the
+`answer` is the agent's last answer in the turn, also when the delivery ran in a task (the response then has
+`taskId`). It is `null` until the delivery ends, and when the
 agent gave no answer. A delivery to another agent, or one that is gone, gives `404`. This read does
 not use the request limit.
 

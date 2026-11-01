@@ -31,6 +31,7 @@ import {
   writeBridgeHeartbeat,
 } from "./whatscat-bridge.mjs";
 import { createMediaExtractor } from "./whatscat-media.mjs";
+import { createPollPacer, createUpdatesReader, inspectEngineTools } from "./whatscat-reply.mjs";
 import { maskNumber } from "./whatscat-safety.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -75,9 +76,17 @@ function control(method, path, body) {
   });
 }
 
-async function ensureService() {
+/** O último estado bom do motor. A ponte lê a cada poucos segundos e não pode abrir um processo a cada leitura. */
+let serviceState = null;
+let serviceStateAt = 0;
+const SERVICE_STATE_TTL_MS = 10_000;
+
+async function ensureService({ cached = false } = {}) {
+  if (cached && serviceState && Date.now() - serviceStateAt < SERVICE_STATE_TTL_MS) return serviceState;
   try {
-    return await control("GET", "/state");
+    serviceState = await control("GET", "/state");
+    serviceStateAt = Date.now();
+    return serviceState;
   } catch {
     // Não está de pé: este processo o inicia logo abaixo.
   }
@@ -95,7 +104,9 @@ async function ensureService() {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 250));
     try {
-      return await control("GET", "/state");
+      serviceState = await control("GET", "/state");
+      serviceStateAt = Date.now();
+      return serviceState;
     } catch {
       // O motor ainda está subindo.
     }
@@ -107,7 +118,7 @@ async function ensureService() {
 let cachedConnection = null;
 
 async function connection() {
-  await ensureService();
+  await ensureService({ cached: true });
   if (cachedConnection) return cachedConnection;
   // O painel e os agentes são processos separados e precisam da mesma conexão: o envio é por conexão.
   const lock = `${CONNECTION_FILE}.lock`;
@@ -149,7 +160,17 @@ async function savedOrNewConnection() {
 let session = null;
 let rpcId = 0;
 
-async function remote(method, params, retried = false) {
+async function remote(method, params) {
+  try {
+    return await remoteCall(method, params);
+  } catch (error) {
+    // Uma falha pode ser o motor caído: a próxima chamada confere de novo.
+    serviceStateAt = 0;
+    throw error;
+  }
+}
+
+async function remoteCall(method, params, retried = false) {
   const { url, token } = await connection();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -186,7 +207,7 @@ async function remote(method, params, retried = false) {
   });
   if ((response.status === 404 || response.status === 400) && !retried) {
     session = null;
-    return remote(method, params, true);
+    return remoteCall(method, params, true);
   }
   const text = await response.text();
   const payload = response.headers.get("content-type")?.includes("text/event-stream")
@@ -271,16 +292,45 @@ function accountOf(state) {
   return found ?? "";
 }
 
+const callEngine = (name, args) => remote("tools/call", { name, arguments: args });
+
+/** O que o motor oferece, lido só da lista de ferramentas dele e repetido a cada 10 minutos. */
+let enginePlan = { updates: null, typing: null };
+let enginePlanAt = 0;
+let updatesReader = null;
+async function refreshEnginePlan() {
+  if (Date.now() - enginePlanAt < 600_000) return;
+  enginePlanAt = Date.now();
+  try {
+    enginePlan = inspectEngineTools((await remote("tools/list", {}))?.tools);
+    if (enginePlan.updates && !updatesReader) updatesReader = createUpdatesReader(callEngine, enginePlan.updates);
+  } catch {
+    // Sem a lista a ponte segue com read_messages e sem indicador de digitação.
+  }
+}
+
+/** A lista de conversas e o acesso do agente mudam devagar: uma consulta a cada 15 segundos basta (contato novo entra logo). */
+let chatsCache = { at: 0, ids: [] };
+const accessCache = { at: 0, level: null };
+
 /** As dependências da ponte. O painel só usa pausa e retomada; o processo da ponte, tudo. */
 function bridgeDeps(config) {
-  const callEngine = (name, args) => remote("tools/call", { name, arguments: args });
   const agentApi = createAgentApi();
   return {
     readMessages: createEngineReader(callEngine),
-    listChats: async () =>
-      ((await control("GET", "/catalog"))?.chats ?? []).map((chat) => chat.id).filter((id) => typeof id === "string"),
+    ...(updatesReader ? { updates: updatesReader } : {}),
+    ...(enginePlan.typing ? { typing: (chatId) => callEngine(enginePlan.typing.name, { chat_id: chatId }) } : {}),
+    listChats: async () => {
+      if (Date.now() - chatsCache.at > 15_000) {
+        const ids = ((await control("GET", "/catalog"))?.chats ?? [])
+          .map((chat) => chat.id)
+          .filter((id) => typeof id === "string");
+        chatsCache = { at: Date.now(), ids };
+      }
+      return chatsCache.ids;
+    },
     ...agentApi,
-    agentAccess: () => agentApi.agentAccess(config.agentId),
+    agentAccess: () => cachedAccess(agentApi, config.agentId),
     selfId: () => accountOf(lastEngineState),
     chatName: (chatId) => chatNames.get(chatId),
     addExclude: (chatId) =>
@@ -293,6 +343,14 @@ function bridgeDeps(config) {
   };
 }
 
+async function cachedAccess(agentApi, agentId) {
+  if (Date.now() - accessCache.at > 30_000) {
+    accessCache.level = await agentApi.agentAccess(agentId);
+    accessCache.at = Date.now();
+  }
+  return accessCache.level;
+}
+
 /** A ponte da configuração de agora, ou null se ela estiver desligada. Lida de novo a cada pedido. */
 function currentBridge() {
   const config = loadBridgeConfig(BRIDGE_CONFIG_FILE);
@@ -300,7 +358,10 @@ function currentBridge() {
 }
 
 /** No modo "todos", contato novo precisa estar no escopo do motor para a ponte lê-lo. Só soma, nunca tira. */
+let scopeAt = 0;
 async function extendScope(state, config) {
+  if (Date.now() - scopeAt < 15_000) return;
+  scopeAt = Date.now();
   const scope = state?.scope;
   if (config.mode !== "all" || scope?.mode !== "selected" || !Array.isArray(scope.chat_ids)) return;
   const listed = (await control("GET", "/catalog"))?.chats ?? [];
@@ -345,31 +406,37 @@ async function runBridgeProcess() {
   };
   beat();
   setInterval(beat, 10_000);
-  let lastRun = 0;
+  const pacer = createPollPacer();
+  let nextAt = 0;
   let busy = false;
   const tick = async () => {
+    // O ritmo é curto enquanto há movimento e longo depois de um tempo parado (pollIdleSeconds).
+    if (busy || Date.now() < nextAt) return;
     // Ponte desligada continua desligada: sem "enabled": true nada é lido nem entregue.
     const config = loadBridgeConfig(BRIDGE_CONFIG_FILE);
-    if (busy || !config.enabled || Date.now() - lastRun < config.pollSeconds * 1000) return;
+    if (!config.enabled) {
+      nextAt = Date.now() + 5000;
+      return;
+    }
     busy = true;
-    lastRun = Date.now();
     try {
-      const state = await ensureService();
+      const state = await ensureService({ cached: true });
       lastEngineState = state;
       await refreshNames().catch(() => undefined);
+      await refreshEnginePlan();
       // O motor só ganha contatos novos quando o agente tem acesso restrito: sem isso nada se amplia sozinho.
-      const access = await createAgentApi()
-        .agentAccess(config.agentId)
-        .catch(() => null);
+      const access = await cachedAccess(createAgentApi(), config.agentId).catch(() => null);
       if (access === "workspace") await extendScope(state, config).catch(() => undefined);
-      await createBridge({ config, dir: DATA_DIR, deps: bridgeDeps(config) }).poll();
+      const result = await createBridge({ config, dir: DATA_DIR, deps: bridgeDeps(config) }).poll();
+      if (result?.activity) pacer.activity();
     } catch {
       // Falhas de leitura já ficam no registro de auditoria da ponte.
     } finally {
       busy = false;
+      nextAt = Date.now() + pacer.delayMs(config);
     }
   };
-  setInterval(tick, 2000);
+  setInterval(tick, 1000);
   void tick();
 }
 

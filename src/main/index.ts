@@ -60,6 +60,7 @@ import { agentTemplateIpcHandlers } from "./ipc/agent-template-handlers";
 import { appConnectionIpcHandlers } from "./ipc/app-connection-handlers";
 import { appIpcHandlers } from "./ipc/app-handlers";
 import { attachmentIpcHandlers } from "./ipc/attachment-handlers";
+import { attendanceIpcHandlers } from "./ipc/attendance-handlers";
 import { backgroundProcessIpcHandlers } from "./ipc/background-process-handlers";
 import { billingIpcHandlers } from "./ipc/billing-handlers";
 import { bitwardenConnectorIpcHandlers } from "./ipc/bitwarden-connector-handlers";
@@ -718,6 +719,7 @@ function registerIpcHandlers({
     ...githubConnectorIpcHandlers({ githubConnector, remoteServers, openExternal: openLink }),
     ...onePasswordConnectorIpcHandlers({ onePasswordConnector, remoteServers }),
     ...appConnectionIpcHandlers({ dataDirectory: whatsappDataDirectory }),
+    ...attendanceIpcHandlers({ dataDirectory: whatsappDataDirectory }),
     ...bitwardenConnectorIpcHandlers({ bitwardenConnector, remoteServers }),
     ...vaultIpcHandlers({ vault, getMainWindow: getDialogParent, translate: language.translate, remoteServers }),
     ...billingIpcHandlers({ billing }),

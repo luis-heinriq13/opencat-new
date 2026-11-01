@@ -188,6 +188,7 @@ import {
   decodeVoiceTranscriptionResult,
   decodeVoid,
 } from "./app-decoding";
+import { decodeAttendanceReport } from "./attendance-decoding";
 import { decodeBackgroundProcesses } from "./background-process-decoding";
 import {
   decodeBrowserBounds,
@@ -872,6 +873,9 @@ const openbotApi: OpenBotDesktopApi = {
   appConnections: bridgeGroup(IPC_ENDPOINTS.appConnections, {
     status: decodeAppConnectionStatus,
     change: decodeAppConnectionStatus,
+  }),
+  attendance: bridgeGroup(IPC_ENDPOINTS.attendance, {
+    report: decodeAttendanceReport,
   }),
   bitwardenConnector: bridgeGroup(IPC_ENDPOINTS.bitwardenConnector, {
     status: decodeBitwardenConnectorStatus,

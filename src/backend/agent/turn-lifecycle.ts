@@ -1154,6 +1154,8 @@ export class TurnLifecycle {
         return;
       }
       // The turn did work, or nothing waits to run again: the error shows as it does with no backup.
+      // The model still failed, so other agents on it go to their backups at once instead of failing too.
+      if (failover && failedKey !== null) this.#usageLimits.failed(agentId, model);
       if (failover) this.#showFailoverError(agentId, threadId, failover);
       if (limited) yield* this.#usageLimits.reached(agentId, resetsAt, model);
       else if (status === "completed") yield* this.#usageLimits.completed(agentId, model);

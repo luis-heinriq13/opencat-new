@@ -2,8 +2,11 @@ import { useText } from "@openbot/ui/text";
 import { Loading, Match, Show, Switch } from "solid-js";
 import { AgentUsagePanel, WorkflowsPage } from "../../lazy-views";
 import { SkillsMarketplace } from "../../WorkspaceOverlays";
+import { useAgents } from "../agents/agents-context";
+import { AttendancePanel } from "../attendance/AttendancePanel";
 import { SchedulePanel } from "../schedule/SchedulePanel";
 import { useServers } from "../servers/servers-context";
+import { useSettings } from "../settings/settings-context";
 import { useUsage } from "../usage/usage-context";
 import { SettingsPage } from "./SettingsPage";
 import { type SettingsKind, useWindowPage } from "./window-page-context";
@@ -17,6 +20,8 @@ export function WindowPageView() {
   const windowPage = useWindowPage();
   const usage = useUsage();
   const { servers } = useServers();
+  const { agentList } = useAgents();
+  const { setSkillsMarketplaceOpen } = useSettings();
   const settingsKind = (): SettingsKind | null => {
     const page = windowPage.page();
     if (page === "settings") return "personal";
@@ -48,6 +53,13 @@ export function WindowPageView() {
         >
           <Match when={usage.state.view === "schedule"}>
             <SchedulePanel serverId={serverId()} hostName={hostName(serverId())} onBack={usage.closeUsage} />
+          </Match>
+          <Match when={usage.state.view === "attendance"}>
+            <AttendancePanel
+              agentName={(agentId) => agentList().find((agent) => agent.id === agentId)?.name ?? null}
+              onOpenStore={() => setSkillsMarketplaceOpen(true)}
+              onBack={usage.closeUsage}
+            />
           </Match>
           <Match when={usage.state.view === "workflows"}>
             <Loading>

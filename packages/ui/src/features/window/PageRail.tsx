@@ -16,9 +16,10 @@ import {
 } from "@openbot/ui";
 import { AccountUsageDetails } from "@openbot/ui/features/account/AccountUsageDetails";
 import { type AccountUsageProviderRow, accountUsageRowKey } from "@openbot/ui/features/account/account-usage-view";
+import { WhatsAppIcon } from "@openbot/ui/features/attendance/WhatsAppIcon";
 import { useText } from "@openbot/ui/text";
 import { Dynamic, type JSX } from "@solidjs/web";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { type Component, createMemo, createSignal, For, Show } from "solid-js";
 
 /** One rail button. Its name shows as a tooltip, unless it has a `card`: the card shows instead. */
 function RailButton(props: {
@@ -175,6 +176,7 @@ export type PageRailPage =
   | "workflows"
   | "tasks"
   | "schedule"
+  | "attendance"
   | "usage"
   | "marketplace"
   | "settings";
@@ -185,6 +187,7 @@ export const PAGE_RAIL_PINNABLE_PAGES = [
   "workflows",
   "tasks",
   "schedule",
+  "attendance",
   "usage",
 ] as const satisfies readonly PageRailPage[];
 export type PageRailPinnablePage = (typeof PAGE_RAIL_PINNABLE_PAGES)[number];
@@ -209,6 +212,8 @@ export interface PageRailProps {
   onTasks?: ((button: HTMLElement) => void) | undefined;
   /** Absent where there is no schedule page. */
   onSchedule?: ((button: HTMLElement) => void) | undefined;
+  /** Absent where there is no WhatsApp attendance page. */
+  onAttendance?: ((button: HTMLElement) => void) | undefined;
   onUsage: (button: HTMLElement) => void;
   /** Absent while Marketplace cannot open. */
   onMarketplace?: (() => void) | undefined;
@@ -228,7 +233,7 @@ export interface PageRailProps {
 interface RailPage {
   id: PageRailPinnablePage;
   label: string;
-  icon: typeof Bot;
+  icon: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined }>;
   open: (button: HTMLElement) => void;
 }
 
@@ -347,7 +352,7 @@ export function PageRail(props: PageRailProps) {
   /** The pages that this server has, in rail order. */
   const pages = createMemo((): RailPage[] => {
     const list: RailPage[] = [];
-    const { onRoutines, onWorkflows, onTasks, onSchedule } = props;
+    const { onRoutines, onWorkflows, onTasks, onSchedule, onAttendance } = props;
     if (onRoutines) {
       list.push({
         id: "routines",
@@ -374,6 +379,9 @@ export function PageRail(props: PageRailProps) {
         icon: CalendarClock,
         open: onSchedule,
       });
+    }
+    if (onAttendance) {
+      list.push({ id: "attendance", label: t("app.rail.attendance"), icon: WhatsAppIcon, open: onAttendance });
     }
     list.push({ id: "usage", label: t("app.rail.usage"), icon: ChartArea, open: props.onUsage });
     return list;

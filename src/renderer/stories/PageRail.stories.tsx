@@ -77,6 +77,7 @@ function RailPreview(props: {
           onAgents={() => setCurrent("agents")}
           onRoutines={() => setCurrent("routines")}
           onSchedule={() => setCurrent("schedule")}
+          onAttendance={() => setCurrent("attendance")}
           onUsage={() => setCurrent("usage")}
           onMarketplace={fn()}
           onSettings={() => setCurrent("settings")}

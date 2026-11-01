@@ -11,6 +11,7 @@ export type WindowPage =
   | "agents"
   | "tasks"
   | "schedule"
+  | "attendance"
   | "workflows"
   | "usage"
   | "marketplace"
@@ -19,7 +20,7 @@ export type WindowPage =
 
 /**
  * How a page sits in the window. The tasks page shows in the middle pane, as the agents do. The agent
- * list beside it is hidden until the user shows it. A settings page starts below the top row. The title of a schedule, workflows, usage or
+ * list beside it is hidden until the user shows it. A settings page starts below the top row. The title of a schedule, attendance, workflows, usage or
  * Marketplace page goes in the top row after the server menu.
  */
 export type WindowPageKind = "agents" | "settings" | "titled";
@@ -136,6 +137,10 @@ const context = createSimpleContext({
       openSchedule(source: HTMLElement | null) {
         const serverId = activeServerId();
         if (serverId) usage.openSchedule(serverId, source);
+      },
+      openAttendance(source: HTMLElement | null) {
+        const serverId = activeServerId();
+        if (serverId) usage.openAttendance(serverId, source);
       },
       openWorkflows(source: HTMLElement | null) {
         const serverId = activeServerId();

@@ -7,12 +7,15 @@ import {
   type AgentDefaults,
   type AgentModelOption,
   type AgentSummary,
+  type AgentTask,
+  type AgentTasksSnapshot,
   agentAutomationAllowed,
   isAgentModel,
   isAgentProvider,
   isProviderAccountId,
   isReasoningEffort,
   type QueueDelivery,
+  type QueuedMessageReceipt,
   type Routine,
   type RoutineRun,
   type UpdateAgentInput,
@@ -44,7 +47,9 @@ const HOUR_MS = 60 * 60 * 1000;
 const BODY_LIMIT_BYTES = 32 * 1024;
 const RUN_PATH = /^\/v1\/agents\/([^/]+)\/routines\/([^/]+)\/run$/;
 const AGENT_PATH =
-  /^\/v1\/agents\/([^/]+)\/(messages|pending|settings|context\/clear|deliveries\/([^/]+)|prompts\/([^/]+)\/answer|approvals\/([^/]+)\/respond)$/;
+  /^\/v1\/agents\/([^/]+)\/(messages|tasks|tasks\/([^/]+)\/close|pending|settings|context\/clear|deliveries\/([^/]+)|prompts\/([^/]+)\/answer|approvals\/([^/]+)\/respond)$/;
+/** The key of a task is its title: a label that a script chooses, never a phone number or a chat ID. */
+const TASK_KEY = /^[\p{L}\p{N}][\p{L}\p{N} #:._-]*$/u;
 /** A delivery in one of these states has no more work. Its turn's answer is final. */
 const ENDED_DELIVERY_STATUSES: ReadonlySet<QueueDelivery["status"]> = new Set([
   "completed",
@@ -90,9 +95,22 @@ export interface AutomationServerOptions {
   getLocalAttention: AgentService["getLocalAttention"];
   respondToLocalAttention: AgentService["respondToLocalAttention"];
   /** A delivery by its ID, or null when it is gone. */
-  delivery: (deliveryId: string) => Pick<QueueDelivery, "recipientAgentId" | "status" | "turnId" | "error"> | null;
-  /** The answer an agent gave in one turn, or null when it gave none. */
-  turnAnswer: (agentId: string, turnId: string) => string | null;
+  delivery: (
+    deliveryId: string,
+  ) => (Pick<QueueDelivery, "recipientAgentId" | "status" | "turnId" | "error"> & { taskId?: string | null }) | null;
+  /** The answer an agent gave in one turn, or null when it gave none. `taskId` names the task thread that ran the turn. */
+  turnAnswer: (agentId: string, turnId: string, taskId?: string | null) => string | null;
+  /** The tasks of an agent, open ones first. */
+  listTasks: (agentId: string) => AgentTasksSnapshot;
+  /** A new task with its first message. `title` names it. */
+  startTask: (input: {
+    agentId: string;
+    text: string;
+    title: string;
+    clientMessageId: string;
+  }) => Effect.Effect<{ task: AgentTask; receipt: QueuedMessageReceipt }, { readonly cause: unknown }>;
+  /** Stops a task and closes it. */
+  closeTask: (input: { agentId: string; taskId: string }) => Effect.Effect<void, { readonly cause: unknown }>;
   /** The same update as the agent's settings. It refuses a provider or account change while the agent works. */
   updateAgent: (input: UpdateAgentInput) => Effect.Effect<UpdatedAgent, { readonly cause: unknown }>;
   /** The same as **New chat** in the agent's settings. It fails with `ContextResetBusyError` while the agent works. */
@@ -117,6 +135,8 @@ export class AutomationServer {
   #token: Buffer = Buffer.alloc(0);
   /** One state change at a time, in the order the calls came. */
   readonly #lock = Semaphore.makeUnsafe(1);
+  /** One task request at a time, so two messages of one contact never start two tasks. */
+  #taskChain: Promise<unknown> = Promise.resolve();
   /** The background syncs that `requestSync` starts; `stop` interrupts those that still wait. */
   readonly #scope = Scope.makeUnsafe();
   #stopped = false;
@@ -236,7 +256,7 @@ export class AutomationServer {
           response,
           agentId,
           agentMatch[2],
-          agentMatch[3] ?? agentMatch[4] ?? agentMatch[5],
+          agentMatch[3] ?? agentMatch[4] ?? agentMatch[5] ?? agentMatch[6],
         );
         return;
       }
@@ -285,6 +305,16 @@ export class AutomationServer {
       });
     }
     if (request.method !== "POST") return send(response, 405, { error: "method not allowed" });
+    if (route.startsWith("tasks/")) {
+      // No body: a close needs only the task. A task that is closed already is not an error.
+      const taskId = encodedRequestId === undefined ? null : decodePathPart(encodedRequestId);
+      if (!taskId) return send(response, 404, { error: "not found" });
+      const task = this.#options.listTasks(agentId).tasks.find((candidate) => candidate.id === taskId);
+      if (!task) return send(response, 404, { error: "not found" });
+      if (task.state !== "closed") await runCauseEffect(this.#options.closeTask({ agentId, taskId }));
+      logger.info(`A local script closed a task of agent ${agentId}.`);
+      return send(response, 200, { ok: true });
+    }
     if (route === "context/clear") {
       // No body: the agent is the whole request, and the busy refusal comes back as 409.
       await runCauseEffect(this.#options.clearAgentContext(agentId));
@@ -314,6 +344,7 @@ export class AutomationServer {
         providerAccountId: updated.providerAccountId ?? null,
       });
     }
+    if (route === "tasks") return this.#taskMessage(response, agentId, value);
     if (route === "messages") {
       const text = requiredString(value, "text", INPUT_LIMITS.messageText);
       const clientMessageId = requiredString(value, "clientMessageId", INPUT_LIMITS.identifier);
@@ -339,6 +370,55 @@ export class AutomationServer {
     send(response, 200, { ok: true });
   }
 
+  /**
+   * Sends text to the open task with this key, or starts one. A task belongs to its key: the same key
+   * is the same conversation thread, so one contact never shares context with another. The message
+   * uses the same slots, retry key and hidden-agent rule as `messages`.
+   */
+  async #taskMessage(response: ServerResponse, agentId: string, value: DynamicRecord): Promise<void> {
+    const text = requiredString(value, "text", INPUT_LIMITS.messageText);
+    const clientMessageId = requiredString(value, "clientMessageId", INPUT_LIMITS.identifier);
+    const key = requiredString(value, "key", INPUT_LIMITS.agentTaskTitle).trim();
+    if (!TASK_KEY.test(key)) throw new HttpError(400, "key is invalid.");
+    const known = value.taskId;
+    if (known !== undefined && (!isString(known) || !known || known.length > INPUT_LIMITS.identifier))
+      throw new HttpError(400, "taskId is invalid.");
+    // The setting can change while the script uploads its body.
+    this.#requireAgent(agentId);
+    this.#requireNotHidden(agentId);
+    const slot = this.#takeSlot(agentId);
+    const turn = this.#taskChain.then(async () => {
+      const open = this.#options.listTasks(agentId).tasks.filter((task) => task.state !== "closed");
+      // The id the script keeps comes first; the title finds the task again when the script lost its state.
+      const task =
+        open.find((candidate) => candidate.id === known) ?? open.find((candidate) => candidate.title === key);
+      const retryKey = `automation:${clientMessageId}`;
+      if (task) {
+        const receipt = await runCauseEffect(
+          this.#options.sendMessage({ agentId, text, clientMessageId: retryKey, taskId: task.id }),
+        );
+        return { taskId: task.id, created: false, receipt };
+      }
+      if (open.length >= INPUT_LIMITS.agentTasks)
+        throw new HttpError(
+          409,
+          sourceText("error.backend.threadOpenLimitReached", { count: INPUT_LIMITS.agentTasks }),
+        );
+      const started = await runCauseEffect(
+        this.#options.startTask({ agentId, text, title: key, clientMessageId: retryKey }),
+      );
+      return { taskId: started.task.id, created: true, receipt: started.receipt };
+    });
+    this.#taskChain = turn.catch(() => undefined);
+    try {
+      const { taskId, created, receipt } = await turn;
+      return send(response, 202, { ...receipt, taskId, created });
+    } catch (error) {
+      this.#releaseSlot(agentId, slot);
+      throw error;
+    }
+  }
+
   /** The state of one message delivery to this agent, and the turn's answer once the delivery ended. */
   #deliveryResult(agentId: string, deliveryId: string) {
     const delivery = this.#options.delivery(deliveryId);
@@ -349,7 +429,8 @@ export class AutomationServer {
       status: delivery.status,
       turnId: delivery.turnId,
       error: delivery.error,
-      answer: ended && delivery.turnId ? this.#options.turnAnswer(agentId, delivery.turnId) : null,
+      ...(delivery.taskId ? { taskId: delivery.taskId } : {}),
+      answer: ended && delivery.turnId ? this.#options.turnAnswer(agentId, delivery.turnId, delivery.taskId) : null,
     };
   }
 

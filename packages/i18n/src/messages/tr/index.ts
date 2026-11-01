@@ -6,6 +6,7 @@ import { messages as agentSettings } from "./agentSettings";
 import { messages as agentTemplate } from "./agentTemplate";
 import { messages as app } from "./app";
 import { messages as attachment } from "./attachment";
+import { messages as attendance } from "./attendance";
 import { messages as billing } from "./billing";
 import { messages as browser } from "./browser";
 import { messages as channel } from "./channel";
@@ -69,6 +70,7 @@ export const tr = {
   ...billing,
   ...provider,
   ...app,
+  ...attendance,
   ...composer,
   ...attachment,
   ...chat,

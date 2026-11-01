@@ -513,11 +513,13 @@ test("com entrega aberta para o contato, mensagens novas esperam e saem quando e
   assert.ok(posted[1].text.includes("segunda") && !posted[1].text.includes('"mensagens"'));
 });
 
-test("groupSeconds vem da config, com padrão de 20 s e limites", () => {
+test("groupSeconds vem da config, com padrão de 6 s e limites", () => {
   const file = join(dir, "g.json");
   const base = { enabled: true, agentId: "a", chats: [PERSON] };
   writeFileSync(file, JSON.stringify(base));
-  assert.equal(loadBridgeConfig(file).groupSeconds, 20);
+  assert.equal(loadBridgeConfig(file).groupSeconds, 6);
+  assert.equal(loadBridgeConfig(file).groupMaxSeconds, 15);
+  assert.equal(loadBridgeConfig(file).pollSeconds, 3);
   writeFileSync(file, JSON.stringify({ ...base, groupSeconds: 5 }));
   assert.equal(loadBridgeConfig(file).groupSeconds, 5);
   writeFileSync(file, JSON.stringify({ ...base, groupSeconds: 9999 }));

@@ -130,6 +130,9 @@ const options: ConstructorParameters<typeof AutomationServer>[0] = {
     };
   },
   respondToLocalAttention: () => Effect.void,
+  listTasks: (agentId) => ({ agentId, tasks: [], limit: 1 }),
+  startTask: () => Effect.die(new Error("No task starts in this test.")),
+  closeTask: () => Effect.void,
   delivery: (deliveryId) => {
     const delivery = deliveries.get(deliveryId);
     return delivery ? deliveryState(delivery) : null;
