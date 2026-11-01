@@ -30,15 +30,26 @@
   <div id="detalhe"><small></small></div>
   <div id="qr" hidden></div>
   <p id="instrucao" hidden>No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar um aparelho. Aponte a câmera para o código.</p>
-  <button class="main" id="conectar" disabled>Conectar WhatsApp</button>
-  <button id="desconectar" hidden>Desconectar</button>
+  <button type="button" class="main" id="conectar" disabled>Conectar WhatsApp</button>
+  <button type="button" id="desconectar" hidden>Desconectar</button>
 </div>
 
 <div class="box" id="escopo-box" hidden>
   <strong>Conversas liberadas</strong>
-  <p><small>Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</small></p>
+  <p><small id="escopo-atual">Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</small></p>
   <div id="conversas" style="max-height:220px;overflow:auto"></div>
-  <p><button id="escolhidas" class="main">Liberar as escolhidas</button> <button id="escopo">Liberar todas</button></p>
+  <details id="grupos-box" style="margin-top:8px">
+    <summary><strong>Grupos</strong> <small>(nenhum liberado por padrão)</small></summary>
+    <p><small>Grupos têm muita gente e muito conteúdo de terceiros. Marque só os que você quer que os agentes vejam.</small></p>
+    <div id="grupos" style="max-height:180px;overflow:auto"></div>
+  </details>
+  <p><button type="button" id="escolhidas" class="main">Liberar as escolhidas</button> <button type="button" id="escopo">Liberar todas as conversas (sem grupos)</button></p>
+</div>
+
+<div class="box" id="ponte-box" hidden>
+  <strong>Rascunhos de resposta</strong>
+  <p><small>A ponte está ligada. As respostas dos agentes ficam aqui e só são enviadas depois que você aprovar cada uma. Envio passa pelos mesmos limites.</small></p>
+  <div id="rascunhos"></div>
 </div>
 
 <div class="box" id="envio-box" hidden>
@@ -74,7 +85,11 @@
       $("conectar").hidden = state.conectado || Boolean(state.qr);
       $("conectar").disabled = !$("risco").checked;
       $("desconectar").hidden = !state.conectado;
-      $("escopo-box").hidden = !state.conectado || state.escopo !== "initial";
+      // Sempre acessível com o WhatsApp conectado: antes, sumia assim que o modo saía de "initial".
+      $("escopo-box").hidden = !state.conectado;
+      $("escopo-atual").textContent = state.escopo === "initial"
+        ? "Os agentes só veem as conversas liberadas. Escolha as que eles podem usar."
+        : "Você pode mudar a escolha quando quiser. Só o que estiver marcado fica liberado.";
       $("envio-box").hidden = !state.conectado || state.escopo === "initial";
       $("envio").checked = state.envio;
       $("limites").textContent = "Usado: " + state.limites.lastHour + " de " + state.limites.perHour + " por hora, " + state.limites.lastDay + " de " + state.limites.perDay + " por dia. Há uma pausa de 20 a 40 segundos entre os envios.";
@@ -85,26 +100,59 @@
   $("desconectar").addEventListener("click", () => post("/desconectar").then(refresh, failure));
   $("escopo").addEventListener("click", () => post("/escopo-todas").then(refresh, failure));
   $("escolhidas").addEventListener("click", () => {
-    const ids = [...document.querySelectorAll("#conversas input:checked")].map((input) => input.value);
+    const ids = [...document.querySelectorAll("#conversas input:checked, #grupos input:checked")].map((input) => input.value);
     post("/escopo-escolhidas", { ids }).then(refresh, failure);
   });
   let listed = false;
+  function addChat(target, chat) {
+    const label = document.createElement("label");
+    label.style.display = "block";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = chat.id;
+    label.append(input, " " + (chat.name || chat.id));
+    target.append(label);
+  }
   async function loadChats() {
     if (listed || $("escopo-box").hidden) return;
     const response = await fetch(base + "/conversas");
     const value = await response.json();
     if (!response.ok || !value.chats?.length) return;
     listed = true;
-    for (const chat of value.chats) {
-      const label = document.createElement("label");
-      label.style.display = "block";
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.value = chat.id;
-      label.append(input, " " + (chat.name || chat.id));
-      $("conversas").append(label);
-    }
+    for (const chat of value.chats) addChat(chat.id.endsWith("@g.us") ? $("grupos") : $("conversas"), chat);
   }
+  async function loadDrafts() {
+    const response = await fetch(base + "/ponte");
+    const value = await response.json();
+    $("ponte-box").hidden = !response.ok || !value.ativa;
+    if (!response.ok || !value.ativa) return;
+    $("rascunhos").replaceChildren(...value.rascunhos.filter((draft) => draft.status === "pending" || draft.status === "failed").map((draft) => {
+      const item = document.createElement("div");
+      item.className = "box";
+      const who = document.createElement("strong");
+      who.textContent = draft.conversa;
+      const text = document.createElement("p");
+      text.style.whiteSpace = "pre-wrap";
+      text.textContent = draft.texto;
+      item.append(who, text);
+      if (draft.status === "failed") {
+        const warn = document.createElement("p");
+        warn.innerHTML = "<small>O envio falhou e pode ter saído. Confira a conversa antes de tentar de novo.</small>";
+        item.append(warn);
+      } else {
+        const approve = document.createElement("button");
+        approve.className = "main";
+        approve.textContent = "Aprovar e enviar";
+        approve.addEventListener("click", () => { approve.disabled = true; post("/ponte/aprovar", { id: draft.id }).then(loadDrafts, failure); });
+        const discard = document.createElement("button");
+        discard.textContent = "Descartar";
+        discard.addEventListener("click", () => post("/ponte/descartar", { id: draft.id }).then(loadDrafts, failure));
+        item.append(approve, " ", discard);
+      }
+      return item;
+    }));
+  }
+  setInterval(() => loadDrafts().catch(failure), 4000);
   setInterval(() => loadChats().catch(failure), 3000);
   $("envio").addEventListener("change", (event) => post("/envio", { ligado: event.target.checked }).then(refresh, failure));
   refresh();

@@ -11,14 +11,20 @@ import { app, BrowserWindow, shell } from "electron";
 export const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
 
 const INSTALL_DIRECTORY = join(homedir(), ".opencat", "whatscat");
+/**
+ * Raise this when a file in tools/whatscat changes without an app version change: the installed copy
+ * refreshes only when the stamp differs, so an older panel would otherwise stay in the home folder.
+ */
+const BUNDLE_REVISION = 2;
 const PANEL_START_TIMEOUT_MS = 30_000;
 
 export async function installBundledApps(): Promise<void> {
   const source = join(process.resourcesPath, "whatscat");
   if (!app.isPackaged || !existsSync(source)) return;
   const stamp = join(INSTALL_DIRECTORY, ".versao");
+  const wanted = `${app.getVersion()}+whatscat${BUNDLE_REVISION}`;
   const installed = await readFile(stamp, "utf8").catch(() => null);
-  if (installed === app.getVersion() && existsSync(join(INSTALL_DIRECTORY, "whatscat-mcp.mjs"))) return;
+  if (installed === wanted && existsSync(join(INSTALL_DIRECTORY, "whatscat-mcp.mjs"))) return;
   await mkdir(INSTALL_DIRECTORY, { recursive: true, mode: 0o700 });
   await cp(source, INSTALL_DIRECTORY, { recursive: true, force: true });
   await Promise.all(
@@ -26,7 +32,7 @@ export async function installBundledApps(): Promise<void> {
       chmod(join(INSTALL_DIRECTORY, file), 0o755).catch(() => undefined),
     ),
   );
-  await writeFile(stamp, app.getVersion());
+  await writeFile(stamp, wanted);
 }
 
 let panelWindow: BrowserWindow | null = null;

@@ -11,6 +11,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { createSendLimiter, serveMcp, toolText } from "./mcp-stdio.mjs";
+import {
+  createAgentApi,
+  createBridge,
+  createDispatcher,
+  createEngineReader,
+  loadBridgeConfig,
+  shortHash,
+} from "./whatscat-bridge.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SERVICE = process.env.WHATSCAT_SERVICE_BIN || join(here, "bin", "localwhatsappmcp");
@@ -60,7 +68,8 @@ async function ensureService() {
   } catch {
     // Não está de pé: este processo o inicia logo abaixo.
   }
-  if (!existsSync(SERVICE) || !existsSync(ENGINE)) throw new Error("O motor do WhatsCat não está instalado neste computador.");
+  if (!existsSync(SERVICE) || !existsSync(ENGINE))
+    throw new Error("O motor do WhatsCat não está instalado neste computador.");
   mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
   if (!child || child.exitCode !== null) {
     child = spawn(SERVICE, ["serve", "--owner-stdin", "--data-dir", DATA_DIR, "--wacli", ENGINE, "--listen", LISTEN], {
@@ -142,7 +151,11 @@ async function remote(method, params, retried = false) {
         jsonrpc: "2.0",
         id: ++rpcId,
         method: "initialize",
-        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "opencat-whatscat", version: "1.0.0" } },
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "opencat-whatscat", version: "1.0.0" },
+        },
       }),
     });
     session = started.headers.get("mcp-session-id");
@@ -209,9 +222,44 @@ async function callTool(name, args) {
   return result;
 }
 
+/** A ponte é opcional e fica desligada sem "enabled": true em opencat-ponte.json. Roda dentro do painel. */
+function startBridge() {
+  const config = loadBridgeConfig(join(DATA_DIR, "opencat-ponte.json"));
+  if (!config.enabled) return null;
+  const callEngine = (name, args) => remote("tools/call", { name, arguments: args });
+  const bridge = createBridge({
+    config,
+    dir: DATA_DIR,
+    deps: {
+      readMessages: createEngineReader(callEngine),
+      ...createAgentApi(),
+      send: createDispatcher({ limiter, callEngine, sendTool: config.sendTool }),
+    },
+  });
+  let busy = false;
+  const tick = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      await ensureService();
+      await bridge.poll();
+    } catch {
+      // Falhas de leitura já ficam no registro de auditoria da ponte.
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(tick, config.pollSeconds * 1000);
+  void tick();
+  return bridge;
+}
+
 const PANEL_HTML = readFileSync(join(here, "whatscat-panel.html"), "utf8");
 
+const isGroupId = (id) => String(id).endsWith("@g.us");
+
 async function startPanel() {
+  const bridge = startBridge();
   const secret = randomBytes(24).toString("hex");
   const readBody = (request) =>
     new Promise((resolve, reject) => {
@@ -231,14 +279,16 @@ async function startPanel() {
     const url = new URL(request.url, "http://127.0.0.1");
     const host = request.headers.host ?? "";
     // Só este computador, e só quem recebeu o endereço com o segredo.
-    if (!host.startsWith("127.0.0.1:") || !url.pathname.startsWith(`/${secret}`)) return reply(response, 403, { error: "Sem acesso." });
+    if (!host.startsWith("127.0.0.1:") || !url.pathname.startsWith(`/${secret}`))
+      return reply(response, 403, { error: "Sem acesso." });
     const path = url.pathname.slice(secret.length + 1) || "/";
     try {
       if (request.method === "GET" && path === "/") {
         response.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-store",
-          "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:",
+          "Content-Security-Policy":
+            "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:",
         });
         return response.end(PANEL_HTML);
       }
@@ -259,12 +309,46 @@ async function startPanel() {
           limites: limiter.usage(),
         });
       }
-      if (request.method === "GET" && path === "/conversas") return reply(response, 200, await control("GET", "/catalog"));
+      if (request.method === "GET" && path === "/conversas")
+        return reply(response, 200, await control("GET", "/catalog"));
+      if (request.method === "GET" && path === "/ponte") {
+        const names = new Map(
+          ((await control("GET", "/catalog").catch(() => null))?.chats ?? []).map((chat) => [chat.id, chat.name]),
+        );
+        return reply(response, 200, {
+          ativa: Boolean(bridge),
+          rascunhos: (bridge?.drafts() ?? []).map((draft) => ({
+            id: draft.id,
+            status: draft.status,
+            texto: draft.text,
+            conversa: names.get(draft.chatId) || `conversa ${shortHash(draft.chatId)}`,
+            criadoEm: draft.createdAt,
+          })),
+        });
+      }
       if (request.method !== "POST") return reply(response, 404, { error: "Não encontrado." });
       const body = await readBody(request);
+      if (path === "/ponte/aprovar" || path === "/ponte/descartar") {
+        if (!bridge || typeof body.id !== "string") return reply(response, 400, { error: "A ponte está desligada." });
+        // Aprovar é o único caminho de envio da ponte, e passa pelos limites.
+        const done = path === "/ponte/aprovar" ? await bridge.approve(body.id) : bridge.discard(body.id);
+        return reply(response, 200, { status: done.status });
+      }
       if (path === "/conectar") return reply(response, 200, await control("POST", "/whatsapp/connect", {}));
       if (path === "/desconectar") return reply(response, 200, await control("POST", "/whatsapp/disconnect", {}));
-      if (path === "/escopo-todas") return reply(response, 200, await control("PUT", "/scope", { mode: "all", chat_ids: [] }));
+      if (path === "/escopo-todas") {
+        // Por padrão "todas" não inclui grupos: o modo "all" do motor os incluiria, então lista as conversas.
+        if (body.incluirGrupos === true)
+          return reply(response, 200, await control("PUT", "/scope", { mode: "all", chat_ids: [] }));
+        const ids = ((await control("GET", "/catalog"))?.chats ?? [])
+          .map((chat) => chat.id)
+          .filter((id) => typeof id === "string" && !isGroupId(id));
+        if (!ids.length)
+          return reply(response, 400, {
+            error: "Nenhuma conversa individual apareceu ainda. Aguarde a sincronização.",
+          });
+        return reply(response, 200, await control("PUT", "/scope", { mode: "selected", chat_ids: ids }));
+      }
       if (path === "/escopo-escolhidas") {
         const ids = Array.isArray(body.ids) ? body.ids.filter((id) => typeof id === "string") : [];
         if (!ids.length) return reply(response, 400, { error: "Escolha ao menos uma conversa." });
@@ -272,7 +356,11 @@ async function startPanel() {
       }
       if (path === "/envio") {
         const { id } = await connection();
-        return reply(response, 200, await control("PATCH", `/agents/${encodeURIComponent(id)}`, { send_enabled: body.ligado === true }));
+        return reply(
+          response,
+          200,
+          await control("PATCH", `/agents/${encodeURIComponent(id)}`, { send_enabled: body.ligado === true }),
+        );
       }
       return reply(response, 404, { error: "Não encontrado." });
     } catch (error) {
