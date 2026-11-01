@@ -3,9 +3,9 @@
 // because it trusts what comes from there. So a member never reaches it directly: a small gateway
 // lets through only the member routes, and a tunnel, or an address the owner configures, reaches the
 // gateway. Nothing listens or leaves this computer until the first direct invitation.
-import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
@@ -27,7 +27,8 @@ const CLOUDFLARED_DARWIN_ARM64_URL = `https://github.com/cloudflare/cloudflared/
 
 const TUNNEL_URL_PATTERN = /https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.trycloudflare\.com/u;
 const TUNNEL_START_TIMEOUT_MS = 45_000;
-const TUNNEL_RESTART_DELAY_MS = 5_000;
+const TUNNEL_WATCH_MS = 30_000;
+const DEFAULT_GATEWAY_PORT = 47823;
 const TUNNEL_REACHABLE_TIMEOUT_MS = 40_000;
 const MAX_HEADER_BYTES = 64 * 1024;
 
@@ -231,15 +232,50 @@ async function waitUntilReachable(address: string): Promise<void> {
   }
 }
 
-/** The gateway and the tunnel of this computer's direct invitations. */
+function isCloudflaredRunning(pid: number): Promise<boolean> {
+  return new Promise((resolve) =>
+    execFile("/bin/ps", ["-o", "comm=", "-p", String(pid)], (error, stdout) =>
+      resolve(!error && stdout.includes("cloudflared")),
+    ),
+  );
+}
+
+async function readTunnelState(): Promise<TunnelState | null> {
+  const text = await readFile(tunnelStatePath(), "utf8").catch(() => null);
+  if (text === null) return null;
+  try {
+    const value: { pid?: unknown; url?: unknown; port?: unknown } = JSON.parse(text);
+    return typeof value.pid === "number" && typeof value.port === "number" && isDirectAccessPublicUrl(`${value.url}/`)
+      ? { pid: value.pid, url: `${value.url}`, port: value.port }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function tunnelStatePath(): string {
+  return join(configDirectory(), "direct-tunnel.json");
+}
+
+interface TunnelState {
+  pid: number;
+  url: string;
+  port: number;
+}
+
+/**
+ * The gateway and the tunnel of this computer's direct invitations. The tunnel runs on its own, so its
+ * address survives a restart of OpenCat. While OpenCat is closed the gateway is too, and the tunnel
+ * reaches nothing. Only restarting the computer or losing the tunnel changes the address.
+ */
 export class DirectAccess {
   readonly #apiPort: () => number | null;
   #gateway: { port: number; close: () => void } | null = null;
-  #tunnel: ChildProcess | null = null;
+  #tunnelPid: number | null = null;
   #publicUrl: string | null = null;
   #wanted = false;
   #starting: Promise<string> | null = null;
-  #restart: NodeJS.Timeout | null = null;
+  #watch: NodeJS.Timeout | null = null;
 
   constructor(apiPort: () => number | null) {
     this.#apiPort = apiPort;
@@ -248,19 +284,28 @@ export class DirectAccess {
   /** The address for an invitation. Starts the gateway and the tunnel when they are not running. */
   ensure(): Promise<string> {
     this.#wanted = true;
-    if (this.#publicUrl && (this.#tunnel || this.#gateway)) return Promise.resolve(this.#publicUrl);
+    if (this.#publicUrl && this.#gateway) return Promise.resolve(this.#publicUrl);
     this.#starting ??= this.#start().finally(() => {
       this.#starting = null;
     });
     return this.#starting;
   }
 
-  stop(): void {
+  /** Nobody needs the direct address any more, so the tunnel ends too. */
+  async stop(): Promise<void> {
+    this.release();
+    const state = await readTunnelState();
+    const pid = this.#tunnelPid ?? state?.pid ?? null;
+    this.#tunnelPid = null;
+    if (pid !== null && (await isCloudflaredRunning(pid))) process.kill(pid);
+    await rm(tunnelStatePath(), { force: true });
+  }
+
+  /** OpenCat is closing. The tunnel stays, so the members keep the address when it opens again. */
+  release(): void {
     this.#wanted = false;
-    if (this.#restart) clearTimeout(this.#restart);
-    this.#restart = null;
-    this.#tunnel?.kill();
-    this.#tunnel = null;
+    if (this.#watch) clearInterval(this.#watch);
+    this.#watch = null;
     this.#gateway?.close();
     this.#gateway = null;
     this.#publicUrl = null;
@@ -268,56 +313,74 @@ export class DirectAccess {
 
   async #start(): Promise<string> {
     const config = await readConfig();
-    this.#gateway ??= await startDirectAccessGateway(this.#apiPort, config.gatewayPort);
+    this.#gateway ??= await startDirectAccessGateway(this.#apiPort, config.gatewayPort || DEFAULT_GATEWAY_PORT).catch(
+      () => startDirectAccessGateway(this.#apiPort, 0),
+    );
     if (config.publicUrl) {
       this.#publicUrl = config.publicUrl;
       return config.publicUrl;
     }
-    const address = await this.#startTunnel(await installCloudflared());
-    await waitUntilReachable(address);
+    const address = (await this.#reuseTunnel()) ?? (await this.#startTunnel(await installCloudflared()));
+    this.#watchTunnel();
     return address;
   }
 
-  #startTunnel(binary: string): Promise<string> {
+  async #reuseTunnel(): Promise<string | null> {
+    const state = await readTunnelState();
+    if (!state || state.port !== this.#gateway?.port || !(await isCloudflaredRunning(state.pid))) return null;
+    this.#tunnelPid = state.pid;
+    this.#publicUrl = state.url;
+    return state.url;
+  }
+
+  async #startTunnel(binary: string): Promise<string> {
     const gateway = this.#gateway;
-    if (!gateway) return Promise.reject(new Error("The direct access gateway is not running."));
-    return new Promise((resolve, reject) => {
-      const child = spawn(
-        binary,
-        ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${gateway.port}`],
-        // The tunnel needs none of the secrets in this process's environment.
-        { stdio: ["ignore", "pipe", "pipe"], env: { HOME: homedir(), PATH: "/usr/bin:/bin" } },
-      );
-      this.#tunnel = child;
-      const timeout = setTimeout(() => {
-        child.kill();
-        reject(new Error("The tunnel did not start in time. Check the internet connection and try again."));
-      }, TUNNEL_START_TIMEOUT_MS);
-      const read = (chunk: Buffer) => {
-        const found = chunk.toString("utf8").match(TUNNEL_URL_PATTERN)?.[0];
-        if (!found || this.#publicUrl === found) return;
-        clearTimeout(timeout);
-        this.#publicUrl = found;
-        resolve(found);
-      };
-      child.stdout?.on("data", read);
-      child.stderr?.on("data", read);
-      child.once("error", (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-      child.once("exit", () => {
-        clearTimeout(timeout);
-        reject(new Error("The tunnel stopped before it had an address."));
-        if (this.#tunnel !== child) return;
-        this.#tunnel = null;
-        this.#publicUrl = null;
-        if (!this.#wanted) return;
-        this.#restart = setTimeout(() => {
-          this.#restart = null;
-          if (this.#wanted) void this.ensure().catch(() => undefined);
-        }, TUNNEL_RESTART_DELAY_MS);
-      });
+    if (!gateway) throw new Error("The direct access gateway is not running.");
+    const previous = await readTunnelState();
+    if (previous && (await isCloudflaredRunning(previous.pid))) process.kill(previous.pid);
+    await mkdir(configDirectory(), { recursive: true, mode: 0o700 });
+    const logPath = join(configDirectory(), "direct-tunnel.log");
+    const log = openSync(logPath, "w", 0o600);
+    const child = spawn(binary, ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${gateway.port}`], {
+      // The tunnel needs none of the secrets in this process's environment.
+      env: { HOME: homedir(), PATH: "/usr/bin:/bin" },
+      detached: true,
+      stdio: ["ignore", log, log],
     });
+    closeSync(log);
+    child.unref();
+    const pid = child.pid;
+    if (pid === undefined) throw new Error("The tunnel did not start.");
+    const deadline = Date.now() + TUNNEL_START_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const found = (await readFile(logPath, "utf8").catch(() => "")).match(TUNNEL_URL_PATTERN)?.[0];
+      if (found) {
+        this.#tunnelPid = pid;
+        this.#publicUrl = found;
+        const state: TunnelState = { pid, url: found, port: gateway.port };
+        await writeFile(tunnelStatePath(), JSON.stringify(state), { mode: 0o600 });
+        await waitUntilReachable(found);
+        return found;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    if (await isCloudflaredRunning(pid)) process.kill(pid);
+    throw new Error("The tunnel did not start in time. Check the internet connection and try again.");
+  }
+
+  /** A tunnel that ends gets a new one, with a new address. */
+  #watchTunnel(): void {
+    if (this.#watch) return;
+    this.#watch = setInterval(() => {
+      const pid = this.#tunnelPid;
+      if (pid === null || !this.#wanted) return;
+      void isCloudflaredRunning(pid).then((running) => {
+        if (running || !this.#wanted || this.#tunnelPid !== pid) return;
+        this.#tunnelPid = null;
+        this.#publicUrl = null;
+        void this.ensure().catch(() => undefined);
+      });
+    }, TUNNEL_WATCH_MS);
+    this.#watch.unref();
   }
 }

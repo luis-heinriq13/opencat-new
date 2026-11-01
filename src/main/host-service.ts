@@ -1530,7 +1530,7 @@ export class HostService extends EventEmitter<HostEvents> {
   #syncDirectAccess(): void {
     if (!this.#directAccess) return;
     if (!this.#options.store.needsDirectAccess()) {
-      this.#directAccess.stop();
+      void this.#directAccess.stop().catch(() => undefined);
       return;
     }
     void this.#directAccess.ensure().catch(() => undefined);
@@ -1539,7 +1539,11 @@ export class HostService extends EventEmitter<HostEvents> {
   /** OpenCat: at launch, the direct members of this host reach it again. */
   readonly resumeDirectAccess = Effect.fn("HostService.resumeDirectAccess")(
     function* (this: HostService): Effect.fn.Return<void, RemoteWorkflowError> {
-      if (!this.#directAccess || !this.#options.store.needsDirectAccess()) return;
+      if (!this.#directAccess) return;
+      if (!this.#options.store.needsDirectAccess()) {
+        this.#syncDirectAccess();
+        return;
+      }
       yield* this.#api.start();
       this.#syncDirectAccess();
     },
@@ -1787,7 +1791,7 @@ export class HostService extends EventEmitter<HostEvents> {
       Effect.void,
       () => this.#webrtcGateway?.stop() ?? Effect.void,
       () => {
-        this.#directAccess?.stop();
+        this.#directAccess?.release();
         return this.#api.stop().pipe(Effect.ensuring(Fiber.await(pendingPushes)));
       },
     );

@@ -7,7 +7,8 @@ export const messages = {
   "settings.language.system": "Padrão do sistema",
   "settings.appearance.title": "Aparência",
   "settings.appearance.sidebarPages.title": "Páginas na barra lateral",
-  "settings.appearance.sidebarPages.description": "Mostra rotinas, agenda, tarefas, skills e uso na barra lateral, como no Tucano.",
+  "settings.appearance.sidebarPages.description":
+    "Mostra aprovações, memória, rotinas, skills, boletim e as outras páginas na barra lateral. Desligue para voltar à barra de ícones.",
   "settings.appearance.theme.title": "Tema",
   "settings.appearance.theme.description": "Cores claras ou escuras. “Sistema” segue o ajuste do seu dispositivo.",
   "settings.appearance.theme.system": "Sistema",

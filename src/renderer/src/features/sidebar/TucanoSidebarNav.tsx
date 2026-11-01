@@ -30,11 +30,11 @@ export function TucanoSidebarNav(props: { approvals: number; onOpenApprovals: ()
   };
   const rows = (): { label: string; open: (button: HTMLElement) => void }[] => [
     { label: t("sidebar.tucano.agents"), open: showAgents },
-    { label: t("sidebar.tucano.routines"), open: showRoutines },
     {
       label:
         props.approvals > 0 ? `${t("sidebar.tucano.approvals")} (${props.approvals})` : t("sidebar.tucano.approvals"),
-      open: props.onOpenApprovals,
+      // With nothing to answer, the bulletin says so, instead of a click that does nothing.
+      open: (button) => (props.approvals > 0 ? props.onOpenApprovals() : windowPage.openBulletin(button)),
     },
     {
       label: t("sidebar.tucano.memory"),
@@ -43,10 +43,12 @@ export function TucanoSidebarNav(props: { approvals: number; onOpenApprovals: ()
         window.dispatchEvent(new Event(OPEN_AGENT_SETTINGS_EVENT));
       },
     },
-    { label: t("sidebar.tucano.schedule"), open: (button) => windowPage.openSchedule(button) },
-    { label: t("sidebar.tucano.tasks"), open: (button) => windowPage.openTasks(button) },
+    { label: t("sidebar.tucano.routines"), open: showRoutines },
     { label: t("sidebar.tucano.skills"), open: () => setSkillsMarketplaceOpen(true) },
     { label: t("usage.bulletin.title"), open: (button) => windowPage.openBulletin(button) },
+    { label: t("sidebar.tucano.schedule"), open: (button) => windowPage.openSchedule(button) },
+    { label: t("sidebar.tucano.tasks"), open: (button) => windowPage.openTasks(button) },
+    { label: t("sidebar.tucano.workflows"), open: () => windowPage.openWorkflows(null) },
     { label: t("sidebar.tucano.usage"), open: (button) => windowPage.openUsage(button) },
     { label: t("sidebar.tucano.settings"), open: (button) => windowPage.openSettings(button) },
   ];

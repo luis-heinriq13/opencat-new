@@ -13,7 +13,7 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { avatarFileExtension, isAvatarMimeType, isValidAvatarImage } from "@openbot/contracts/avatar-images";
 import { type HostKeyHandover, hostKeyHandoverStatement } from "@openbot/contracts/host-key-handover";
-import { DEFAULT_TEAM_MEMBER_LIMIT, INPUT_LIMITS } from "@openbot/contracts/input-limits";
+import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import { permanentInviteExpiresAt } from "@openbot/contracts/invite-links";
 import type {
   AvatarImageInput,
@@ -1734,8 +1734,10 @@ function requireNewMemberSeat(host: StoredTeam): void {
 
 /** Disabled members keep their record but not their seat, so a remote revoke frees one. */
 function requireMemberSeat(host: StoredTeam): void {
-  if (host.members.filter((member) => !member.disabled).length >= DEFAULT_TEAM_MEMBER_LIMIT) {
-    throw new TeamStoreError(sourceText("error.team.memberLimit", { limit: DEFAULT_TEAM_MEMBER_LIMIT }));
+  // OpenCat: this file's members need no account service, so only the stored cap applies. The account
+  // service keeps its own limit for the invitations it issues.
+  if (host.members.filter((member) => !member.disabled).length >= INPUT_LIMITS.teamMembers) {
+    throw new TeamStoreError(sourceText("error.team.memberLimit", { limit: INPUT_LIMITS.teamMembers }));
   }
 }
 

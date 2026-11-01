@@ -22,6 +22,7 @@ export const messages = defineMessages("sidebar", {
   "sidebar.tucano.schedule": "Schedule",
   "sidebar.tucano.tasks": "Tasks",
   "sidebar.tucano.skills": "Skills and apps",
+  "sidebar.tucano.workflows": "Workflows",
   "sidebar.tucano.usage": "Usage report",
   "sidebar.tucano.settings": "Settings",
   "sidebar.topbar.localServer": "Local",

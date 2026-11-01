@@ -188,7 +188,15 @@ export function createServerMembersSection(
    * This host or the account plane applies the limit, from the host's plan. A legacy HTTP peer can be
    * a version without it.
    */
-  const memberLimit = () => (permanentSupported() ? (props.server.memberLimit ?? DEFAULT_TEAM_MEMBER_LIMIT) : null);
+  /** OpenCat: a direct link needs no publishing, so a server without an account can invite too. */
+  const directInvite = () => local() && (panels.invite.direct || !published());
+  // OpenCat: direct members are this host's own, so the account service's limit does not count them.
+  const memberLimit = () =>
+    directInvite()
+      ? INPUT_LIMITS.teamMembers
+      : permanentSupported()
+        ? (props.server.memberLimit ?? DEFAULT_TEAM_MEMBER_LIMIT)
+        : null;
   const membersFull = () => {
     const limit = memberLimit();
     return limit !== null && activeMembers().length >= limit;
@@ -232,8 +240,6 @@ export function createServerMembersSection(
   const revokeInvite = createMemo(
     () => activeInvites().find((invite) => invite.id === panels.members.revokeInviteId) ?? null,
   );
-  /** OpenCat: a direct link needs no publishing, so a server without an account can invite too. */
-  const directInvite = () => local() && (panels.invite.direct || !published());
   const invitesOpen = () => published() || directInvite();
   createEffect(directInvite, (direct) => {
     if (direct && untrack(() => panels.invite.mode) === "email")

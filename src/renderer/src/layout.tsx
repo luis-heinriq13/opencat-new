@@ -115,7 +115,8 @@ const Layout = createSimpleContext({
     );
     const [railPinChoices, setRailPinChoices] = createSignal<RailPinChoices>(readRailPinChoices());
     const [sidebarStyle, setSidebarStyleSignal] = createSignal<SidebarStyle>(
-      window.localStorage.getItem(SIDEBAR_STYLE_STORAGE_KEY) === "tucano" ? "tucano" : "opencat",
+      // OpenCat: the pages in the sidebar are the default. A choice made in Settings stays.
+      window.localStorage.getItem(SIDEBAR_STYLE_STORAGE_KEY) === "opencat" ? "opencat" : "tucano",
     );
     const setSidebarStyle = (style: SidebarStyle) => {
       setSidebarStyleSignal(style);

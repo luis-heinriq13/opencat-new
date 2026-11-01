@@ -23,6 +23,7 @@ export const messages = {
   "sidebar.tucano.schedule": "Agenda",
   "sidebar.tucano.tasks": "Tarefas",
   "sidebar.tucano.skills": "Skills e apps",
+  "sidebar.tucano.workflows": "Fluxos de trabalho",
   "sidebar.tucano.usage": "Relatório de uso",
   "sidebar.tucano.settings": "Configurações",
   "sidebar.topbar.localServer": "Local",
