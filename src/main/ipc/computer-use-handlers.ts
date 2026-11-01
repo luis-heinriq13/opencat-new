@@ -1,5 +1,6 @@
 // The Computer Use driver's readiness, and the macOS permission panes it may need.
 
+import type { MacPermissionId } from "@openbot/contracts/ipc";
 import { createOpenBotLogger, toLogValue } from "@openbot/logging";
 import { runCauseEffect } from "../../backend/effect-boundary";
 import type { ComputerUsePermissionHelpWindowController } from "../computer-use-permission-help-window";
@@ -15,6 +16,8 @@ const logger = createOpenBotLogger("computer-use");
 export interface ComputerUseIpcDependencies {
   cuaDriver: Pick<CuaDriverRuntime, "state">;
   openExternal: (url: string) => Promise<void>;
+  /** Asks macOS for the grant, which lists this signed build in the pane the user then opens. */
+  requestPermission: (permission: MacPermissionId) => Promise<void>;
   permissionHelp: Pick<
     ComputerUsePermissionHelpWindowController,
     "show" | "close" | "permissionApp" | "startDrag" | "reveal"
@@ -38,6 +41,7 @@ export interface ComputerUseIpcDependencies {
 export function computerUseIpcHandlers({
   cuaDriver,
   openExternal,
+  requestPermission,
   permissionHelp,
 }: ComputerUseIpcDependencies): Pick<IpcGroupHandlers, "computerUse"> {
   const state = () => runCauseEffect(cuaDriver.state());
@@ -45,6 +49,11 @@ export function computerUseIpcHandlers({
     computerUse: {
       getState: handler(state),
       openPermissionPane: payloadHandler(parseMacPermission, async (permission) => {
+        // The driver never prompts in embedded mode. Without this request macOS can show an old
+        // grant of another signature as on while this build stays refused.
+        await requestPermission(permission).catch((cause) => {
+          logger.warn("macOS did not take the Computer Use permission request.", { cause: toLogValue(cause) });
+        });
         await openExternal(MAC_PERMISSION_URLS[permission]);
         // Reported and then left: the pane is open either way. The reason is logged, because a
         // window that never came up leaves the user with a pane and no steps and no other sign.

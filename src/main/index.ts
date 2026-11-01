@@ -16,6 +16,7 @@ import {
   app,
   BrowserWindow,
   crashReporter,
+  desktopCapturer,
   dialog,
   type NativeImage,
   Notification,
@@ -26,6 +27,7 @@ import {
   protocol,
   screen,
   shell,
+  systemPreferences,
 } from "electron";
 import { runCauseEffect } from "../backend/effect-boundary";
 import { OWNER_NOTIFICATION_KEY } from "./agent-notification-level-store";
@@ -696,6 +698,10 @@ function registerIpcHandlers({
     ...computerUseIpcHandlers({
       cuaDriver,
       openExternal: (url) => shell.openExternal(url),
+      requestPermission: async (permission) => {
+        if (permission === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
+        else await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } });
+      },
       permissionHelp: computerUsePermissionHelp,
     }),
     ...macAutomationIpcHandlers({ platform: process.platform }),

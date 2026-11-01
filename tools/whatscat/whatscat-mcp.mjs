@@ -553,6 +553,8 @@ async function startPanel() {
           grupos: settings.groupConfigs,
           excluidos: settings.excludes,
           internos: settings.internalContacts,
+          internoTambemCliente: settings.internoTambemCliente === true,
+          nomeAgente: settings.nomeAgente ?? "",
           aceitoAcessoTotal: settings.aceitoAcessoTotal,
           aviso: readAccessNotice(DATA_DIR),
           silencio: settings.quietHours,
@@ -591,6 +593,8 @@ async function startPanel() {
           groupConfigs: body.grupos,
           excludes: body.excluidos,
           internalContacts: body.internos,
+          internoTambemCliente: body.internoTambemCliente,
+          nomeAgente: body.nomeAgente,
         });
         return reply(response, 200, { modo: saved.mode });
       }

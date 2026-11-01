@@ -644,3 +644,12 @@ test("modo de teste: o contato interno também é atendido como cliente", async 
   assert.equal(checkAllowed(base, "1@s.whatsapp.net"), "contato_interno");
   assert.equal(checkAllowed({ ...base, internoTambemCliente: true }, "1@s.whatsapp.net"), null);
 });
+
+test("o marcador novo não parece JSON e resposta censurada nunca sai", async () => {
+  const { hasHandoffMarker, hasRedactedAnswer } = await import("./whatscat-safety.mjs");
+  assert.ok(hasHandoffMarker("@@HUMANO@@"));
+  assert.ok(hasHandoffMarker("[[HUMANO]]"));
+  assert.ok(!/[{[]/.test("@@HUMANO@@"));
+  assert.ok(hasRedactedAnswer("[redacted-unscanned]"));
+  assert.ok(!hasRedactedAnswer("Oi, tudo bem? [veja o link]"));
+});

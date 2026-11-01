@@ -202,14 +202,22 @@
   </div>
   <div class="field" id="contatos-titulo">Contatos atendidos</div>
   <div id="ponte-contatos"></div>
-  <details style="margin-top: var(--space-3)">
-    <summary>Equipe interna (recebe avisos quando o agente passa a conversa para uma pessoa)</summary>
-    <p class="muted" style="margin: var(--space-2) 0">Quem estiver marcado aqui nunca é tratado como cliente. Os avisos têm só o nome ou o número mascarado e o motivo.</p>
-    <div id="internos"></div>
-  </details>
   <div class="row" style="margin-top: var(--space-3)">
     <button type="button" class="primary" id="salvar-atendimento">Salvar</button>
     <span class="muted" id="atendimento-aviso" role="status"></span>
+  </div>
+</section>
+
+<!-- Equipe interna -->
+<section class="card" aria-labelledby="t-equipe">
+  <div class="head"><div class="grow"><h2 id="t-equipe">Equipe interna</h2><p class="muted">Quem recebe o aviso em negrito quando o agente passa a conversa para uma pessoa.</p></div></div>
+  <label class="field" for="nome-agente">Nome que aparece no aviso</label>
+  <input type="text" id="nome-agente" maxlength="60" placeholder="Vendedor">
+  <div id="internos" style="margin-top: var(--space-3)"></div>
+  <label class="row" style="margin-top: var(--space-3)"><input type="checkbox" id="interno-cliente"><span>Modo de teste: quem está na equipe também é atendido como cliente. Use só para testar com o seu próprio número.</span></label>
+  <div class="row" style="margin-top: var(--space-3)">
+    <button type="button" class="primary" id="salvar-equipe">Salvar</button>
+    <span class="muted" id="equipe-aviso" role="status"></span>
   </div>
 </section>
 
@@ -441,15 +449,20 @@
   });
   $("acesso-total").addEventListener("change", (event) => post("/ponte/acesso", { aceito: event.target.checked }).then(() => loadBridge(), failure));
   // O arquivo guarda uma lista de contatos por modo: "excluidos" no modo "all", "escolhidas" no "selected".
+  $("salvar-equipe").addEventListener("click", () => $("salvar-atendimento").click());
+  $("interno-cliente").addEventListener("change", markDirty);
+  $("nome-agente").addEventListener("input", markDirty);
   $("salvar-atendimento").addEventListener("click", () => {
     const body = {
       modo: mode,
       internos: internos.ids(),
+      internoTambemCliente: $("interno-cliente").checked,
+      nomeAgente: $("nome-agente").value,
       grupos: [...groupRows.entries()].filter(([, item]) => item.on).map(([id, item]) => ({ id, mode: item.mode, instructions: item.instructions })),
     };
     body[mode === "all" ? "excluidos" : "escolhidas"] = ponteContacts.ids();
     post("/ponte/atendimento", body)
-      .then(() => { dirty = false; $("atendimento-aviso").textContent = "Salvo."; return loadBridge(true); }, failure);
+      .then(() => { dirty = false; $("atendimento-aviso").textContent = "Salvo."; $("equipe-aviso").textContent = "Salvo."; return loadBridge(true); }, failure);
   });
 
   let listed = false;
@@ -494,6 +507,8 @@
       mode = value.modo;
       ponteContacts.setSelected(mode === "all" ? value.excluidos : value.escolhidas);
       internos.setSelected(value.internos);
+      $("interno-cliente").checked = value.internoTambemCliente === true;
+      $("nome-agente").value = value.nomeAgente ?? "";
       savedGroups = new Map(value.grupos.map((group) => [group.id, { on: true, mode: group.mode, instructions: group.instructions }]));
       groupRows.clear();
       drawGroups();

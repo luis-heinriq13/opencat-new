@@ -11,7 +11,7 @@ export const WRAPPER_MARKERS = [
   "aviso interno do whatscat",
 ];
 
-export const HANDOFF_MARKER = "[[HUMANO]]";
+export const HANDOFF_MARKER = "@@HUMANO@@";
 export const DEFAULT_STOP_WORDS = ["pare", "parar", "sair", "não quero", "stop"];
 
 /** Minúsculas, sem acento e sem pontuação: "Não quero!" e "nao quero" são a mesma coisa. */
@@ -108,7 +108,10 @@ export function filterOutbound(answer, { chatId, instructionTexts = [] } = {}) {
   return { ok: true };
 }
 
-export const hasHandoffMarker = (answer) => /\[\[\s*humano\s*\]\]/i.test(String(answer ?? ""));
+export const hasHandoffMarker = (answer) => /\[\[\s*humano\s*\]\]|@@\s*humano\s*@@/i.test(String(answer ?? ""));
+
+/** O filtro de segredos do app apagou parte da resposta. Esse texto nunca pode chegar ao contato. */
+export const hasRedactedAnswer = (answer) => /\[redacted-[a-z-]+\]/i.test(String(answer ?? ""));
 
 /** A pessoa pediu para parar? Vale a mensagem curta que é a palavra ou a contém inteira ("eu não quero mais"). */
 export function matchesStopWord(text, stopWords = DEFAULT_STOP_WORDS) {
