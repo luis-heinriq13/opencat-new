@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// WhatsCat: WhatsApp por QR code para os agentes do OpenCat, por um motor local não oficial.
+// WhatsApp (não oficial): WhatsApp por QR code para os agentes do OpenCat, por um motor local não oficial.
 // Este processo liga o motor, repassa as ferramentas e aplica os limites de envio.
 // `--panel` abre só o painel local: QR code, conversas liberadas e permissão de envio.
+// `--bridge` roda só a ponte, sem janela: o aplicativo a inicia enquanto está aberto e ela lê os mesmos arquivos.
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -12,12 +13,21 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { createSendLimiter, serveMcp, toolText } from "./mcp-stdio.mjs";
 import {
+  acquireBridgeLock,
+  bridgeRunning,
+  chatDisplayName,
   createAgentApi,
   createBridge,
   createDispatcher,
   createEngineReader,
+  formatChatId,
+  isGroupChat,
   loadBridgeConfig,
+  readBridgeSettings,
+  releaseBridgeLock,
+  saveBridgeSettings,
   shortHash,
+  writeBridgeHeartbeat,
 } from "./whatscat-bridge.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -54,7 +64,7 @@ function control(method, path, body) {
           // A resposta que não é JSON cai no erro abaixo.
         }
         if (value?.error) reject(new Error(String(value.error)));
-        else if (error) reject(new Error("O motor do WhatsCat não respondeu."));
+        else if (error) reject(new Error("O motor do WhatsApp (não oficial) não respondeu."));
         else resolve(value);
       },
     );
@@ -69,7 +79,7 @@ async function ensureService() {
     // Não está de pé: este processo o inicia logo abaixo.
   }
   if (!existsSync(SERVICE) || !existsSync(ENGINE))
-    throw new Error("O motor do WhatsCat não está instalado neste computador.");
+    throw new Error("O motor do WhatsApp (não oficial) não está instalado neste computador.");
   mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
   if (!child || child.exitCode !== null) {
     child = spawn(SERVICE, ["serve", "--owner-stdin", "--data-dir", DATA_DIR, "--wacli", ENGINE, "--listen", LISTEN], {
@@ -87,7 +97,7 @@ async function ensureService() {
       // O motor ainda está subindo.
     }
   }
-  throw new Error("O motor do WhatsCat não iniciou.");
+  throw new Error("O motor do WhatsApp (não oficial) não iniciou.");
 }
 
 /** A conexão dos agentes, criada uma vez. O envio começa desligado e só o painel o liga. */
@@ -208,7 +218,10 @@ function publicState(state) {
     limites: limiter.usage(),
     ...(whatsapp.linked && state?.scope?.mode !== "initial"
       ? {}
-      : { proximoPasso: "Abra o painel do WhatsCat na loja do OpenCat para ler o QR code e escolher as conversas." }),
+      : {
+          proximoPasso:
+            "Abra o painel do WhatsApp (não oficial) na loja do OpenCat para ler o QR code e escolher as conversas.",
+        }),
   };
 }
 
@@ -222,44 +235,92 @@ async function callTool(name, args) {
   return result;
 }
 
-/** A ponte é opcional e fica desligada sem "enabled": true em opencat-ponte.json. Roda dentro do painel. */
-function startBridge() {
-  const config = loadBridgeConfig(join(DATA_DIR, "opencat-ponte.json"));
-  if (!config.enabled) return null;
+const BRIDGE_CONFIG_FILE = join(DATA_DIR, "opencat-ponte.json");
+/** Código de saída de quem encontra outra ponte viva: o aplicativo espera antes de tentar de novo. */
+const EXIT_ALREADY_RUNNING = 75;
+
+/** As dependências da ponte. O painel só as usa para aprovar um rascunho; o processo da ponte, para tudo. */
+function bridgeDeps(config) {
   const callEngine = (name, args) => remote("tools/call", { name, arguments: args });
-  const bridge = createBridge({
-    config,
-    dir: DATA_DIR,
-    deps: {
-      readMessages: createEngineReader(callEngine),
-      ...createAgentApi(),
-      send: createDispatcher({ limiter, callEngine, sendTool: config.sendTool }),
-    },
-  });
+  return {
+    readMessages: createEngineReader(callEngine),
+    listChats: async () =>
+      ((await control("GET", "/catalog"))?.chats ?? []).map((chat) => chat.id).filter((id) => typeof id === "string"),
+    ...createAgentApi(),
+    send: createDispatcher({ limiter, callEngine, sendTool: config.sendTool }),
+  };
+}
+
+/** A ponte da configuração de agora, ou null se ela estiver desligada. Lida de novo a cada pedido. */
+function currentBridge() {
+  const config = loadBridgeConfig(BRIDGE_CONFIG_FILE);
+  return config.enabled ? createBridge({ config, dir: DATA_DIR, deps: bridgeDeps(config) }) : null;
+}
+
+/** No modo "todos", contato novo precisa estar no escopo do motor para a ponte lê-lo. Só soma, nunca tira. */
+async function extendScope(state, config) {
+  const scope = state?.scope;
+  if (config.mode !== "all" || scope?.mode !== "selected" || !Array.isArray(scope.chat_ids)) return;
+  const listed = (await control("GET", "/catalog"))?.chats ?? [];
+  const missing = listed
+    .map((chat) => chat.id)
+    .filter(
+      (id) =>
+        typeof id === "string" &&
+        !isGroupChat(id) &&
+        /@(s\.whatsapp\.net|lid)$/.test(id) &&
+        !config.excludes.includes(id) &&
+        !scope.chat_ids.includes(id),
+    );
+  if (missing.length) await control("PUT", "/scope", { mode: "selected", chat_ids: [...scope.chat_ids, ...missing] });
+}
+
+/** `--bridge`: a ponte sem janela. Uma por pasta de dados; fecha quando o aplicativo que a iniciou fecha. */
+async function runBridgeProcess() {
+  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+  if (!acquireBridgeLock(DATA_DIR)) process.exit(EXIT_ALREADY_RUNNING);
+  const leave = () => releaseBridgeLock(DATA_DIR);
+  process.on("exit", leave);
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => process.exit(0));
+  // O aplicativo fecha esta entrada ao sair, e então a ponte também sai.
+  process.stdin.resume();
+  process.stdin.on("end", () => process.exit(0));
+  const beat = () => {
+    try {
+      writeBridgeHeartbeat(DATA_DIR);
+    } catch {
+      // Sem o coração o painel só mostra "parada"; a ponte segue.
+    }
+  };
+  beat();
+  setInterval(beat, 10_000);
+  let lastRun = 0;
   let busy = false;
   const tick = async () => {
-    if (busy) return;
+    // Ponte desligada continua desligada: sem "enabled": true nada é lido nem entregue.
+    const config = loadBridgeConfig(BRIDGE_CONFIG_FILE);
+    if (busy || !config.enabled || Date.now() - lastRun < config.pollSeconds * 1000) return;
     busy = true;
+    lastRun = Date.now();
     try {
-      await ensureService();
-      await bridge.poll();
+      const state = await ensureService();
+      await extendScope(state, config).catch(() => undefined);
+      await createBridge({ config, dir: DATA_DIR, deps: bridgeDeps(config) }).poll();
     } catch {
       // Falhas de leitura já ficam no registro de auditoria da ponte.
     } finally {
       busy = false;
     }
   };
-  setInterval(tick, config.pollSeconds * 1000);
+  setInterval(tick, 2000);
   void tick();
-  return bridge;
 }
 
 const PANEL_HTML = readFileSync(join(here, "whatscat-panel.html"), "utf8");
 
-const isGroupId = (id) => String(id).endsWith("@g.us");
+const isGroupId = isGroupChat;
 
 async function startPanel() {
-  const bridge = startBridge();
   const secret = randomBytes(24).toString("hex");
   const readBody = (request) =>
     new Promise((resolve, reject) => {
@@ -309,19 +370,35 @@ async function startPanel() {
           limites: limiter.usage(),
         });
       }
-      if (request.method === "GET" && path === "/conversas")
-        return reply(response, 200, await control("GET", "/catalog"));
+      if (request.method === "GET" && path === "/conversas") {
+        const catalog = await control("GET", "/catalog");
+        return reply(response, 200, {
+          chats: (catalog?.chats ?? [])
+            .filter((chat) => typeof chat?.id === "string")
+            .map((chat) => ({ id: chat.id, grupo: isGroupId(chat.id), ...chatDisplayName(chat) })),
+        });
+      }
       if (request.method === "GET" && path === "/ponte") {
-        const names = new Map(
-          ((await control("GET", "/catalog").catch(() => null))?.chats ?? []).map((chat) => [chat.id, chat.name]),
+        const settings = readBridgeSettings(BRIDGE_CONFIG_FILE);
+        const bridge = currentBridge();
+        const chats = new Map(
+          ((await control("GET", "/catalog").catch(() => null))?.chats ?? []).map((chat) => [chat.id, chat]),
         );
         return reply(response, 200, {
           ativa: Boolean(bridge),
+          configurada: settings.configurada,
+          rodando: bridgeRunning(DATA_DIR),
+          modo: settings.mode,
+          escolhidas: settings.chats,
+          grupos: settings.groups,
+          excluidos: settings.excludes,
           rascunhos: (bridge?.drafts() ?? []).map((draft) => ({
             id: draft.id,
             status: draft.status,
             texto: draft.text,
-            conversa: names.get(draft.chatId) || `conversa ${shortHash(draft.chatId)}`,
+            conversa: chats.has(draft.chatId)
+              ? chatDisplayName(chats.get(draft.chatId)).nome
+              : (formatChatId(draft.chatId) ?? `conversa ${shortHash(draft.chatId)}`),
             criadoEm: draft.createdAt,
           })),
         });
@@ -329,10 +406,22 @@ async function startPanel() {
       if (request.method !== "POST") return reply(response, 404, { error: "Não encontrado." });
       const body = await readBody(request);
       if (path === "/ponte/aprovar" || path === "/ponte/descartar") {
+        const bridge = currentBridge();
         if (!bridge || typeof body.id !== "string") return reply(response, 400, { error: "A ponte está desligada." });
         // Aprovar é o único caminho de envio da ponte, e passa pelos limites.
         const done = path === "/ponte/aprovar" ? await bridge.approve(body.id) : bridge.discard(body.id);
         return reply(response, 200, { status: done.status });
+      }
+      if (path === "/ponte/atendimento") {
+        // Só o modo e as listas. Ligar a ponte continua sendo uma edição de "enabled" em opencat-ponte.json.
+        if (body.modo !== "all" && body.modo !== "selected") return reply(response, 400, { error: "Modo inválido." });
+        const saved = saveBridgeSettings(BRIDGE_CONFIG_FILE, {
+          mode: body.modo,
+          chats: body.escolhidas,
+          groups: body.grupos,
+          excludes: body.excluidos,
+        });
+        return reply(response, 200, { modo: saved.mode });
       }
       if (path === "/conectar") return reply(response, 200, await control("POST", "/whatsapp/connect", {}));
       if (path === "/desconectar") return reply(response, 200, await control("POST", "/whatsapp/disconnect", {}));
@@ -371,7 +460,9 @@ async function startPanel() {
   process.stdout.write(`PANEL_URL=http://127.0.0.1:${server.address().port}/${secret}/\n`);
 }
 
-if (process.argv.includes("--panel")) {
+if (process.argv.includes("--bridge")) {
+  await runBridgeProcess();
+} else if (process.argv.includes("--panel")) {
   await ensureService();
   await startPanel();
   // O painel termina com o processo que o abriu.

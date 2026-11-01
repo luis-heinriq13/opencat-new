@@ -102,7 +102,7 @@ const WHATSAPP_OFICIAL: MarketplacePluginDetail = {
 const WHATSCAT: MarketplacePluginDetail = {
   id: "plugin-whatscat",
   slug: "whatscat",
-  name: "WhatsCat (não oficial)",
+  name: "WhatsApp (não oficial)",
   tagline: "Seu WhatsApp por QR code. Risco de banimento.",
   description:
     'Lê e responde pelo seu WhatsApp, em um computador só seu. Use para testar ou para uso pessoal.\n\nO que é: conecta por QR code, como o WhatsApp Web, com um motor não oficial.\nO que pede: instalar, abrir o painel, ler o QR code, escolher as conversas e, se quiser, ligar o envio. Grátis. Precisa de Node.js e, por enquanto, de um Mac com Apple Silicon.\nRisco: não é oficial e viola os termos do WhatsApp. A conta pode ser banida, mesmo com os cuidados abaixo. Não use no número principal da empresa nem para envio em massa.\nCuidados: o envio começa desligado, há pausa de 20 a 40 segundos entre mensagens, limite de 30 por hora e 150 por dia, e os dados ficam neste computador.\nPara atendimento de empresa, use "WhatsApp Business (API oficial)".',
@@ -111,13 +111,13 @@ const WHATSCAT: MarketplacePluginDetail = {
   iconUrl: "https://www.whatsapp.com/favicon.ico",
   version: "1.0.0",
   prompts: [
-    { id: "prompt-status", text: "O WhatsCat está conectado?" },
+    { id: "prompt-status", text: "O WhatsApp (não oficial) está conectado?" },
     { id: "prompt-unread", text: "Resuma as conversas de hoje no WhatsApp." },
   ],
   apps: [
     {
       id: "app-whatscat",
-      name: "WhatsCat",
+      name: "WhatsApp (não oficial)",
       description: "Lê e envia pelo seu WhatsApp, com limites de envio, por um servidor local.",
       iconUrl: "https://www.whatsapp.com/favicon.ico",
       server: { name: "whatscat", transport: "stdio", command: "~/.opencat/whatscat/whatscat-mcp.mjs", args: [] },

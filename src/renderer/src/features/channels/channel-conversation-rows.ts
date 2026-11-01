@@ -15,7 +15,7 @@ import {
   channelRoutingConversationEvent,
   MODEL_SWITCH_ITEM_TYPE_PREFIX,
 } from "@openbot/contracts/ipc";
-import { isRetiredModelNotice } from "@openbot/telemetry";
+import { classifyFailure, FAILOVER_CAUSES, isRetiredModelNotice } from "@openbot/telemetry";
 import type { AgentMessage, AgentProfile } from "@openbot/ui/data";
 import type { ChannelWorker } from "@openbot/ui/features/channels/ChannelActivityIndicator";
 import { toAgentMessage, toAgentMessages } from "../../app-message-projection";
@@ -90,7 +90,8 @@ export function channelWorkingTurns(page: ChannelPage, stopped: Set<string>): st
   const newest = new Map<string, string>();
   for (const entry of page.messages) {
     const turnId = entry.message.turnId;
-    if (!turnId || !foldedEntry(entry)) continue;
+    // A retirement notice stays in the history but draws no row, so it starts no working turn.
+    if (!turnId || !foldedEntry(entry) || hiddenChannelEntry(entry)) continue;
     turns.add(turnId);
     const task = entry.taskId ? tasks.get(entry.taskId) : undefined;
     if (task?.state !== "running" || task.ownerAgentId !== entry.author.id) stopped.add(turnId);
@@ -164,19 +165,43 @@ export function channelWorkers(
   });
 }
 
+/** A failed or paused task with a provider error older than this no longer asks for the reader. */
+const STALE_PROVIDER_FAILURE_MS = 24 * 60 * 60 * 1_000;
+
+/** When the task last showed activity: its newest message, or the request that started it. Null when unknown. */
+function channelTaskActivityAt(page: ChannelPage, task: ChannelTask): number | null {
+  let newest: number | null = null;
+  for (const entry of page.messages) {
+    if (entry.taskId !== task.id && entry.id !== task.requestMessageId) continue;
+    const at = Date.parse(entry.message.createdAt);
+    if (!Number.isNaN(at) && (newest === null || at > newest)) newest = at;
+  }
+  return newest;
+}
+
+/** A provider error (billing, rate limit, outage, sign-in) of a task whose last activity is over a day old. */
+function staleProviderFailure(page: ChannelPage, task: ChannelTask, now: number): boolean {
+  if (!task.error || !FAILOVER_CAUSES.has(classifyFailure(task.error))) return false;
+  const at = channelTaskActivityAt(page, task);
+  return at !== null && now - at > STALE_PROVIDER_FAILURE_MS;
+}
+
 /**
  * The work that waits for the reader: one entry for each stopped run, not for each stopped task.
  *
  * A task the service stopped carries the reason, and an archived channel stops every task without
  * one, so the reason tells the two apart. A failed task belongs here too: its parent waits for it,
  * and only the reader starts it again. The assignment limit stops a whole tree at once, and `resume`
- * starts a task with everything under it, so the entry is the root.
+ * starts a task with everything under it, so the entry is the root. A provider error more than a day
+ * old is left out: the agent has moved to a backup model since, and the card only shows an old outage.
+ * The other tasks keep their Cancel.
  */
-export function stoppedChannelTasks(page: ChannelPage): ChannelTask[] {
+export function stoppedChannelTasks(page: ChannelPage, now: number = Date.now()): ChannelTask[] {
   if (page.channel.archived) return [];
   const roots = new Map<string, ChannelTask>();
   for (const task of page.tasks) {
     if (!((task.state === "paused" || task.state === "failed") && task.error)) continue;
+    if (staleProviderFailure(page, task, now)) continue;
     const known = roots.get(task.rootTaskId);
     if (!known || task.id === task.rootTaskId) roots.set(task.rootTaskId, task);
   }

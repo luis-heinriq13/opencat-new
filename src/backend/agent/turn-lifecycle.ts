@@ -21,7 +21,7 @@ import {
 import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger } from "@openbot/logging";
-import { type CauseCode, classifyFailure, isRetiredModelNotice } from "@openbot/telemetry";
+import { type CauseCode, classifyFailure, FAILOVER_CAUSES, isRetiredModelNotice } from "@openbot/telemetry";
 import { Cause, Deferred, Effect, Exit, Schema, Scope } from "effect";
 import type { AgentClient } from "../agent-client";
 import type { AgentStore } from "../agent-store";
@@ -86,19 +86,6 @@ const logger = createOpenBotLogger("turn-lifecycle");
 const ENDED_TURN_LIMIT = 256;
 /** How long before a turn's start its usage records can be, as in host analytics. */
 const TURN_USAGE_MARGIN_MS = 60 * 60 * 1_000;
-/**
- * The provider errors that move an agent set to switch without asking to its next backup model. Each
- * one can pass on another provider, account or model; a request the model refuses fails on each.
- */
-const FAILOVER_CAUSES: ReadonlySet<CauseCode> = new Set([
-  "billing",
-  "provider_unavailable",
-  "rate_limit",
-  "authentication",
-  "network",
-  "timeout",
-]);
-
 /** A provider error held until the end of its turn, which runs the turn again on a backup model or shows it. */
 interface HeldProviderError {
   message: string;

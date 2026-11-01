@@ -44,3 +44,28 @@ describe("classifyFailure for a retired model", () => {
     expect(classifyFailure("The report says the feature is no longer available in the app")).toBe("unknown");
   });
 });
+
+describe("isRetiredModelNotice with repeats", () => {
+  const notice =
+    "Gemini 3.5 Flash is no longer available. Please switch to Gemini 3.7 Flash in the latest version of Antigravity.";
+
+  it("matches a message that only repeats the notice", () => {
+    expect(isRetiredModelNotice(Array(4).fill(notice).join(" "))).toBe(true);
+    expect(isRetiredModelNotice(Array(11).fill(notice).join("\n"))).toBe(true);
+    expect(isRetiredModelNotice(`${notice}\n\n${notice}  \n`)).toBe(true);
+    expect(isRetiredModelNotice(`RequestError: ${notice} ${notice}`)).toBe(true);
+    expect(classifyFailure(Array(3).fill(notice).join(" "))).toBe("provider_unavailable");
+  });
+
+  it("does not match repeats mixed with other text or beyond the bounds", () => {
+    expect(isRetiredModelNotice(`${notice} ${notice}\nThen I fixed the build.`)).toBe(false);
+    expect(isRetiredModelNotice(`Summary: ${notice} ${notice} and more`)).toBe(false);
+    expect(isRetiredModelNotice(`${notice}\n${notice}\nThe v1 endpoint is no longer available. Switch to v2.`)).toBe(
+      false,
+    );
+    expect(isRetiredModelNotice(`${notice} ${"x".repeat(200)}`)).toBe(false);
+    expect(isRetiredModelNotice(Array(80).fill(notice).join(" "))).toBe(false);
+    expect(isRetiredModelNotice(`${notice}${notice}`)).toBe(false);
+    expect(isRetiredModelNotice("  ")).toBe(false);
+  });
+});

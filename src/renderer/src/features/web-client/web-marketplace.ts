@@ -101,6 +101,9 @@ export function createWebMarketplaceCalls(
       if (protocol !== "https:" && protocol !== "http:") {
         throw new Error(currentText().t("webClient.error.linkBlocked"));
       }
+      // The WhatsApp panel address is not a web page. Only the desktop app opens that panel, as a modal.
+      if (URL.parse(url)?.hostname === "opencat.invalid")
+        throw new Error(currentText().t("webClient.error.linkBlocked"));
       window.open(url, "_blank", "noopener");
     },
   };

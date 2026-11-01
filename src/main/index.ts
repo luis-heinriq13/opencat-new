@@ -119,7 +119,7 @@ import {
 } from "./main-window";
 import { ensureMacApplicationPresence, secondLaunchResponse } from "./main-window-state";
 import { MessageLinkRelay, openHttpLink } from "./message-link-relay";
-import { installBundledApps } from "./opencat-bundled-apps";
+import { installBundledApps, startWhatsCatBridgeSupervisor } from "./opencat-bundled-apps";
 import { startMainLog } from "./provider-log";
 import { watchRemoteHostDirectory } from "./remote-server-host-directory";
 import { createRendererForwarders } from "./renderer-forwarders";
@@ -1161,9 +1161,9 @@ if (!hasSingleInstanceLock) {
     .then(async () => {
       // Startup marks for `dev:bench`, which reads them over the inspector. They change nothing.
       performance.mark("openbot:when-ready");
-      void installBundledApps().catch((error: unknown) =>
-        logger.warn("Unable to install the bundled apps:", toLogValue(error)),
-      );
+      void installBundledApps()
+        .then(startWhatsCatBridgeSupervisor)
+        .catch((error: unknown) => logger.warn("Unable to install the bundled apps:", toLogValue(error)));
       // Set the Dock icon before `dock.show()` below. A development build runs the stock Electron.app,
       // so until this call its Dock tile shows the Electron logo.
       if (process.platform === "darwin" && !localServerChild) app.dock?.setIcon(appIconPath);

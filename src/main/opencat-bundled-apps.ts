@@ -1,7 +1,7 @@
 // OpenCat: the WhatsApp servers that ship with the app. A store listing names a command in the home
 // folder, because a listing cannot know where the app is installed, so startup copies them there.
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { type ChildProcess, type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { chmod, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -15,8 +15,15 @@ const INSTALL_DIRECTORY = join(homedir(), ".opencat", "whatscat");
  * Raise this when a file in tools/whatscat changes without an app version change: the installed copy
  * refreshes only when the stamp differs, so an older panel would otherwise stay in the home folder.
  */
-const BUNDLE_REVISION = 2;
+const BUNDLE_REVISION = 3;
 const PANEL_START_TIMEOUT_MS = 30_000;
+/** Same folder the scripts use: WHATSCAT_DATA_DIR, or the default under Application Support. */
+const DATA_DIRECTORY =
+  process.env.WHATSCAT_DATA_DIR || join(homedir(), "Library", "Application Support", "OpenCat-WhatsCat");
+const BRIDGE_CHECK_MS = 30_000;
+const BRIDGE_RESTART_MIN_MS = 2_000;
+const BRIDGE_RESTART_MAX_MS = 60_000;
+const BRIDGE_HEALTHY_MS = 60_000;
 
 export async function installBundledApps(): Promise<void> {
   const source = join(process.resourcesPath, "whatscat");
@@ -36,15 +43,20 @@ export async function installBundledApps(): Promise<void> {
 }
 
 let panelWindow: BrowserWindow | null = null;
+let panelOpening: Promise<void> | null = null;
+
+function scriptEnvironment(): NodeJS.ProcessEnv {
+  return { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? ""}` };
+}
 
 function startPanel(): Promise<{ url: string; child: ChildProcessWithoutNullStreams }> {
   return new Promise((resolve, reject) => {
     const child = spawn("node", [join(INSTALL_DIRECTORY, "whatscat-mcp.mjs"), "--panel"], {
-      env: { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? ""}` },
+      env: scriptEnvironment(),
     });
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error("O painel do WhatsCat não abriu a tempo."));
+      reject(new Error("O painel do WhatsApp (não oficial) não abriu a tempo."));
     }, PANEL_START_TIMEOUT_MS);
     let output = "";
     child.stdout.on("data", (chunk) => {
@@ -61,35 +73,138 @@ function startPanel(): Promise<{ url: string; child: ChildProcessWithoutNullStre
     });
     child.on("exit", () => {
       clearTimeout(timer);
-      reject(new Error("O painel do WhatsCat fechou ao iniciar. Confira se o Node.js está instalado."));
+      reject(new Error("O painel do WhatsApp (não oficial) fechou ao iniciar. Confira se o Node.js está instalado."));
     });
   });
 }
 
-/** A window of this app, with no access to the app's own bridge. It closes with the panel process. */
-export async function openWhatsCatPanel(): Promise<void> {
-  if (panelWindow && !panelWindow.isDestroyed()) {
-    panelWindow.focus();
-    return;
+/** Whether the user turned the bridge on in opencat-ponte.json. Any doubt means off. */
+function bridgeEnabled(): boolean {
+  try {
+    const config = JSON.parse(readFileSync(join(DATA_DIRECTORY, "opencat-ponte.json"), "utf8"));
+    return config?.enabled === true && typeof config.agentId === "string" && config.agentId.length > 0;
+  } catch {
+    return false;
   }
+}
+
+let bridgeChild: ChildProcess | null = null;
+let bridgeTimer: ReturnType<typeof setInterval> | null = null;
+let bridgeRestart: ReturnType<typeof setTimeout> | null = null;
+let bridgeFailures = 0;
+let bridgeStopping = false;
+
+function launchBridge(): void {
+  const script = join(INSTALL_DIRECTORY, "whatscat-mcp.mjs");
+  if (bridgeStopping || bridgeChild || bridgeRestart || !existsSync(script)) return;
+  const startedAt = Date.now();
+  // The child has no window. Its stdin is the lifeline: it exits when this process closes the pipe.
+  const child = spawn("node", [script, "--bridge"], { env: scriptEnvironment(), stdio: ["pipe", "ignore", "ignore"] });
+  bridgeChild = child;
+  const ended = () => {
+    if (bridgeChild !== child) return;
+    bridgeChild = null;
+    if (bridgeStopping || !bridgeEnabled()) return;
+    bridgeFailures = Date.now() - startedAt > BRIDGE_HEALTHY_MS ? 0 : bridgeFailures + 1;
+    const wait = Math.min(BRIDGE_RESTART_MAX_MS, BRIDGE_RESTART_MIN_MS * 2 ** Math.min(bridgeFailures, 6));
+    bridgeRestart = setTimeout(() => {
+      bridgeRestart = null;
+      if (bridgeEnabled()) launchBridge();
+    }, wait);
+  };
+  child.on("error", ended);
+  child.on("exit", ended);
+}
+
+function checkBridge(): void {
+  if (bridgeStopping) return;
+  if (bridgeEnabled()) launchBridge();
+  else stopBridgeProcess();
+}
+
+function stopBridgeProcess(): void {
+  if (bridgeRestart) clearTimeout(bridgeRestart);
+  bridgeRestart = null;
+  const child = bridgeChild;
+  bridgeChild = null;
+  child?.stdin?.end();
+  child?.kill();
+}
+
+/**
+ * Runs the WhatsApp bridge while the app is open, only when opencat-ponte.json has `enabled: true`.
+ * One child process at a time, no window, restarted with a growing wait if it crashes, stopped when
+ * the app quits or the file turns the bridge off. Safe to call again.
+ */
+export function startWhatsCatBridgeSupervisor(): void {
+  if (bridgeTimer) return;
+  bridgeStopping = false;
+  checkBridge();
+  bridgeTimer = setInterval(checkBridge, BRIDGE_CHECK_MS);
+  app.once("before-quit", () => {
+    bridgeStopping = true;
+    if (bridgeTimer) clearInterval(bridgeTimer);
+    bridgeTimer = null;
+    stopBridgeProcess();
+  });
+}
+
+/** Opens the panel as a modal of `parent`, or alone when there is no window to hold it. One panel at a time. */
+export function openWhatsCatPanel(parent: BrowserWindow | null): Promise<void> {
+  if (panelWindow && !panelWindow.isDestroyed()) {
+    if (panelWindow.isMinimized()) panelWindow.restore();
+    panelWindow.show();
+    panelWindow.focus();
+    return Promise.resolve();
+  }
+  panelOpening ??= createPanel(parent).finally(() => {
+    panelOpening = null;
+  });
+  return panelOpening;
+}
+
+async function createPanel(parent: BrowserWindow | null): Promise<void> {
   const { url, child } = await startPanel();
+  const origin = new URL(url).origin;
+  const allowed = (target: string): boolean => {
+    try {
+      const next = new URL(target);
+      return next.origin === origin && next.pathname.startsWith(new URL(url).pathname);
+    } catch {
+      return false;
+    }
+  };
+  const holder = parent && !parent.isDestroyed() ? parent : undefined;
   const window = new BrowserWindow({
-    width: 560,
-    height: 760,
-    title: "WhatsCat",
+    width: 680,
+    height: 820,
+    minWidth: 480,
+    minHeight: 520,
+    title: "WhatsApp (não oficial)",
+    show: false,
+    ...(holder ? { parent: holder, modal: true } : {}),
+    minimizable: !holder,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   panelWindow = window;
+  window.once("ready-to-show", () => window.show());
   window.webContents.setWindowOpenHandler(({ url: target }) => {
     if (target.startsWith("https://")) void shell.openExternal(target);
     return { action: "deny" };
   });
-  window.webContents.on("will-navigate", (event, target) => {
-    if (!target.startsWith(url)) event.preventDefault();
-  });
+  const block = (event: { preventDefault: () => void }, target: string) => {
+    if (!allowed(target)) event.preventDefault();
+  };
+  window.webContents.on("will-navigate", block);
+  window.webContents.on("will-redirect", block);
   window.on("closed", () => {
     panelWindow = null;
     child.kill();
   });
-  await window.loadURL(url);
+  try {
+    await window.loadURL(url);
+  } catch (error) {
+    if (!window.isDestroyed()) window.destroy();
+    throw error;
+  }
 }

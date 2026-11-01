@@ -199,14 +199,47 @@ const STRUCTURED_CAUSES: Readonly<Record<string, CauseCode>> = {
 const RETIRED_MODEL_NOTICE =
   /^\s*(?:[A-Za-z]*Error:\s*)*(?=(?:[^\n.]|\.(?=\S)){0,100}\b(?:model|gemini|gpt|claude|codex|flash|opus|sonnet|haiku|llama|grok|o[1-9])\b)(?:[^\n.]|\.(?=\S)){1,100}?\bis no longer available\b[.!]?\s+(?:please\s+)?(?:switch|migrate|upgrade|move) to\b[^\n]{1,160}$/iu;
 
+/** One notice that may repeat. It ends at a sentence end or at the end of its line, so the next one can follow. */
+const RETIRED_MODEL_NOTICE_UNIT =
+  /\s*(?:[A-Za-z]*Error:\s*)*(?=(?:[^\n.]|\.(?=\S)){0,100}\b(?:model|gemini|gpt|claude|codex|flash|opus|sonnet|haiku|llama|grok|o[1-9])\b)(?:[^\n.]|\.(?=\S)){1,100}?\bis no longer available\b[.!]?\s+(?:please\s+)?(?:switch|migrate|upgrade|move) to\b(?:[^\n.!]|[.!](?=\S)){1,160}(?:[.!](?=\s|$)|(?=\n|$))/iuy;
+const RETIRED_MODEL_NOTICE_LIMIT = 300;
+const RETIRED_MODEL_NOTICES_LIMIT = 8_000;
+
 /**
  * Whether a message is only a provider's retirement notice for a model, such as "Gemini 3.5 Flash is
  * no longer available. Please switch to Gemini 3.7 Flash." The whole message must be the notice and
- * it must be short, so an answer that only mentions the phrase does not match.
+ * it must be short, so an answer that only mentions the phrase does not match. A provider can repeat
+ * the same notice in one message, split by spaces or newlines; each repeat keeps the per-notice bound.
  */
 export function isRetiredModelNotice(message: string): boolean {
-  return message.length <= 300 && RETIRED_MODEL_NOTICE.test(message);
+  if (message.length <= RETIRED_MODEL_NOTICE_LIMIT && RETIRED_MODEL_NOTICE.test(message)) return true;
+  if (message.length > RETIRED_MODEL_NOTICES_LIMIT) return false;
+  const unit = new RegExp(RETIRED_MODEL_NOTICE_UNIT.source, RETIRED_MODEL_NOTICE_UNIT.flags);
+  let at = 0;
+  let count = 0;
+  while (at < message.length) {
+    unit.lastIndex = at;
+    const match = unit.exec(message);
+    if (!match || match[0].trim().length > RETIRED_MODEL_NOTICE_LIMIT) return false;
+    count += 1;
+    at = unit.lastIndex;
+    at += /^\s*/u.exec(message.slice(at))?.[0].length ?? 0;
+  }
+  return count > 0;
 }
+
+/**
+ * The provider errors that move an agent set to switch without asking to its next backup model. Each
+ * one can pass on another provider, account or model; a request the model refuses fails on each.
+ */
+export const FAILOVER_CAUSES: ReadonlySet<CauseCode> = new Set([
+  "billing",
+  "provider_unavailable",
+  "rate_limit",
+  "authentication",
+  "network",
+  "timeout",
+]);
 
 export function classifyFailure(error: unknown): CauseCode {
   const record = isDynamicRecord(error) ? error : undefined;

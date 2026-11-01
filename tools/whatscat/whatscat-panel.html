@@ -2,22 +2,47 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>WhatsCat</title>
+<title>WhatsApp (não oficial)</title>
 <style>
   :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
-  body { margin: 0 auto; max-width: 520px; padding: 24px; line-height: 1.45; }
+  body { margin: 0 auto; max-width: 600px; padding: 24px; line-height: 1.45; }
   h1 { font-size: 20px; margin: 0 0 4px; }
   .box { border: 1px solid #8884; border-radius: 10px; padding: 14px; margin: 14px 0; }
   .aviso { border-color: #d97706; }
+  .ok { border-color: #16a34a; }
+  details > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 8px; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸"; opacity: .6; }
+  details[open] > summary::before { content: "▾"; }
+  details.box > summary { font-weight: 600; }
+  details > .inner { margin-top: 10px; }
   #qr { background: #fff; border-radius: 8px; padding: 10px; width: 260px; margin: 10px auto; }
   button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #8886; background: transparent; cursor: pointer; }
   button.main { background: #16a34a; border-color: #16a34a; color: #fff; }
+  button.small { padding: 4px 9px; font-size: 13px; }
   button:disabled { opacity: .5; cursor: default; }
+  input[type="search"] { font: inherit; width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #8886; background: transparent; color: inherit; }
   small { opacity: .75; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+  .toolbar .count { margin-left: auto; font-size: 13px; opacity: .75; }
+  .list { max-height: 230px; overflow: auto; border: 1px solid #8883; border-radius: 8px; }
+  .item { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #8882; cursor: pointer; }
+  .item:last-child { border-bottom: 0; }
+  .item:hover { background: #8881; }
+  .item .nome { font-weight: 500; overflow-wrap: anywhere; }
+  .item .numero { margin-left: auto; font-size: 13px; opacity: .65; white-space: nowrap; }
+  .vazio { padding: 10px; font-size: 14px; opacity: .7; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 13px; border: 1px solid #8886; }
+  .badge.on { border-color: #16a34a; color: #16a34a; }
+  .badge.off { border-color: #d97706; color: #d97706; }
+  .modo { display: block; border: 1px solid #8884; border-radius: 8px; padding: 9px 12px; margin: 6px 0; cursor: pointer; }
+  .modo.atual { border-color: #16a34a; background: #16a34a14; }
+  .secao { margin-top: 12px; }
+  .secao > summary strong { font-size: 14px; }
 </style>
 </head>
 <body>
-<h1>WhatsCat</h1>
+<h1>WhatsApp (não oficial)</h1>
 <small>Seu WhatsApp nos agentes do OpenCat. Os dados ficam neste computador.</small>
 
 <div class="box aviso">
@@ -34,29 +59,69 @@
   <button type="button" id="desconectar" hidden>Desconectar</button>
 </div>
 
-<div class="box" id="escopo-box" hidden>
-  <strong>Conversas liberadas</strong>
-  <p><small id="escopo-atual">Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</small></p>
-  <div id="conversas" style="max-height:220px;overflow:auto"></div>
-  <details id="grupos-box" style="margin-top:8px">
-    <summary><strong>Grupos</strong> <small>(nenhum liberado por padrão)</small></summary>
-    <p><small>Grupos têm muita gente e muito conteúdo de terceiros. Marque só os que você quer que os agentes vejam.</small></p>
-    <div id="grupos" style="max-height:180px;overflow:auto"></div>
+<div id="conectado" hidden>
+  <input type="search" id="busca" placeholder="Buscar contato ou grupo pelo nome ou número" aria-label="Buscar contato ou grupo">
+
+  <details class="box" id="escopo-box" open>
+    <summary>Conversas liberadas aos agentes</summary>
+    <div class="inner">
+      <p><small id="escopo-atual">Os agentes só veem as conversas liberadas. Escolha as que eles podem usar.</small></p>
+      <details class="secao" open>
+        <summary><strong>Contatos</strong> <small id="escopo-contatos-total"></small></summary>
+        <div class="inner" id="escopo-contatos"></div>
+      </details>
+      <details class="secao">
+        <summary><strong>Grupos</strong> <small id="escopo-grupos-total">(nenhum liberado por padrão)</small></summary>
+        <div class="inner">
+          <p><small>Grupos têm muita gente e muito conteúdo de terceiros. Marque só os que você quer que os agentes vejam.</small></p>
+          <div id="escopo-grupos"></div>
+        </div>
+      </details>
+      <p><button type="button" id="escolhidas" class="main">Liberar as escolhidas</button> <button type="button" id="escopo">Liberar todas as conversas (sem grupos)</button></p>
+    </div>
   </details>
-  <p><button type="button" id="escolhidas" class="main">Liberar as escolhidas</button> <button type="button" id="escopo">Liberar todas as conversas (sem grupos)</button></p>
-</div>
 
-<div class="box" id="ponte-box" hidden>
-  <strong>Rascunhos de resposta</strong>
-  <p><small>A ponte está ligada. As respostas dos agentes ficam aqui e só são enviadas depois que você aprovar cada uma. Envio passa pelos mesmos limites.</small></p>
-  <div id="rascunhos"></div>
-</div>
+  <details class="box" id="ponte-box" open>
+    <summary>Atendimento pelo agente</summary>
+    <div class="inner">
+      <p>
+        <span class="badge" id="ponte-estado">Verificando…</span>
+        <span class="badge" id="ponte-modo-atual"></span>
+      </p>
+      <p><small id="ponte-ajuda"></small></p>
+      <div class="box ok" style="margin:10px 0">
+        <strong>As respostas esperam a sua aprovação.</strong>
+        <small>O agente só escreve rascunhos. Nada é enviado sozinho: cada resposta só sai depois que você clicar em "Aprovar e enviar", e passa pelos limites de envio.</small>
+      </div>
+      <label class="modo" id="modo-selected"><input type="radio" name="modo" value="selected"> <strong>Só as escolhidas</strong><br><small>O agente atende apenas os contatos que você marcar abaixo.</small></label>
+      <label class="modo" id="modo-all"><input type="radio" name="modo" value="all"> <strong>Todos os contatos, inclusive novos</strong><br><small>Todo contato, também um que escrever pela primeira vez, é atendido sem você marcar. Marque abaixo os que ficam de fora. Grupos nunca entram: escolha-os um a um.</small></label>
+      <details class="secao" open>
+        <summary><strong id="ponte-contatos-titulo">Contatos atendidos</strong> <small id="ponte-contatos-total"></small></summary>
+        <div class="inner" id="ponte-contatos"></div>
+      </details>
+      <details class="secao">
+        <summary><strong>Grupos atendidos</strong> <small id="ponte-grupos-total"></small></summary>
+        <div class="inner">
+          <p><small>Grupos são sempre escolhidos um a um, em qualquer modo.</small></p>
+          <div id="ponte-grupos"></div>
+        </div>
+      </details>
+      <p><button type="button" class="main" id="salvar-atendimento">Salvar atendimento</button> <small id="atendimento-aviso"></small></p>
+    </div>
+  </details>
 
-<div class="box" id="envio-box" hidden>
-  <strong>Envio de mensagens</strong>
-  <p><small>Começa desligado. Com ele desligado, os agentes só leem.</small></p>
-  <label><input type="checkbox" id="envio"> Permitir que os agentes enviem</label>
-  <p><small id="limites"></small></p>
+  <div class="box" id="rascunhos-box" hidden>
+    <strong>Rascunhos de resposta</strong>
+    <p><small>Respostas dos agentes aguardando a sua decisão. Nada sai sem você aprovar.</small></p>
+    <div id="rascunhos"></div>
+  </div>
+
+  <div class="box" id="envio-box" hidden>
+    <strong>Envio de mensagens</strong>
+    <p><small>Começa desligado. Com ele desligado, os agentes só leem.</small></p>
+    <label><input type="checkbox" id="envio"> Permitir que os agentes enviem</label>
+    <p><small id="limites"></small></p>
+  </div>
 </div>
 
 <p id="erro" role="alert" style="color:#dc2626"></p>
@@ -72,9 +137,97 @@
   }
   function failure(error) { $("erro").textContent = error.message; }
   const NAMES = { connected: "Conectado", disconnected: "Desconectado", linking: "Leia o QR code", connecting: "Conectando", syncing: "Sincronizando", logging_in: "Aguardando o QR code", reconnecting: "Reconectando" };
+
+  /* Lista de contatos com busca, "selecionar todos os visíveis" e "limpar". A busca é uma só para todas as listas. */
+  const pickers = [];
+  let query = "";
+  const digits = (text) => text.replace(/\D/g, "");
+  function matches(chat) {
+    const text = query.trim().toLowerCase();
+    if (!text) return true;
+    if (chat.nome.toLowerCase().includes(text)) return true;
+    const typed = digits(text);
+    return typed.length > 0 && digits(chat.numero || "").includes(typed);
+  }
+  function createPicker(host, totalLabel, onChange) {
+    const selected = new Set();
+    let chats = [];
+    const toolbar = document.createElement("div");
+    toolbar.className = "toolbar";
+    const all = document.createElement("button");
+    all.type = "button"; all.className = "small"; all.textContent = "Selecionar todos os visíveis";
+    const clear = document.createElement("button");
+    clear.type = "button"; clear.className = "small"; clear.textContent = "Limpar";
+    const count = document.createElement("span");
+    count.className = "count";
+    toolbar.append(all, clear, count);
+    const list = document.createElement("div");
+    list.className = "list";
+    host.replaceChildren(toolbar, list);
+    const visible = () => chats.filter(matches);
+    function update() {
+      count.textContent = `${selected.size} de ${chats.length} marcados`;
+      totalLabel.textContent = `(${selected.size} marcados)`;
+    }
+    function draw() {
+      const shown = visible();
+      list.replaceChildren(...shown.map((chat) => {
+        const row = document.createElement("label");
+        row.className = "item";
+        const input = document.createElement("input");
+        input.type = "checkbox"; input.value = chat.id; input.checked = selected.has(chat.id);
+        input.addEventListener("change", () => { if (input.checked) selected.add(chat.id); else selected.delete(chat.id); update(); if (onChange) onChange(); });
+        const name = document.createElement("span");
+        name.className = "nome"; name.textContent = chat.nome;
+        row.append(input, name);
+        if (chat.numero && chat.numero !== chat.nome) {
+          const number = document.createElement("small");
+          number.className = "numero"; number.textContent = chat.numero;
+          row.append(number);
+        }
+        return row;
+      }));
+      if (!shown.length) {
+        const empty = document.createElement("div");
+        empty.className = "vazio";
+        empty.textContent = chats.length ? "Nada encontrado para essa busca." : "Nenhuma conversa apareceu ainda. Aguarde a sincronização.";
+        list.replaceChildren(empty);
+      }
+      update();
+    }
+    all.addEventListener("click", () => { for (const chat of visible()) selected.add(chat.id); draw(); if (onChange) onChange(); });
+    clear.addEventListener("click", () => { selected.clear(); draw(); if (onChange) onChange(); });
+    const picker = {
+      setChats(next) { chats = next; draw(); },
+      setSelected(ids) { selected.clear(); for (const id of ids) selected.add(id); draw(); },
+      ids: () => [...selected],
+      draw,
+    };
+    pickers.push(picker);
+    draw();
+    return picker;
+  }
+
+  let dirty = false;
+  const markDirty = () => { dirty = true; $("atendimento-aviso").textContent = "Mudanças ainda não salvas."; };
+  const scopeContacts = createPicker($("escopo-contatos"), $("escopo-contatos-total"));
+  const scopeGroups = createPicker($("escopo-grupos"), $("escopo-grupos-total"));
+  const ponteContacts = createPicker($("ponte-contatos"), $("ponte-contatos-total"), markDirty);
+  const ponteGroups = createPicker($("ponte-grupos"), $("ponte-grupos-total"), markDirty);
+
+  let mode = "selected";
+  function drawMode() {
+    document.querySelectorAll("input[name=modo]").forEach((input) => { input.checked = input.value === mode; });
+    $("modo-selected").classList.toggle("atual", mode === "selected");
+    $("modo-all").classList.toggle("atual", mode === "all");
+    $("ponte-contatos-titulo").textContent = mode === "all" ? "Contatos que ficam de fora" : "Contatos atendidos";
+  }
+  for (const input of document.querySelectorAll("input[name=modo]")) input.addEventListener("change", () => { mode = input.value; drawMode(); markDirty(); });
+  $("busca").addEventListener("input", (event) => { query = event.target.value; for (const picker of pickers) picker.draw(); });
+
   async function refresh() {
     try {
-      const response = await fetch(base + "/estado");
+      const response = await fetch(`${base}/estado`);
       const state = await response.json();
       if (!response.ok) throw new Error(state.error || "Falhou.");
       $("erro").textContent = "";
@@ -86,13 +239,13 @@
       $("conectar").disabled = !$("risco").checked;
       $("desconectar").hidden = !state.conectado;
       // Sempre acessível com o WhatsApp conectado: antes, sumia assim que o modo saía de "initial".
-      $("escopo-box").hidden = !state.conectado;
+      $("conectado").hidden = !state.conectado;
       $("escopo-atual").textContent = state.escopo === "initial"
         ? "Os agentes só veem as conversas liberadas. Escolha as que eles podem usar."
         : "Você pode mudar a escolha quando quiser. Só o que estiver marcado fica liberado.";
       $("envio-box").hidden = !state.conectado || state.escopo === "initial";
       $("envio").checked = state.envio;
-      $("limites").textContent = "Usado: " + state.limites.lastHour + " de " + state.limites.perHour + " por hora, " + state.limites.lastDay + " de " + state.limites.perDay + " por dia. Há uma pausa de 20 a 40 segundos entre os envios.";
+      $("limites").textContent = `Usado: ${state.limites.lastHour} de ${state.limites.perHour} por hora, ${state.limites.lastDay} de ${state.limites.perDay} por dia. Há uma pausa de 20 a 40 segundos entre os envios.`;
     } catch (error) { failure(error); }
   }
   $("risco").addEventListener("change", refresh);
@@ -100,61 +253,98 @@
   $("desconectar").addEventListener("click", () => post("/desconectar").then(refresh, failure));
   $("escopo").addEventListener("click", () => post("/escopo-todas").then(refresh, failure));
   $("escolhidas").addEventListener("click", () => {
-    const ids = [...document.querySelectorAll("#conversas input:checked, #grupos input:checked")].map((input) => input.value);
+    const ids = [...scopeContacts.ids(), ...scopeGroups.ids()];
     post("/escopo-escolhidas", { ids }).then(refresh, failure);
   });
+  // O arquivo guarda uma lista de contatos por modo: "excluidos" no modo "all", "escolhidas" no "selected".
+  $("salvar-atendimento").addEventListener("click", () => {
+    const body = { modo: mode, grupos: ponteGroups.ids() };
+    body[mode === "all" ? "excluidos" : "escolhidas"] = ponteContacts.ids();
+    post("/ponte/atendimento", body)
+      .then(() => { dirty = false; $("atendimento-aviso").textContent = "Salvo."; return loadBridge(true); }, failure);
+  });
+
   let listed = false;
-  function addChat(target, chat) {
-    const label = document.createElement("label");
-    label.style.display = "block";
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.value = chat.id;
-    label.append(input, " " + (chat.name || chat.id));
-    target.append(label);
-  }
   async function loadChats() {
-    if (listed || $("escopo-box").hidden) return;
-    const response = await fetch(base + "/conversas");
+    if (listed || $("conectado").hidden) return;
+    const response = await fetch(`${base}/conversas`);
     const value = await response.json();
     if (!response.ok || !value.chats?.length) return;
     listed = true;
-    for (const chat of value.chats) addChat(chat.id.endsWith("@g.us") ? $("grupos") : $("conversas"), chat);
+    const byName = (a, b) => a.nome.localeCompare(b.nome, "pt-BR");
+    const people = value.chats.filter((chat) => !chat.grupo).sort(byName);
+    const groups = value.chats.filter((chat) => chat.grupo).sort(byName);
+    scopeContacts.setChats(people);
+    scopeGroups.setChats(groups);
+    ponteContacts.setChats(people);
+    ponteGroups.setChats(groups);
+    await loadBridge(true);
   }
-  async function loadDrafts() {
-    const response = await fetch(base + "/ponte");
+
+  async function loadBridge(force) {
+    if ($("conectado").hidden) return;
+    const response = await fetch(`${base}/ponte`);
     const value = await response.json();
-    $("ponte-box").hidden = !response.ok || !value.ativa;
-    if (!response.ok || !value.ativa) return;
-    $("rascunhos").replaceChildren(...value.rascunhos.filter((draft) => draft.status === "pending" || draft.status === "failed").map((draft) => {
-      const item = document.createElement("div");
-      item.className = "box";
-      const who = document.createElement("strong");
-      who.textContent = draft.conversa;
-      const text = document.createElement("p");
-      text.style.whiteSpace = "pre-wrap";
-      text.textContent = draft.texto;
-      item.append(who, text);
-      if (draft.status === "failed") {
-        const warn = document.createElement("p");
-        warn.innerHTML = "<small>O envio falhou e pode ter saído. Confira a conversa antes de tentar de novo.</small>";
-        item.append(warn);
-      } else {
-        const approve = document.createElement("button");
-        approve.className = "main";
-        approve.textContent = "Aprovar e enviar";
-        approve.addEventListener("click", () => { approve.disabled = true; post("/ponte/aprovar", { id: draft.id }).then(loadDrafts, failure); });
-        const discard = document.createElement("button");
-        discard.textContent = "Descartar";
-        discard.addEventListener("click", () => post("/ponte/descartar", { id: draft.id }).then(loadDrafts, failure));
-        item.append(approve, " ", discard);
-      }
-      return item;
-    }));
+    if (!response.ok) return;
+    const badge = $("ponte-estado");
+    badge.className = `badge ${value.rodando ? "on" : "off"}`;
+    badge.textContent = !value.ativa ? "Ponte desligada" : value.rodando ? "Ponte rodando em segundo plano" : "Ponte ligada, mas parada";
+    $("ponte-ajuda").textContent = !value.ativa
+      ? 'Para ligar, ponha "enabled": true e o agente em opencat-ponte.json (veja a documentação). Ligada, ela roda enquanto o OpenCat estiver aberto, mesmo com este painel fechado.'
+      : value.rodando
+        ? "Ela segue lendo as mensagens e criando rascunhos enquanto o OpenCat estiver aberto, mesmo com este painel fechado."
+        : "Ela inicia sozinha com o OpenCat aberto e volta se cair. Se continuar parada, confira se o Node.js está instalado.";
+    // Não apaga o que a pessoa está editando: só carrega do arquivo enquanto não houver mudança pendente.
+    if (force === true || !dirty) {
+      mode = value.modo;
+      ponteContacts.setSelected(mode === "all" ? value.excluidos : value.escolhidas);
+      ponteGroups.setSelected(value.grupos);
+      drawMode();
+    }
+    $("ponte-modo-atual").textContent = value.modo === "all"
+      ? `Modo atual: todos os contatos, inclusive novos (${value.excluidos.length} de fora)`
+      : `Modo atual: só as escolhidas (${value.escolhidas.length})`;
+    $("ponte-modo-atual").className = `badge ${value.ativa ? "on" : "off"}`;
+    $("rascunhos-box").hidden = !value.ativa;
+    if (!value.ativa) return;
+    const pending = value.rascunhos.filter((draft) => draft.status === "pending" || draft.status === "failed");
+    $("rascunhos").replaceChildren(...(pending.length ? pending.map(draftItem) : [note("Nenhum rascunho esperando.")]));
   }
-  setInterval(() => loadDrafts().catch(failure), 4000);
+  function note(text) {
+    const small = document.createElement("small");
+    small.textContent = text;
+    return small;
+  }
+  function draftItem(draft) {
+    const item = document.createElement("div");
+    item.className = "box";
+    const who = document.createElement("strong");
+    who.textContent = draft.conversa;
+    const text = document.createElement("p");
+    text.style.whiteSpace = "pre-wrap";
+    text.textContent = draft.texto;
+    item.append(who, text);
+    if (draft.status === "failed") {
+      item.append(note("O envio falhou e pode ter saído. Confira a conversa antes de tentar de novo."));
+    } else {
+      const waiting = note("Aguardando a sua aprovação. Ainda não foi enviado.");
+      waiting.style.display = "block";
+      waiting.style.marginBottom = "8px";
+      const approve = document.createElement("button");
+      approve.className = "main";
+      approve.textContent = "Aprovar e enviar";
+      approve.addEventListener("click", () => { approve.disabled = true; post("/ponte/aprovar", { id: draft.id }).then(() => loadBridge(), failure); });
+      const discard = document.createElement("button");
+      discard.textContent = "Descartar";
+      discard.addEventListener("click", () => post("/ponte/descartar", { id: draft.id }).then(() => loadBridge(), failure));
+      item.append(waiting, approve, " ", discard);
+    }
+    return item;
+  }
+  setInterval(() => loadBridge().catch(failure), 4000);
   setInterval(() => loadChats().catch(failure), 3000);
   $("envio").addEventListener("change", (event) => post("/envio", { ligado: event.target.checked }).then(refresh, failure));
+  drawMode();
   refresh();
   setInterval(refresh, 2000);
 </script>

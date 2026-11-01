@@ -3,6 +3,7 @@ export type { CauseCode, FailureProperties, NotificationMetadata, Operation, Rep
 export {
   ANALYTICS_GENERATIONS,
   classifyFailure,
+  FAILOVER_CAUSES,
   isCauseCode,
   isRetiredModelNotice,
   operationForCode,
