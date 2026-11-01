@@ -177,7 +177,7 @@ export function loadBridgeConfig(file) {
     stopWords: stopWords.length ? stopWords : DEFAULT_STOP_WORDS,
     takeoverMinutes: clampNumber(raw.takeoverMinutes, 60, 1, 1440),
     handoffMinutes: clampNumber(raw.handoffMinutes, 1440, 1, 10_080),
-    maxRepliesPerHour: clampNumber(raw.maxRepliesPerHour, 10, 1, 120),
+    maxRepliesPerHour: clampNumber(raw.maxRepliesPerHour, 30, 1, 120),
     minGapSeconds: clampNumber(raw.minGapSeconds, 20, 0, 3600),
     quietHours: quietOf(raw.quietHours),
     names: list(raw.names),
@@ -1056,7 +1056,7 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       const entry = contactOf(state, item.chatId);
       if (answer && !continuation) {
         entry.replies = entry.replies.filter((time) => now() - time < HOUR_MS);
-        if (entry.replies.length >= (config.maxRepliesPerHour ?? 10)) {
+        if (entry.replies.length >= (config.maxRepliesPerHour ?? 30)) {
           pauseContact(state, item.chatId, 60, "limite_por_hora");
           audit("limite_por_hora", { conversa: shortHash(item.chatId) });
           metric("pausada", item.chatId, { erro: "limite_por_hora" });
