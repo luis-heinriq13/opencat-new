@@ -1,8 +1,13 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { basename } from "node:path";
 import { isValidAvatarImage } from "@openbot/contracts/avatar-images";
-import { type InviteLinkOptions, type InviteLinkPayload, parseInviteUrl } from "@openbot/contracts/invite-links";
+import {
+  type InviteLinkOptions,
+  type InviteLinkPayload,
+  isDirectInviteApiUrl,
+  parseInviteUrl,
+} from "@openbot/contracts/invite-links";
 import type {
   AgentEvent,
   AgentImportPreview,
@@ -84,6 +89,7 @@ import { Deferred, Effect, Exit, Layer, Result, Scope, Semaphore } from "effect"
 import type { CentralAuthOperationError } from "./central-auth-effects";
 import { contentDispositionFileName } from "./content-disposition";
 import type { HostedServerDesktopService } from "./hosted-server-service";
+import { directMemberUsername } from "./opencat-direct-access";
 import type { PreferenceFileFailure } from "./preference-file";
 import {
   decodeAgentNotificationLevelsFromHost,
@@ -325,6 +331,7 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
     this.#inviteLinks = {
       allowLocalDevelopmentApiUrl: this.#allowLocalDevelopmentInvites,
       selfHostedApiOrigin: options.selfHostedApiOrigin,
+      allowDirectApiUrl: true,
     };
     this.#webrtcTransport = options.webrtcTransport ?? null;
     this.#getLocalHostId = options.getLocalHostId ?? (() => null);
@@ -493,7 +500,11 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
   #parseInvite(inviteUrl: string): InviteLinkPayload {
     const invite = parseInviteUrl(inviteUrl, this.#inviteLinks);
     const service = this.#inviteLinks.selfHostedApiOrigin;
-    if (service && new URL(invite.apiUrl).origin !== service) {
+    if (
+      service &&
+      new URL(invite.apiUrl).origin !== service &&
+      !isDirectInviteApiUrl(invite.apiUrl, this.#inviteLinks)
+    ) {
       throw new Error(sourceText("error.remote.inviteOtherService"));
     }
     return invite;
@@ -876,7 +887,8 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
       const transport = this.#webrtcTransport;
 
       const invite = yield* remoteDecode(() => this.#parseInvite(input.inviteUrl));
-      if (transport && !isLocalDevelopmentApi(invite.apiUrl)) {
+      const direct = isDirectInviteApiUrl(invite.apiUrl, this.#inviteLinks);
+      if (transport && !direct && !isLocalDevelopmentApi(invite.apiUrl)) {
         const preview = yield* transport.previewInvite(invite.token);
         if (preview.hostId !== invite.serverId)
           return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.remote.inviteHostMismatch")) });
@@ -923,15 +935,30 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
         return yield* remoteDecode(() => requiredServerSummary(this.list(), accepted.hostId));
       }
       const verifiedIdentity = yield* this.#client.verifyIdentity(invite.apiUrl, invite.serverId, invite.fingerprint);
-      const accountTicket = yield* this.#centralAccount
-        .createTeamAuthTicket(invite.serverId)
-        .pipe(toRemoteWorkflowError);
-      const result = yield* requestJson(invite.apiUrl, TEAM_API_ROUTES.join.account, decodeJoinResult, {
+      // OpenCat: a direct invitation has no account ticket. The session is what the member keeps, so
+      // the password is random and is not stored.
+      const directUsername = direct ? directMemberUsername(input.displayName) : null;
+      const joinRequest = directUsername
+        ? {
+            route: TEAM_API_ROUTES.join.server,
+            body: {
+              inviteToken: invite.token,
+              username: directUsername,
+              password: randomBytes(32).toString("base64url"),
+            },
+          }
+        : {
+            route: TEAM_API_ROUTES.join.account,
+            body: {
+              inviteToken: invite.token,
+              accountTicket: yield* this.#centralAccount
+                .createTeamAuthTicket(invite.serverId)
+                .pipe(toRemoteWorkflowError),
+            },
+          };
+      const result = yield* requestJson(invite.apiUrl, joinRequest.route, decodeJoinResult, {
         method: "POST",
-        body: {
-          inviteToken: invite.token,
-          accountTicket,
-        },
+        body: joinRequest.body,
         ...this.#client.requestProtocol(verifiedIdentity.compatibility),
       }).pipe(
         Effect.mapError(
@@ -950,7 +977,7 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
         apiUrl: invite.apiUrl,
         fingerprint: invite.fingerprint,
         publicKey: verifiedIdentity.publicKey,
-        username: this.#centralAccount.getEmail().trim().toLowerCase(),
+        username: directUsername ?? this.#centralAccount.getEmail().trim().toLowerCase(),
         encryptedToken: yield* remoteDecode(() => this.#store.sealToken(result.sessionToken)),
         remoteDesktopAvailable: false,
         logoVersion: verifiedIdentity.logoVersion,
@@ -1106,7 +1133,8 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
       const transport = this.#webrtcTransport;
 
       const invite = yield* remoteDecode(() => this.#parseInvite(input.inviteUrl));
-      if (transport && !isLocalDevelopmentApi(invite.apiUrl)) {
+      const direct = isDirectInviteApiUrl(invite.apiUrl, this.#inviteLinks);
+      if (transport && !direct && !isLocalDevelopmentApi(invite.apiUrl)) {
         const preview = yield* transport.previewInvite(invite.token);
         if (preview.hostId !== invite.serverId)
           return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.remote.inviteHostMismatch")) });
@@ -1147,6 +1175,7 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
         serverName: identity.serverName,
         apiHostname: new URL(invite.apiUrl).hostname,
         ...preview,
+        ...(direct ? { direct: true } : {}),
       };
     },
     (operation) => this.#owned(operation),
@@ -2238,7 +2267,8 @@ export class RemoteServerManager extends EventEmitter<RemoteServerEvents> {
       localHostId,
       isHiddenHost: (hostId) => this.#store.isHiddenHost(hostId),
       username: email.trim().toLowerCase(),
-      keepOtherTransports: this.#allowLocalDevelopmentInvites,
+      // OpenCat: a server joined by a direct invitation is not in the account directory.
+      keepOtherTransports: true,
       isThisComputer: (serverId) => this.#thisComputerServers.has(serverId),
     });
     for (const { hostId, publicKey } of pinnedKeys) transport.pinHostKey(hostId, publicKey);

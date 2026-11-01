@@ -77,6 +77,7 @@ const INVITE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
 
 /** The invite composer. `mode` picks which of `email` and `link` the panel is filling in. */
 interface InvitePanel {
+  direct: boolean;
   email: string;
   emailError: string | null;
   link: string;
@@ -128,6 +129,7 @@ export function createServerMembersSection(
       emailError: null,
       link: "",
       mode: "email",
+      direct: false,
       result: null,
       showQr: false,
       role: "member",
@@ -230,10 +232,19 @@ export function createServerMembersSection(
   const revokeInvite = createMemo(
     () => activeInvites().find((invite) => invite.id === panels.members.revokeInviteId) ?? null,
   );
+  /** OpenCat: a direct link needs no publishing, so a server without an account can invite too. */
+  const directInvite = () => local() && (panels.invite.direct || !published());
+  const invitesOpen = () => published() || directInvite();
+  createEffect(directInvite, (direct) => {
+    if (direct && untrack(() => panels.invite.mode) === "email")
+      setPanels((state) => {
+        state.invite.mode = "link";
+      });
+  });
   const canInvite = createMemo(
     () =>
       canManage() &&
-      published() &&
+      invitesOpen() &&
       !membersFull() &&
       busy() === null &&
       (panels.invite.mode !== "email" || normalizeEmailAddress(panels.invite.email) !== null),
@@ -319,7 +330,7 @@ export function createServerMembersSection(
       });
       return;
     }
-    if (!licenseChecked) {
+    if (!licenseChecked && !directInvite()) {
       const check: { full: { license: License; used: number } | null } = { full: null };
       await run("invite", async () => {
         check.full = await fullLicense(email);
@@ -334,7 +345,12 @@ export function createServerMembersSection(
     const role = panels.invite.role;
     const permanent = panels.invite.mode === "perma";
     const saved = await run("invite", async () => {
-      result = await props.onCreateInvite({ role, ...(email ? { email } : {}), ...(permanent ? { permanent } : {}) });
+      result = await props.onCreateInvite({
+        role,
+        ...(email ? { email } : {}),
+        ...(permanent ? { permanent } : {}),
+        ...(directInvite() ? { direct: true } : {}),
+      });
     });
     if (!saved || !result) return;
     const created = result;
@@ -525,7 +541,9 @@ export function createServerMembersSection(
           description={t("server.invite.description")}
           actions={
             <SlidingTabs.List aria-label={t("server.invite.method")}>
-              <SlidingTabs.Trigger value="email">{t("server.invite.email")}</SlidingTabs.Trigger>
+              <Show when={!directInvite()}>
+                <SlidingTabs.Trigger value="email">{t("server.invite.email")}</SlidingTabs.Trigger>
+              </Show>
               <SlidingTabs.Trigger value="link">{t("server.invite.link")}</SlidingTabs.Trigger>
               <Show when={permanentSupported()}>
                 <SlidingTabs.Trigger value="perma">{t("server.invite.permaLink")}</SlidingTabs.Trigger>
@@ -534,6 +552,20 @@ export function createServerMembersSection(
           }
         >
           <Card class="server-settings-invite-card">
+            <Show when={local()}>
+              <SwitchField
+                size="default"
+                checked={directInvite()}
+                disabled={!published() || Boolean(busy())}
+                onChange={(value) =>
+                  setPanels((state) => {
+                    state.invite.direct = value;
+                  })
+                }
+                label={t("server.invite.direct")}
+                description={t("server.invite.directHint")}
+              />
+            </Show>
             <div class="server-settings-invite-composer">
               <SlidingTabs.ContentSlot>
                 <SlidingTabs.Content value="email" class="server-settings-invite-mode-panel">
@@ -596,7 +628,7 @@ export function createServerMembersSection(
               <Select<InviteRole>
                 options={ROLE_OPTIONS}
                 value={panels.invite.role}
-                disabled={!published()}
+                disabled={!invitesOpen()}
                 placement="bottom-end"
                 onChange={(value) =>
                   value &&

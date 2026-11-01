@@ -468,6 +468,11 @@ export const messages = defineMessages("server", {
   "server.invite.privateLink": "Private invitation link",
   "server.invite.role": "Invitation role",
   "server.invite.send": "Send invite",
+  "server.invite.direct": "Direct link, without the account service",
+  "server.invite.directHint":
+    "The person connects straight to this computer through an encrypted tunnel, while this computer is on. The address changes when OpenCat restarts, unless you set a fixed address.",
+  "server.join.directName": "Your name",
+  "server.join.directNamePlaceholder": "How the team sees you",
   "server.invite.createLink": "Create link",
   "server.invite.createNewLinkLabel": "Create new invitation link",
   "server.invite.createNewLink": "Create new link",

@@ -59,6 +59,8 @@ export interface InviteLinkOptions {
    * own configuration goes here, never one read from an invitation.
    */
   selfHostedApiOrigin?: string | undefined;
+  /** OpenCat: an HTTPS address that a direct invitation names. The server proves its key before the join. */
+  allowDirectApiUrl?: boolean;
 }
 
 /**
@@ -169,6 +171,15 @@ export function parseInviteUrl(value: string, options: InviteLinkOptions = {}): 
   return payload;
 }
 
+/**
+ * OpenCat: whether an invitation reaches its server directly rather than through the account service.
+ * A self-hosted account service and a local development host keep their own paths.
+ */
+export function isDirectInviteApiUrl(apiUrl: string, options: InviteLinkOptions = {}): boolean {
+  const url = new URL(apiUrl);
+  return url.protocol === "https:" && url.origin !== OPENBOT_CONTROL_PLANE_ORIGIN && !isSelfHostedApiUrl(url, options);
+}
+
 export function isValidRemoteApiUrl(value: string, options: InviteLinkOptions = {}): boolean {
   try {
     const url = new URL(value);
@@ -184,6 +195,7 @@ export function isValidRemoteApiUrl(value: string, options: InviteLinkOptions = 
       url.search === "" &&
       url.hash === "" &&
       (localDevelopmentApi ||
+        (options.allowDirectApiUrl === true && url.protocol === "https:") ||
         isSelfHostedApiUrl(url, options) ||
         (url.protocol === "https:" &&
           url.port === "" &&

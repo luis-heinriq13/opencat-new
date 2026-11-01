@@ -84,6 +84,9 @@ export function parseJoinServer(value: unknown): JoinServerInput {
   if (!isObject(value)) throw new Error("Invitation details are required.");
   return {
     inviteUrl: requireString(value.inviteUrl, "inviteUrl", INPUT_LIMITS.inviteUrl),
+    ...(isString(value.displayName) && value.displayName.trim()
+      ? { displayName: value.displayName.trim().slice(0, 64) }
+      : {}),
   };
 }
 
@@ -119,8 +122,12 @@ export function parseCreateTeamInvite(value: unknown): CreateTeamInviteInput {
   if (value.permanent !== undefined && !isBoolean(value.permanent)) {
     throw new Error("Invalid permanent invitation flag.");
   }
+  if (value.direct !== undefined && !isBoolean(value.direct)) {
+    throw new Error("Invalid direct invitation flag.");
+  }
   return {
     role: value.role,
+    ...(value.direct ? { direct: true } : {}),
     ...(value.email?.trim() ? { email: value.email.trim() } : {}),
     ...(value.permanent === true ? { permanent: true as const } : {}),
   };

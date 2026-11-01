@@ -61,7 +61,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   const current = (): PageRailPage | null => {
     const page = windowPage.page();
     if (page === "agents") return layout.sidebarView();
-    return page === "server-settings" ? null : page;
+    return page === "server-settings" || page === "bulletin" ? null : page;
   };
   return (
     <PageRail

@@ -404,6 +404,11 @@ export const messages = {
   "server.invite.privateLink": "Link de convite privado",
   "server.invite.role": "Função do convite",
   "server.invite.send": "Enviar convite",
+  "server.invite.direct": "Link direto, sem o serviço de conta",
+  "server.invite.directHint":
+    "A pessoa conecta direto neste computador por um túnel criptografado, enquanto ele estiver ligado. O endereço muda quando o OpenCat reinicia, a não ser que você defina um endereço fixo.",
+  "server.join.directName": "Seu nome",
+  "server.join.directNamePlaceholder": "Como a equipe vê você",
   "server.invite.createLink": "Criar link",
   "server.invite.createNewLinkLabel": "Criar novo link de convite",
   "server.invite.createNewLink": "Criar novo link",

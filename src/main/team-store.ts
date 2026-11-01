@@ -70,6 +70,7 @@ class TeamStoreFiles extends Context.Service<
 const scrypt = promisify(scryptCallback);
 const INVITE_TTL_MS = 24 * 60 * 60 * 1_000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+const DIRECT_SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1_000;
 
 export class TeamStoreError extends Schema.TaggedError<TeamStoreError>()("TeamStoreError", { message: Schema.String }) {
   constructor(message = "") {
@@ -973,7 +974,8 @@ export class TeamStore {
         member.disabled = remote.status !== "active";
       }
       for (const member of state.members) {
-        if (member.role !== "owner" && !remoteIds.has(member.id)) member.disabled = true;
+        // OpenCat: a direct member has its own password, and the account directory never lists it.
+        if (member.role !== "owner" && !member.passwordHash && !remoteIds.has(member.id)) member.disabled = true;
       }
       const activeRoles = new Map(
         remoteMembers
@@ -1032,6 +1034,29 @@ export class TeamStore {
   getMember(memberId: string): TeamMemberSummary | null {
     const member = this.#state?.members.find((candidate) => candidate.id === memberId);
     return member ? publicMember(member) : null;
+  }
+
+  /** OpenCat: the members that joined with a direct invitation. The account directory does not list them. */
+  listDirectMembers(): ReturnType<TeamStore["listMembers"]> {
+    const direct = new Set(
+      this.#requireState()
+        .members.filter((member) => member.role !== "owner" && member.passwordHash)
+        .map((member) => member.id),
+    );
+    return this.listMembers().filter((member) => direct.has(member.id));
+  }
+
+  /** OpenCat: whether a direct member or an open invitation in this file still needs the direct address. */
+  needsDirectAccess(): boolean {
+    const state = this.#state;
+    if (!state) return false;
+    const now = Date.now();
+    return (
+      state.members.some((member) => member.role !== "owner" && member.passwordHash && !member.disabled) ||
+      state.invites.some(
+        (invite) => (invite.permanent === true || invite.usedAt === null) && Date.parse(invite.expiresAt) > now,
+      )
+    );
   }
 
   listInvites(): TeamInviteSummary[] {
@@ -1462,7 +1487,10 @@ export class TeamStore {
       state.sessions = state.sessions.filter((session) => !removedIds.has(session.id));
     }
     const sessionToken = randomBytes(32).toString("base64url");
-    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+    // OpenCat: a direct member has no account to sign in again with. The owner removes the member to end it.
+    const sessionExpiresAt = new Date(
+      Date.now() + (member.passwordHash ? DIRECT_SESSION_TTL_MS : SESSION_TTL_MS),
+    ).toISOString();
     state.sessions.push({
       id: randomUUID(),
       memberId: member.id,

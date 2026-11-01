@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { dirname, join } from "node:path";
 import type { HostKeyHandover } from "@openbot/contracts/host-key-handover";
-import { createInviteUrl, selfHostedApiOrigin } from "@openbot/contracts/invite-links";
+import { createInviteUrl, createOpenBotInviteUrl, selfHostedApiOrigin } from "@openbot/contracts/invite-links";
 import type {
   AgentEvent,
   AgentTaskReadState,
@@ -53,6 +53,7 @@ import { type AgentNotificationLevelStore, OWNER_NOTIFICATION_KEY } from "./agen
 import { BrowserViewGateway } from "./browser-view-gateway";
 import type { RemoteHostTicketHome, VerifiedRemoteSessionTicket } from "./central-auth-manager";
 import { LiveActivityPushService, LiveActivitySendFailure } from "./live-activity-push";
+import { DirectAccess } from "./opencat-direct-access";
 import type { PushNotificationStore } from "./push-notification-store";
 import {
   type NotificationRelayRequest,
@@ -242,6 +243,7 @@ class HostApiRuntime extends Context.Service<
 >()("openbot/main/HostApiRuntime") {}
 
 export class HostService extends EventEmitter<HostEvents> {
+  readonly #directAccess: DirectAccess | null;
   readonly #options: Required<Pick<HostServiceOptions, "localDevelopmentHost">> &
     Omit<HostServiceOptions, "localDevelopmentHost">;
   readonly #api: TeamApiServer;
@@ -399,6 +401,7 @@ export class HostService extends EventEmitter<HostEvents> {
             logger,
           })
         : undefined;
+    this.#directAccess = options.localDevelopmentHost ? null : new DirectAccess(() => this.#api.port);
     this.#api = new TeamApiServer({
       appVersion: options.appVersion,
       store: options.store,
@@ -1124,16 +1127,19 @@ export class HostService extends EventEmitter<HostEvents> {
         // Recording the directory is a write, and the switch can land during it. The names,
         // addresses and roles below are the previous account's if it did.
         if (!this.#isActiveHost(hostId)) return this.#options.store.listMembers();
-        return members.map((member) => ({
-          id: member.membershipId,
-          username: member.email,
-          email: member.email,
-          name: member.name,
-          avatarUrl: member.avatarUrl,
-          role: member.role,
-          createdAt: new Date(member.createdAt).toISOString(),
-          disabled: member.status !== "active",
-        }));
+        return [
+          ...members.map((member) => ({
+            id: member.membershipId,
+            username: member.email,
+            email: member.email,
+            name: member.name,
+            avatarUrl: member.avatarUrl,
+            role: member.role,
+            createdAt: new Date(member.createdAt).toISOString(),
+            disabled: member.status !== "active",
+          })),
+          ...this.#options.store.listDirectMembers(),
+        ];
       }
       return this.#options.store.listMembers();
     },
@@ -1263,7 +1269,8 @@ export class HostService extends EventEmitter<HostEvents> {
         // account's invitations, their email addresses included. Answer with the now-active
         // host's own rather than handing them to whoever is signed in.
         if (!this.#isActiveHost(hostId)) return this.#options.store.listInvites();
-        return invites
+        const direct = this.#options.store.listInvites();
+        const remote = invites
           .filter((invite) => invite.revokedAt === null)
           .map((invite) => ({
             id: invite.inviteId,
@@ -1274,6 +1281,7 @@ export class HostService extends EventEmitter<HostEvents> {
             permanent: invite.permanent,
             useCount: invite.useCount,
           }));
+        return [...remote, ...direct];
       }
       return this.#options.store.listInvites();
     },
@@ -1293,8 +1301,11 @@ export class HostService extends EventEmitter<HostEvents> {
       const optionalUpdateRemoteMember = this.#options.updateRemoteMember;
       const optionalRemoveRemoteMember = this.#options.removeRemoteMember;
       const hostId = this.#options.store.getIdentity()?.serverId;
+      const directMember =
+        hostId !== undefined && this.#options.store.listDirectMembers().some((member) => member.id === input.memberId);
       if (
         hostId &&
+        !directMember &&
         this.#usesAccountDirectory() &&
         optionalUpdateRemoteMember &&
         optionalRemoveRemoteMember &&
@@ -1355,7 +1366,8 @@ export class HostService extends EventEmitter<HostEvents> {
       const optionalListRemoteMembers = this.#options.listRemoteMembers;
       const optionalRemoveRemoteMember = this.#options.removeRemoteMember;
       const hostId = this.#options.store.getIdentity()?.serverId;
-      if (hostId && this.#usesAccountDirectory() && optionalRemoveRemoteMember) {
+      const directMember = this.#options.store.listDirectMembers().some((member) => member.id === memberId);
+      if (hostId && !directMember && this.#usesAccountDirectory() && optionalRemoveRemoteMember) {
         yield* optionalRemoveRemoteMember(hostId, memberId);
         if (optionalListRemoteMembers) {
           const members = yield* optionalListRemoteMembers(hostId);
@@ -1367,6 +1379,7 @@ export class HostService extends EventEmitter<HostEvents> {
         return;
       }
       yield* this.#options.store.removeMember(memberId);
+      this.#syncDirectAccess();
       if (hostId) yield* this.#forgetMemberRoles(hostId, memberId);
       yield* this.#forgetNotificationLevels(memberId);
       yield* this.#remoteScreen.revokeMember(memberId);
@@ -1502,8 +1515,74 @@ export class HostService extends EventEmitter<HostEvents> {
    * them in its own team file, so every read and write of them goes where the others went.
    */
   #usesAccountDirectory(): boolean {
-    return !this.#options.localDevelopmentHost;
+    if (this.#options.localDevelopmentHost) return false;
+    // OpenCat: with no account, the account service knows nothing of this host.
+    try {
+      return !this.#options.getSignedInUser().id.startsWith("local-");
+    } catch {
+      return true;
+    }
   }
+
+  /** OpenCat: keeps the direct address running only while a member or an open invitation needs it. */
+  #syncDirectAccess(): void {
+    if (!this.#directAccess) return;
+    if (!this.#options.store.needsDirectAccess()) {
+      this.#directAccess.stop();
+      return;
+    }
+    void this.#directAccess.ensure().catch(() => undefined);
+  }
+
+  /** OpenCat: at launch, the direct members of this host reach it again. */
+  readonly resumeDirectAccess = Effect.fn("HostService.resumeDirectAccess")(
+    function* (this: HostService): Effect.fn.Return<void, RemoteWorkflowError> {
+      if (!this.#directAccess || !this.#options.store.needsDirectAccess()) return;
+      yield* this.#api.start();
+      this.#syncDirectAccess();
+    },
+    (operation) => this.#provide(operation),
+  ).bind(this);
+
+  /** OpenCat: an invitation that this host answers itself, at an address that needs no account service. */
+  readonly #createDirectInvite = Effect.fn("HostService.createDirectInvite")(function* (
+    this: HostService,
+    input: CreateTeamInviteInput,
+    identity: NonNullable<ReturnType<TeamStore["getIdentity"]>>,
+  ): Effect.fn.Return<InviteSummary, RemoteWorkflowError> {
+    if (input.email)
+      return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.remote.selfHostedInviteNoEmail")) });
+    const access = this.#directAccess;
+    if (!access)
+      return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.host.publishBeforeInvite")) });
+    yield* this.#api.start();
+    const apiUrl = yield* Effect.tryPromise({
+      try: () => access.ensure(),
+      catch: (cause) => new RemoteWorkflowError({ cause }),
+    });
+    const invite = yield* this.#options.store.createInvite(
+      input.role,
+      undefined,
+      input.permanent === undefined ? {} : { permanent: input.permanent },
+    );
+    const inviteUrl = yield* remoteDecode(() =>
+      createOpenBotInviteUrl(
+        { apiUrl: `${apiUrl}/`, serverId: identity.serverId, fingerprint: identity.fingerprint, token: invite.token },
+        { allowDirectApiUrl: true },
+      ),
+    );
+    const result: InviteSummary = {
+      id: invite.id,
+      role: input.role,
+      expiresAt: invite.expiresAt,
+      usedAt: null,
+      inviteUrl,
+      email: null,
+      permanent: invite.permanent,
+      useCount: invite.useCount,
+    };
+    return result;
+  });
 
   /** The account directory that holds invitations, or `null` for this machine's own team file. */
   #remoteInviteApiUrl(): string | null {
@@ -1511,9 +1590,12 @@ export class HostService extends EventEmitter<HostEvents> {
   }
 
   revokeInvite(inviteId: string) {
-    if (this.#remoteInviteApiUrl() && this.#options.revokeRemoteInvite)
+    const direct = this.#options.store.listInvites().some((invite) => invite.id === inviteId);
+    if (!direct && this.#remoteInviteApiUrl() && this.#options.revokeRemoteInvite)
       return this.#options.revokeRemoteInvite(inviteId);
-    return this.#options.store.revokeInvite(inviteId);
+    return this.#options.store
+      .revokeInvite(inviteId)
+      .pipe(Effect.tap(() => Effect.sync(() => this.#syncDirectAccess())));
   }
 
   readonly createInvite = Effect.fn("HostService.createInvite")(
@@ -1523,6 +1605,9 @@ export class HostService extends EventEmitter<HostEvents> {
       const identity = this.#options.store.getIdentity();
       if (!identity)
         return yield* new RemoteWorkflowError({ cause: new Error(sourceText("error.host.nameBeforePublish")) });
+      if (input.direct || !this.#usesAccountDirectory()) {
+        if (!this.#options.localDevelopmentHost) return yield* this.#createDirectInvite(input, identity);
+      }
       const remoteInviteApiUrl = this.#remoteInviteApiUrl();
       if (remoteInviteApiUrl && optionalCreateRemoteInvite) {
         // The account service cannot email links for a self-hosted service.
@@ -1699,7 +1784,10 @@ export class HostService extends EventEmitter<HostEvents> {
     return yield* Effect.acquireUseRelease(
       Effect.void,
       () => this.#webrtcGateway?.stop() ?? Effect.void,
-      () => this.#api.stop().pipe(Effect.ensuring(Fiber.await(pendingPushes))),
+      () => {
+        this.#directAccess?.stop();
+        return this.#api.stop().pipe(Effect.ensuring(Fiber.await(pendingPushes)));
+      },
     );
   }, Effect.uninterruptible);
 

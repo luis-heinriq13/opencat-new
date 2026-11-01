@@ -3168,6 +3168,10 @@ export async function createApplicationServices({
       onError: (message, error) => logger.warn(message, toLogValue(error)),
     });
     launchPublishRetry.start();
+    // OpenCat: direct members reach this computer with or without the account service.
+    void runCauseEffect(host.resumeDirectAccess()).catch((error) =>
+      logger.warn("The direct access did not start", toLogValue(error)),
+    );
     teardown.push(TEARDOWN_ORDER.launchPublishRetry, "the launch publish retry", () =>
       Effect.runPromise(launchPublishRetry.stop()),
     );

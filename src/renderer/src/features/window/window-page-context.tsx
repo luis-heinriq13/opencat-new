@@ -13,6 +13,7 @@ export type WindowPage =
   | "schedule"
   | "workflows"
   | "usage"
+  | "bulletin"
   | "marketplace"
   | "settings"
   | "server-settings";
@@ -140,6 +141,10 @@ const context = createSimpleContext({
       openWorkflows(source: HTMLElement | null) {
         const serverId = activeServerId();
         if (serverId) usage.openWorkflows(serverId, source);
+      },
+      openBulletin(source: HTMLElement | null) {
+        const serverId = activeServerId();
+        if (serverId) usage.openBulletin(serverId, source);
       },
       openUsage(source: HTMLElement | null) {
         const serverId = activeServerId();

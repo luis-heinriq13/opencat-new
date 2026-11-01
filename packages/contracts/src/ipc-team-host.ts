@@ -135,6 +135,8 @@ export type HostedServerSleep = "sleeping" | "waking";
 
 export interface JoinServerInput {
   inviteUrl: string;
+  /** OpenCat: the name on a direct invitation, which has no account to read it from. */
+  displayName?: string;
 }
 
 export interface InvitePreview {
@@ -145,6 +147,8 @@ export interface InvitePreview {
   expiresAt: string;
   emailBound: boolean;
   permanent: boolean;
+  /** OpenCat: the invitation reaches the server directly, with no account service. */
+  direct?: boolean;
 }
 
 export interface LoginServerInput {
@@ -447,6 +451,8 @@ export interface CreateTeamInviteInput {
   role: Exclude<TeamRole, "owner">;
   email?: string;
   permanent?: boolean;
+  /** OpenCat: a link that reaches this computer directly, with no account service. */
+  direct?: boolean;
 }
 
 export interface TeamSessionSummary {

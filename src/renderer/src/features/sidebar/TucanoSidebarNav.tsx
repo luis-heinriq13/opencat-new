@@ -1,3 +1,4 @@
+import { Button } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
 import { For } from "solid-js";
 import { useLayout } from "../../layout";
@@ -45,6 +46,7 @@ export function TucanoSidebarNav(props: { approvals: number; onOpenApprovals: ()
     { label: t("sidebar.tucano.schedule"), open: (button) => windowPage.openSchedule(button) },
     { label: t("sidebar.tucano.tasks"), open: (button) => windowPage.openTasks(button) },
     { label: t("sidebar.tucano.skills"), open: () => setSkillsMarketplaceOpen(true) },
+    { label: t("usage.bulletin.title"), open: (button) => windowPage.openBulletin(button) },
     { label: t("sidebar.tucano.usage"), open: (button) => windowPage.openUsage(button) },
     { label: t("sidebar.tucano.settings"), open: (button) => windowPage.openSettings(button) },
   ];
@@ -52,9 +54,14 @@ export function TucanoSidebarNav(props: { approvals: number; onOpenApprovals: ()
     <div class="tucano-sidebar-nav">
       <For each={rows()}>
         {(row) => (
-          <button type="button" class="tucano-sidebar-row" onClick={(event) => row.open(event.currentTarget)}>
+          <Button
+            type="button"
+            variant="ghost"
+            class="tucano-sidebar-row"
+            onClick={(event) => row.open(event.currentTarget)}
+          >
             {row.label}
-          </button>
+          </Button>
         )}
       </For>
     </div>

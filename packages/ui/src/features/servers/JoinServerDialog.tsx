@@ -46,6 +46,7 @@ export function JoinServerDialog(props: JoinServerDialogProps) {
   const [rendered, setRendered] = createSignal(true);
   const [opened, setOpened] = createSignal(false);
   const [closing, setClosing] = createSignal(false);
+  const [displayName, setDisplayName] = createSignal("");
   const [inputShaking, setInputShaking] = createSignal(false);
   const [joinErrorShaking, setJoinErrorShaking] = createSignal(false);
   let inviteInput: HTMLInputElement | undefined;
@@ -108,7 +109,10 @@ export function JoinServerDialog(props: JoinServerDialogProps) {
     setPhase("joining");
     setError(null);
     try {
-      await props.onJoin({ inviteUrl: normalizedInviteUrl });
+      await props.onJoin({
+        inviteUrl: normalizedInviteUrl,
+        ...(preview()?.direct && displayName().trim() ? { displayName: displayName().trim() } : {}),
+      });
       setPhase("idle");
       startClose();
     } catch (cause) {
@@ -318,6 +322,18 @@ export function JoinServerDialog(props: JoinServerDialogProps) {
                     )}
                   </Show>
 
+                  <Show when={preview()?.direct}>
+                    <Field label={t("server.join.directName")}>
+                      <Input
+                        value={displayName()}
+                        maxlength={64}
+                        autocomplete="name"
+                        placeholder={t("server.join.directNamePlaceholder")}
+                        onValueChange={setDisplayName}
+                      />
+                    </Field>
+                  </Show>
+
                   <Show when={joinError()}>
                     {(failure) => (
                       <Alert
@@ -395,10 +411,12 @@ export function InvitePreviewCard(props: InvitePreviewCardProps) {
               : formatInviteDate(props.preview.expiresAt, t, format)}
           </dd>
         </div>
-        <div>
-          <dt>{t("server.join.account")}</dt>
-          <dd>{props.accountEmail}</dd>
-        </div>
+        <Show when={!props.preview.direct}>
+          <div>
+            <dt>{t("server.join.account")}</dt>
+            <dd>{props.accountEmail}</dd>
+          </div>
+        </Show>
       </dl>
       <Show when={props.preview.emailBound}>
         <p>{t("server.join.emailBound")}</p>
