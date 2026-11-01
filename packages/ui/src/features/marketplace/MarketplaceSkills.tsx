@@ -41,6 +41,7 @@ import {
   userSkills,
   useSkillWords,
 } from "./marketplace-skill-state";
+import { localizedSkill } from "./marketplace-translations";
 import {
   type MarketplaceNavigation,
   type MarketplaceScope,
@@ -276,7 +277,7 @@ function CatalogRows(props: { scope: MarketplaceScope; rows: SkillRows; skills: 
             iconUrl={skill().iconUrl}
             verified={skill().verified === true}
             line={undefined}
-            fallback={skill().description}
+            fallback={localizedSkill(skill()).description}
             onOpen={() => props.rows.open(skill().id)}
           >
             <DialogAgents model={props.scope.model} skill={skill()} />
@@ -578,7 +579,7 @@ function FeaturedSkills(props: {
                 </div>
               </div>
               <Text as="p" variant="body-sm" class="marketplace-card-body">
-                {skill().description}
+                {localizedSkill(skill()).description}
               </Text>
               <div class="marketplace-card-foot">
                 <Text as="span" variant="caption" tone="muted">

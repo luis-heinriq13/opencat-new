@@ -32,6 +32,7 @@ import { VerifiedMark } from "./MarketplaceSkills";
 import { CATEGORY_LABELS } from "./marketplace-listing";
 import type { MarketplaceAgent, MarketplaceModel } from "./marketplace-model";
 import { agentsWith, canSwitch, isOn, matches, outdated, useSkillWords } from "./marketplace-skill-state";
+import { localizedSkill } from "./marketplace-translations";
 import { createDetail, type MarketplaceScope } from "./marketplace-view";
 
 /** The agents section shows a search when more agents than this have the skill. */
@@ -220,7 +221,7 @@ function SkillInformation(props: { skill: MarketplaceSkillSummary }) {
       <ItemGroup class="settings-modal-card">
         <div class="integration-card-body">
           <Text as="p" variant="body-sm">
-            {props.skill.description}
+            {localizedSkill(props.skill).description}
           </Text>
           {/* `dt` and `dd` stay direct children of the list: axe rejects a wrapper per row. */}
           <dl class="marketplace-props marketplace-info">
@@ -318,7 +319,7 @@ export function MarketplaceSkillPage(props: { scope: MarketplaceScope; listing: 
         nameMark={<VerifiedMark on={skill().verified === true} />}
         status={current().status}
         statusLabel={current().label}
-        subtitle={skill().description}
+        subtitle={localizedSkill(skill()).description}
         actions={
           <>
             <CopyListingLink model={model()} link={{ kind: "skill", id: skill().slug }} />

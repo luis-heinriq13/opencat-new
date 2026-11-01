@@ -8,6 +8,7 @@ import { Done, ListingPanel, MissingNotice } from "./MarketplaceParts";
 import { GroupHead, MarketplaceSearch, SourceSwitch, VerifiedMark } from "./MarketplaceSkills";
 import { CATEGORY_LABELS, createMarketplaceListing } from "./marketplace-listing";
 import type { MarketplaceModel } from "./marketplace-model";
+import { localizedAgent } from "./marketplace-translations";
 import {
   type MarketplaceNavigation,
   type MarketplaceScope,
@@ -132,7 +133,7 @@ function AgentRow(props: { scope: MarketplaceScope; listing: MarketplaceAgentSum
   const open = () => t("marketplace.open", { name: props.listing.name });
   /** A row of the user's says that a newer version waits. */
   const attention = () => props.yours === true && props.scope.model.agentState(props.listing) === "update";
-  const line = () => (attention() ? t("marketplace.agent.updateAvailable") : props.listing.title);
+  const line = () => (attention() ? t("marketplace.agent.updateAvailable") : localizedAgent(props.listing).title);
   return (
     <li class="marketplace-app-row marketplace-agent-row">
       <Button
@@ -210,7 +211,7 @@ function FeatureCard(props: { scope: MarketplaceScope; listing: MarketplaceAgent
         </Text>
       </div>
       <Text as="p" variant="body-sm" class="marketplace-card-body">
-        {props.listing.description}
+        {localizedAgent(props.listing).description}
       </Text>
       <div class="marketplace-card-foot">
         <Text as="span" variant="caption" tone="muted">

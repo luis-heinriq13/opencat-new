@@ -26,6 +26,7 @@ import { CopyListingLink, DetailState, SkillIcon } from "./MarketplaceParts";
 import { VerifiedMark } from "./MarketplaceSkills";
 import { CATEGORY_LABELS } from "./marketplace-listing";
 import type { MarketplaceModel } from "./marketplace-model";
+import { localizedAgent } from "./marketplace-translations";
 import { createDetail, type MarketplaceScope } from "./marketplace-view";
 
 /** Made by OpenBot; made by another user and reviewed by OpenBot; or shared before its first review. */
@@ -175,7 +176,7 @@ function AgentInformation(props: { agent: MarketplaceAgentSummary | MarketplaceA
       <ItemGroup class="settings-modal-card">
         <div class="integration-card-body">
           <Text as="p" variant="body-sm">
-            {props.agent.description}
+            {localizedAgent(props.agent).description}
           </Text>
           {/* `dt` and `dd` stay direct children of the list: axe rejects a wrapper per row. */}
           <dl class="marketplace-props marketplace-info">
@@ -246,7 +247,8 @@ export function MarketplaceAgentPage(props: {
   );
   const agent = () => detail.value() ?? props.listing;
   const current = () => status(props.listing);
-  const subtitle = () => [agent().title, t("marketplace.agents.by", { name: agent().creatorName })].join(" · ");
+  const subtitle = () =>
+    [localizedAgent(agent()).title, t("marketplace.agents.by", { name: agent().creatorName })].join(" · ");
   const add = () => void model().addAgent(agent(), model().agentState(props.listing) === "update");
 
   return (
