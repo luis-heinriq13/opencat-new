@@ -525,3 +525,21 @@ test("groupSeconds vem da config, com padrão de 6 s e limites", () => {
   writeFileSync(file, JSON.stringify({ ...base, groupSeconds: 9999 }));
   assert.equal(loadBridgeConfig(file).groupSeconds, 300);
 });
+
+test("anexo: lê o campo data_base64 real do motor, em pedaços", async () => {
+  const { createAttachmentFetcher } = await import("./whatscat-bridge.mjs");
+  const parts = ["T2dn", "Uw=="];
+  const fetcher = createAttachmentFetcher(async (_name, args) => {
+    const index = args.offset === 0 ? 0 : 1;
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ data_base64: parts[index], has_more: index === 0, next_offset: 3 }),
+        },
+      ],
+    };
+  });
+  const result = await fetcher({ chatId: "1@s.whatsapp.net", messageId: "m1", maxBytes: 1024 });
+  assert.equal(result.data.toString(), "OggS");
+});

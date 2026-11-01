@@ -1404,7 +1404,7 @@ export function createAttachmentFetcher(callEngine) {
       });
       if (result?.isError) return null;
       const value = structured(result) ?? {};
-      const encoded = value.data ?? value.content_base64 ?? value.base64;
+      const encoded = value.data_base64 ?? value.data ?? value.content_base64 ?? value.base64;
       if (typeof encoded !== "string" || !encoded) break;
       const chunk = Buffer.from(encoded, "base64");
       chunks.push(chunk);
