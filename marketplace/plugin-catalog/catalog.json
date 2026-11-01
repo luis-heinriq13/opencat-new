@@ -5,8 +5,10 @@
   "order": [
     "whatsapp-oficial",
     "whatscat",
+    "teams",
     "aave",
     "canva",
+    "meta-ads",
     "linear",
     "notion",
     "obsidian",
@@ -36,12 +38,5 @@
     "resend",
     "composio"
   ],
-  "featured": [
-    "whatsapp-oficial",
-    "whatscat",
-    "aave",
-    "canva",
-    "notion",
-    "figma"
-  ]
+  "featured": ["whatsapp-oficial", "whatscat", "aave", "canva", "notion", "figma"]
 }

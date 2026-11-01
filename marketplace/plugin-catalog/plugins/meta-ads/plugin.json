@@ -1,0 +1,37 @@
+{
+  "slug": "meta-ads",
+  "name": "Meta Ads",
+  "tagline": "Resultados e campanhas do Facebook e Instagram Ads",
+  "description": "Conecta o agente à sua conta de anúncios da Meta (Facebook e Instagram), pelo servidor MCP oficial da Meta. Cada pessoa entra com a própria conta Meta, e o agente faz o que essa conta pode fazer.\n\nO que o agente pode fazer: ler resultados de campanhas, conjuntos de anúncios e anúncios, gerar relatórios, ver criativos e catálogos.\nAtenção, pode gastar dinheiro de verdade: o agente também pode criar campanhas, conjuntos de anúncios e anúncios, alterar orçamento e ativar anúncios. Ativar ou aumentar o orçamento começa a gastar o saldo da sua conta de anúncios. A Meta cria os itens novos pausados e diz que o cliente de IA deve pedir confirmação antes de ativar, mas o OpenCat não exige aprovação por ferramenta para este servidor: a confirmação depende do agente.\nCuidados: peça só leitura enquanto testa, confira cada valor antes de aceitar uma mudança e defina limite de gasto na conta de anúncios da Meta.\nAcesso: o servidor da Meta pode estar em beta e liberado só para algumas contas de anúncios.",
+  "category": "data-analytics",
+  "creatorName": "Meta",
+  "iconUrl": null,
+  "version": "1.0.0",
+  "panel": "connect",
+  "prompts": [
+    { "id": "prompt-accounts", "text": "Liste minhas contas de anúncios da Meta." },
+    { "id": "prompt-top-spend", "text": "Resuma as campanhas que mais gastaram nos últimos 30 dias, só leitura." },
+    {
+      "id": "prompt-draft-campaign",
+      "text": "Monte o rascunho de uma campanha de tráfego, pausada, e me mostre antes de ativar."
+    }
+  ],
+  "apps": [
+    {
+      "id": "app-meta-ads-mcp",
+      "name": "Meta Ads",
+      "description": "Relatórios, campanhas, conjuntos de anúncios, anúncios, criativos e catálogos, em um servidor MCP da Meta.",
+      "iconUrl": null,
+      "server": {
+        "name": "meta-ads",
+        "transport": "http",
+        "url": "https://mcp.facebook.com/ads",
+        "auth": [{ "id": "meta-ads-oauth", "kind": "link", "label": "Entrar" }]
+      }
+    }
+  ],
+  "skills": [],
+  "websiteUrl": "https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview",
+  "privacyPolicyUrl": "https://www.facebook.com/privacy/policy/",
+  "termsUrl": "https://www.facebook.com/terms/"
+}

@@ -57,6 +57,7 @@ import { createVaultStore } from "./features/vault/stores/vault-store";
 import { desktopVaultCalls, hostVaultCalls } from "./features/vault/vault-port";
 import { useWindowPage } from "./features/window/window-page-context";
 import { useGlobalSearchSources } from "./global-search-sources";
+import { useLayout } from "./layout";
 import { CreateLocalServerDialog, RemoteDesktopWorkspace, SettingsModal } from "./lazy-views";
 import { useNavigation } from "./navigation";
 import { usePlatform } from "./platform";
@@ -140,6 +141,7 @@ export function SkillsMarketplace() {
   } = useSettings();
   const { agentList, activeAgent, agentStatus, agentSetupOpen, creatingAgent } = useAgents();
   const { selectAgent } = useNavigation();
+  const layout = useLayout();
   const { activeServer } = useServers();
   const { openInstalledMarketplaceAgent } = useServerSelection();
   const { openMcpAdd } = useServerSettings();
@@ -176,6 +178,7 @@ export function SkillsMarketplace() {
         setSkillsMarketplaceOpen(false);
         openMcpAdd(serverId, null);
       }}
+      railPin={{ pinned: (slug) => layout.railAppPins().includes(slug), set: layout.setRailAppPinned }}
     />
   );
 }

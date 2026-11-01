@@ -35,6 +35,11 @@ Rules for a new entry:
   the `Authorization` header at hand-off. No bridge program is installed, and
   no listing may name one.
 
+- `panel` (optional): `interactive` when the app has a panel of its own that a rail pin opens
+  (today only `whatscat`, whose panel main opens). `connect`, a missing value or a value that a
+  newer catalog adds opens the store page of the app. Only `interactive` is written to the
+  generated files, so the released snapshots of the other listings do not change.
+
 ## Paper
 
 Paper Desktop installs its CLI at `~/.paper/bin/paper`. `paper mcp` is a stdio

@@ -1,6 +1,7 @@
 import type { AddedAgent, McpServerConfig, ServerSummary } from "@openbot/contracts/ipc";
 import { MCP_SERVERS_CAPABILITY } from "@openbot/contracts/ipc";
 import type { MarketplaceListingLink } from "@openbot/contracts/marketplace-links";
+import type { MarketplaceRailPin } from "@openbot/ui/features/marketplace/marketplace-model";
 import type { ComponentProps } from "@solidjs/web";
 import { createMemo, Loading, omit, Show } from "solid-js";
 import type { AgentTemplateInstallCalls } from "./features/agent-templates/agent-templates-port";
@@ -85,6 +86,8 @@ export function MarketplaceOverlay(props: {
   macOS?: boolean | undefined;
   /** Opens the form that adds a custom MCP server to the server with this ID. */
   onAddServer?: ((serverId: string) => void) | undefined;
+  /** Pins an installed app to the page rail. Absent: the web client, which has no rail. */
+  railPin?: MarketplaceRailPin | undefined;
 }) {
   const controller = useConversationController();
   const manage = createMemo(() => serverCanAdminister(props.server, "skills-admin-v1"));
@@ -160,6 +163,7 @@ export function MarketplaceOverlay(props: {
           onInitialListingConsumed={props.onMarketplaceListingConsumed}
           pluginServerId={pluginServerId()}
           onAddServer={addServer()}
+          railPin={manage() ? props.railPin : undefined}
           pluginHostName={manage() ? remoteAdminServer(props.server, MCP_SERVERS_CAPABILITY)?.name : undefined}
           pluginSignInRelay={
             props.server?.kind === "remote" && serverSupportsCapability(props.server, "sign-in-relay-v1")

@@ -21,6 +21,12 @@ export const messages = defineMessages("error.provider", {
     "The address has a new host or port. Enter the API key and the headers again, so the saved ones do not go to it.",
   "error.provider.endpointSecretUnreadable":
     "This computer cannot read the saved API key and headers. Enter the API key and the headers again, so that none of them is lost.",
+  "error.provider.antigravityNoAccount":
+    "No Antigravity account can be used. Sign in to an account in the Gemini provider settings and try again.",
+  "error.provider.antigravityLimit": "All Antigravity accounts reached their limit for this model.",
+  "error.provider.antigravityValidation": "Google must verify this Antigravity account. Open this link: {url}",
+  "error.provider.antigravityFailed": "Google refused the Antigravity request (HTTP {status}). {detail}",
+  "error.provider.antigravityUnreachable": "Google did not answer the Antigravity request.",
   "error.provider.discoveryTimeout": "{host} did not answer in time.",
   "error.provider.discoveryUnreachable": "OpenBot could not connect to {host}.",
   "error.provider.discoveryRedirect": "{host} sent a redirect. Enter the final address of the server.",

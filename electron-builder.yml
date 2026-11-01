@@ -51,6 +51,11 @@ extraResources:
   # OpenCat: the WhatsApp servers, built by tools/whatscat/build.sh.
   - from: resources/whatscat
     to: whatscat
+  # OpenCat: the Microsoft Teams reader, one file with no dependencies (tools/teams/teams-mcp.mjs).
+  - from: tools/teams
+    to: teams
+    filter:
+      - teams-mcp.mjs
   # OpenCat: the installer that swaps in a local build. The app copies it out and runs it detached.
   - from: scripts/opencat-instalar-atualizacao.py
     to: opencat/opencat-instalar-atualizacao.py

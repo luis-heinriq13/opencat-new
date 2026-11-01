@@ -14,6 +14,7 @@ import {
   LEFT_PANEL_STORAGE_KEY,
   MAC_SERVER_RAIL_WIDTH,
   NARROW_SERVER_RAIL_WIDTH,
+  RAIL_APP_PINS_STORAGE_KEY,
   RAIL_PINS_STORAGE_KEY,
   SERVER_RAIL_WIDTH,
   SERVER_VIEW_STORAGE_KEY,
@@ -74,6 +75,21 @@ function readRailPinChoices(): RailPinChoices {
   }
 }
 
+// A list of slugs. A damaged value or an entry that is not a string reads as no pin.
+const railAppPinsSchema = z.array(z.string().catch("")).transform((slugs) => slugs.filter(Boolean));
+
+/** The apps that the user pinned on this computer, in pin order. Blocked storage or a damaged value reads as none. */
+function readRailAppPins(): string[] {
+  try {
+    const parsed = railAppPinsSchema.safeParse(
+      JSON.parse(window.localStorage.getItem(RAIL_APP_PINS_STORAGE_KEY) ?? "[]"),
+    );
+    return parsed.success ? [...new Set(parsed.data)] : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The width of the workspace sidebar, and the two independent reasons it can be
  * narrow: the user collapsed it, or the window is too small to keep it open.
@@ -91,7 +107,8 @@ function readRailPinChoices(): RailPinChoices {
  * come back.
  *
  * The user also pins pages to the page rail. Pages that are not pinned are in its More menu. The
- * choice is saved on this computer.
+ * choice is saved on this computer. Installed apps pin separately, by catalog slug, from the store
+ * page of the app; the list is open, because the catalog adds apps.
  *
  * The geometry itself is in `layout-constants.ts`; the view imports it directly
  * rather than reading constants through a context.
@@ -119,6 +136,7 @@ const Layout = createSimpleContext({
       const choices = railPinChoices();
       return PAGE_RAIL_PINNABLE_PAGES.filter((page) => choices[page] ?? RAIL_PINNED_BY_DEFAULT.has(page));
     });
+    const [railAppPins, setRailAppPins] = createSignal<string[]>(readRailAppPins());
     const [leftPanelAutoCompact, setLeftPanelAutoCompact] = createSignal(false);
     const leftPanelCompact = createMemo(() => leftPanelCollapsed() || leftPanelAutoCompact());
     /**
@@ -154,6 +172,15 @@ const Layout = createSimpleContext({
       return () => window.removeEventListener("storage", readRailPinsFromStorage);
     });
 
+    function readRailAppPinsFromStorage(event: StorageEvent): void {
+      if (event.key === null || event.key === RAIL_APP_PINS_STORAGE_KEY) setRailAppPins(readRailAppPins());
+    }
+
+    onSettled(() => {
+      window.addEventListener("storage", readRailAppPinsFromStorage);
+      return () => window.removeEventListener("storage", readRailAppPinsFromStorage);
+    });
+
     function setSidebarCollapsed(collapsed: boolean): void {
       setLeftPanelCollapsed(collapsed);
       window.localStorage.setItem(LEFT_PANEL_COLLAPSED_STORAGE_KEY, String(collapsed));
@@ -180,6 +207,18 @@ const Layout = createSimpleContext({
       }
     }
 
+    function setRailAppPinned(slug: string, pinned: boolean): void {
+      // The storage event keeps the signal current with other windows. A new pin goes last.
+      const others = railAppPins().filter((item) => item !== slug);
+      const next = pinned ? [...others, slug] : others;
+      setRailAppPins(next);
+      try {
+        window.localStorage.setItem(RAIL_APP_PINS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Blocked or full storage keeps the choice for this window only.
+      }
+    }
+
     function expandSidebar(): void {
       setSidebarCollapsed(false);
       setLeftPanelAutoCompact(false);
@@ -198,6 +237,8 @@ const Layout = createSimpleContext({
       setSidebarView,
       railPinned,
       setRailPinned,
+      railAppPins,
+      setRailAppPinned,
     };
   },
 });

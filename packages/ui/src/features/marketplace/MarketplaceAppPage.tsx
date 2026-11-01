@@ -17,6 +17,7 @@ import {
   ItemMedia,
   ItemTitle,
   Link2,
+  Pin,
   Plug,
   SettingsSection,
   SwitchField,
@@ -69,6 +70,7 @@ function PluginAppPage(props: { scope: MarketplaceScope; app: PluginApp }) {
     ].flatMap((link) => (link.url ? [{ label: link.label, url: link.url, text: pluginLinkText(link.url) }] : []));
   /** The first app whose server refused its saved sign-in. */
   const refused = () => plugin().apps.find((app) => props.app.connections[app.id]?.signInNeeded);
+  const railPinned = () => model().railPin?.pinned(plugin().slug) === true;
   const automation = () =>
     model().canConnectApps() && plugin().apps.some((app) => app.macAutomation?.length)
       ? model().macAutomation
@@ -96,6 +98,18 @@ function PluginAppPage(props: { scope: MarketplaceScope; app: PluginApp }) {
             <Link2 aria-hidden="true" />
             {t("plugin.copyLink")}
           </Button>
+          <Show when={model().railPin && props.app.status !== "idle" && model().canConnectApps()}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-pressed={railPinned() ? "true" : "false"}
+              onClick={() => model().railPin?.set(plugin().slug, !railPinned())}
+            >
+              <Pin aria-hidden="true" />
+              {t(railPinned() ? "marketplace.app.unpinFromRail" : "marketplace.app.pinToRail")}
+            </Button>
+          </Show>
           <Show when={plugin().slug === "whatscat" && model().canConnectApps()}>
             <Button type="button" variant="outline" size="sm" onClick={() => model().openUrl(WHATSCAT_PANEL_URL)}>
               {t("marketplace.whatscat.openPanel")}

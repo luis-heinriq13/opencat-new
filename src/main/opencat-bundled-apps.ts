@@ -25,7 +25,26 @@ const BRIDGE_RESTART_MIN_MS = 2_000;
 const BRIDGE_RESTART_MAX_MS = 60_000;
 const BRIDGE_HEALTHY_MS = 60_000;
 
+const TEAMS_DIRECTORY = join(homedir(), ".opencat", "teams");
+
+/**
+ * The Microsoft Teams reader is one file with no dependencies, so it is copied as it is. The copy is
+ * skipped when the installed file is the same, and a failure leaves the Teams listing unusable only.
+ */
+async function installBundledTeams(): Promise<void> {
+  const source = join(process.resourcesPath, "teams", "teams-mcp.mjs");
+  if (!app.isPackaged || !existsSync(source)) return;
+  const wanted = await readFile(source);
+  const target = join(TEAMS_DIRECTORY, "teams-mcp.mjs");
+  const installed = await readFile(target).catch(() => null);
+  if (installed?.equals(wanted)) return;
+  await mkdir(TEAMS_DIRECTORY, { recursive: true, mode: 0o700 });
+  await writeFile(target, wanted, { mode: 0o755 });
+  await chmod(target, 0o755).catch(() => undefined);
+}
+
 export async function installBundledApps(): Promise<void> {
+  await installBundledTeams().catch(() => undefined);
   const source = join(process.resourcesPath, "whatscat");
   if (!app.isPackaged || !existsSync(source)) return;
   const stamp = join(INSTALL_DIRECTORY, ".versao");

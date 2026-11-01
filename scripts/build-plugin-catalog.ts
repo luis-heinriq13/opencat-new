@@ -11,6 +11,7 @@ import {
   normalizeMcpConfig,
   type SkillCategory,
 } from "@openbot/contracts/ipc";
+import { isPluginPanel, type PluginPanel } from "@openbot/contracts/plugin-panel";
 import { type DynamicRecord, isDynamicRecord, isOneOf, isString } from "@openbot/contracts/runtime-values";
 import { createOpenBotLogger, toLogValue } from "@openbot/logging";
 
@@ -139,6 +140,8 @@ export interface PluginDetail {
   websiteUrl: string | null;
   privacyPolicyUrl: string | null;
   termsUrl: string | null;
+  /** Set only for an `interactive` app. Absent is `connect`, so the other listings stay as released. */
+  panel?: PluginPanel;
   featured: boolean;
   updatedAt: string;
 }
@@ -253,6 +256,7 @@ export function validatePlugin(slug: string, value: unknown, featured: boolean, 
   if (!Array.isArray(value.skills) || value.skills.length !== 0) {
     throw new Error(`Plugin ${slug} must list no skills until pinned versions exist.`);
   }
+  const panel = parsePanel(slug, value.panel);
   const serialized = JSON.stringify(value);
   if (secretPattern.test(serialized)) throw new Error(`Plugin ${slug} holds a secret-looking value.`);
   if (/"value"\s*:/u.test(serialized)) throw new Error(`Plugin ${slug} must not carry a credential value.`);
@@ -270,9 +274,20 @@ export function validatePlugin(slug: string, value: unknown, featured: boolean, 
     websiteUrl: link("websiteUrl"),
     privacyPolicyUrl: link("privacyPolicyUrl"),
     termsUrl: link("termsUrl"),
+    ...(panel === "interactive" ? { panel } : {}),
     featured,
     updatedAt,
   };
+}
+
+/**
+ * A listing states `interactive` or `connect`; the app reads a missing or unknown value as
+ * `connect`. The build is stricter than the app: a misspelled value is an authoring error.
+ */
+function parsePanel(slug: string, value: unknown): PluginPanel {
+  if (value === undefined) return "connect";
+  if (!isPluginPanel(value)) throw new Error(`Plugin ${slug} panel must be "interactive" or "connect".`);
+  return value;
 }
 
 function parsePrompt(slug: string, value: unknown): PluginPrompt {
@@ -676,7 +691,7 @@ export const MARKETPLACE_PLUGINS: MarketplacePluginDetail[] = [
  */
 function renderMobileModule(plugins: PluginDetail[]): string {
   const listings = plugins.map((plugin) => {
-    const { iconUrl: _iconUrl, updatedAt: _updatedAt, apps, ...detail } = plugin;
+    const { iconUrl: _iconUrl, updatedAt: _updatedAt, panel: _panel, apps, ...detail } = plugin;
     return {
       ...detail,
       apps: apps.map(({ iconUrl: _appIconUrl, macAutomation: _macAutomation, ...app }) => app),
@@ -825,6 +840,8 @@ export interface PluginCatalogDetail {
   websiteUrl: string | null;
   privacyPolicyUrl: string | null;
   termsUrl: string | null;
+  /** \`interactive\` when pinning the app opens a panel of its own. Absent: \`connect\`. */
+  panel?: string;
 }
 
 export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = ${tsLiteral(details)};

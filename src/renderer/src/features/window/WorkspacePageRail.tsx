@@ -1,20 +1,24 @@
-import { isUpdateActivePhase } from "@openbot/contracts/ipc";
+import { isUpdateActivePhase, MCP_SERVERS_CAPABILITY } from "@openbot/contracts/ipc";
 import { AGENT_TASKS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-tasks-v1";
+import { WHATSCAT_PANEL_URL } from "@openbot/ui/features/marketplace/marketplace-model";
 import type { SidebarView } from "@openbot/ui/features/sidebar/sidebar-types";
 import { PageRail, type PageRailPage } from "@openbot/ui/features/window/PageRail";
 import { useText } from "@openbot/ui/text";
+import { createEffect, createMemo } from "solid-js";
 import { appPort } from "../../app-port";
 import { useLayout } from "../../layout";
 import { usePlatform } from "../../platform";
 import { useChannels } from "../channels/channels-context";
 import { useCustomAgents } from "../custom-agents/custom-agents-context";
-import { serverSupportsCapability } from "../servers/server-capabilities";
+import { serverCanAdminister, serverSupportsCapability } from "../servers/server-capabilities";
 import { useServers } from "../servers/servers-context";
+import { desktopMarketplaceCalls } from "../settings/marketplace-calls";
 import { useSettings } from "../settings/settings-context";
 import { useUpdates } from "../updates/updates-context";
 import { useWhatsNew } from "../updates/whats-new-context";
 import { usePlanLimitRows } from "../usage/plan-limit-rows";
 import { RailHelpMenu } from "./RailHelpMenu";
+import { heldMcpServers, installedPinnedApps, publishHeldMcpServers } from "./rail-apps";
 import { useWindowPage } from "./window-page-context";
 
 /**
@@ -24,7 +28,7 @@ import { useWindowPage } from "./window-page-context";
 export function WorkspacePageRail(props: { hidden: boolean }) {
   const text = useText();
   const windowPage = useWindowPage();
-  const { openAppSettings, setSkillsMarketplaceOpen } = useSettings();
+  const { openAppSettings, setSkillsMarketplaceOpen, setPendingPluginSlug } = useSettings();
   const updates = useUpdates();
   const layout = useLayout();
   const channels = useChannels();
@@ -58,6 +62,49 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
     const server = activeServer();
     return !server || server.kind === "local" || serverSupportsCapability(server, AGENT_TASKS_CAPABILITY);
   };
+  /**
+   * The host whose apps the Marketplace installs: the one it installs to. A joined server where this
+   * account is a member has none, and then no app shows in the rail.
+   */
+  const appServerId = createMemo(() => {
+    const server = activeServer();
+    return serverCanAdminister(server, "skills-admin-v1") && serverCanAdminister(server, MCP_SERVERS_CAPABILITY)
+      ? server.id
+      : undefined;
+  });
+  // The rail reads the rows on its own, so it needs no open Marketplace. A page change reads them
+  // again: the settings pages also add and remove MCP servers.
+  createEffect(
+    () => ({ serverId: appServerId(), pinned: layout.railAppPins().length > 0, page: windowPage.page() }),
+    ({ serverId, pinned }) => {
+      if (!serverId || !pinned) return;
+      void desktopMarketplaceCalls()
+        .mcp.listMcpServers(serverId)
+        .then(
+          (held) => publishHeldMcpServers(serverId, held),
+          () => undefined,
+        );
+    },
+  );
+  const pinnedApps = createMemo(() => {
+    const serverId = appServerId();
+    return serverId ? installedPinnedApps(layout.railAppPins(), heldMcpServers(serverId)) : [];
+  });
+  const isLocalHost = () => {
+    const server = activeServer();
+    return !server || server.kind === "local";
+  };
+  /** An interactive app opens its own panel. Every other app opens its store page, where it is set up. */
+  function openApp(slug: string) {
+    const app = pinnedApps().find((candidate) => candidate.slug === slug);
+    // The panel is a local page: a joined server's app must not open this computer's one.
+    if (app?.panel === "interactive" && slug === "whatscat" && isLocalHost()) {
+      void appPort().openUrl(WHATSCAT_PANEL_URL);
+      return;
+    }
+    setPendingPluginSlug(slug);
+    setSkillsMarketplaceOpen(true);
+  }
   const current = (): PageRailPage | null => {
     const page = windowPage.page();
     if (page === "agents") return layout.sidebarView();
@@ -69,6 +116,8 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       current={current()}
       pinned={layout.railPinned()}
       onPinChange={layout.setRailPinned}
+      apps={pinnedApps()}
+      onOpenApp={openApp}
       usageRows={usageRows()}
       customAgentUsage={localAgentUsage()}
       onAgents={() => showSidebarView("agents")}

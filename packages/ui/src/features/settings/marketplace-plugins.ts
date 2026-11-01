@@ -11,6 +11,7 @@
 
 import type { MacAutomationTarget, McpServerConfig, McpTransport, SkillCategory } from "@openbot/contracts/ipc";
 import { isListingUrl, type McpAuth, mcpFlowFields } from "@openbot/contracts/mcp-connect-flows";
+import type { PluginPanel } from "@openbot/contracts/plugin-panel";
 
 /** One of the example questions a plugin listing opens with. */
 export interface MarketplacePluginPrompt {
@@ -124,6 +125,8 @@ export interface MarketplacePluginSummary {
 export interface MarketplacePluginDetail extends MarketplacePluginSummary {
   /** The listing address "Copy link" writes out, not the developer's own site. */
   shareUrl: string;
+  /** What pinning the app to the rail opens. Absent reads as `connect`: the store page. */
+  panel?: PluginPanel;
   prompts: MarketplacePluginPrompt[];
   apps: MarketplacePluginApp[];
   skills: MarketplacePluginSkill[];

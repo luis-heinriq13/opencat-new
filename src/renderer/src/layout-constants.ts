@@ -11,6 +11,12 @@ export const SERVER_VIEW_STORAGE_KEY = "openbot:server-view";
 export const SIDEBAR_VIEW_STORAGE_KEY = "openbot:sidebar-view";
 /** The pages that the user pinned to the page rail or took off it: a JSON record of booleans. */
 export const RAIL_PINS_STORAGE_KEY = "openbot:rail-pins";
+/**
+ * The installed apps that the user pinned to the page rail: a JSON array of catalog slugs, in the
+ * order of the pins. A separate key from the page pins, so a saved layout of an older version keeps
+ * working and an older version ignores this one.
+ */
+export const RAIL_APP_PINS_STORAGE_KEY = "openbot:rail-app-pins";
 export const LEFT_PANEL_DEFAULT = 280;
 export const LEFT_PANEL_MIN = 128;
 export const LEFT_PANEL_MAX = 400;

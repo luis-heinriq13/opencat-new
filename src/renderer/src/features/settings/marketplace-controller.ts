@@ -31,6 +31,7 @@ import type {
   MarketplaceAppStatus,
   MarketplaceMacAutomation,
   MarketplaceModel,
+  MarketplaceRailPin,
   MarketplaceSkillChange,
   MarketplaceSkillRef,
   SkillRead,
@@ -54,6 +55,7 @@ import { writeClipboardText } from "../../clipboard";
 import type { AgentSkillCalls } from "../../skills-port";
 import type { ConnectorRegistry } from "../connectors/connector-registry";
 import { mcpSignInRecord } from "../servers/mcp-servers";
+import { publishHeldMcpServers } from "../window/rail-apps";
 import { createMarketplaceAppAgent } from "./marketplace-app-agent";
 import { desktopMarketplaceCalls, type MarketplaceCalls, type MarketplaceSignInRelay } from "./marketplace-calls";
 import { createPluginAppConfig } from "./marketplace-plugin-catalog";
@@ -116,6 +118,8 @@ export interface MarketplaceControllerProps {
   macOS?: boolean | undefined;
   /** Opens the form that adds a custom MCP server. Absent when the user cannot add one. */
   onAddServer?: (() => void) | undefined;
+  /** Pins an installed app to the page rail. Absent where there is no rail. */
+  railPin?: MarketplaceRailPin | undefined;
 }
 
 /** The connect step of one app. `settle(null)` is a closed dialog. */
@@ -865,6 +869,13 @@ export function createMarketplaceController(props: MarketplaceControllerProps) {
       if (serverId) void readServers(serverId);
     },
   );
+  /* The rail shows the pinned apps that are installed, so it reads every change of the rows. */
+  createEffect(
+    () => ({ serverId: props.pluginServerId, readFor: serversReadFor(), held: servers() }),
+    ({ serverId, readFor, held }) => {
+      if (serverId && readFor === serverId) publishHeldMcpServers(serverId, held);
+    },
+  );
   /* A plugin's status also reads the skills of the agent they go to. */
   createEffect(
     () => (props.open && props.plugins?.some((plugin) => plugin.skills.length > 0) ? pluginAgentId() : ""),
@@ -1371,6 +1382,9 @@ export function createMarketplaceController(props: MarketplaceControllerProps) {
     canConnectApps: () => Boolean(props.pluginServerId),
     get whatsappAgent() {
       return appAgent.available() ? appAgent.control : undefined;
+    },
+    get railPin() {
+      return props.railPin;
     },
     appBusy: (id) => Boolean(busy[`app:${id}`]) || connector(id)?.busy() === true,
     connectApp: (app) => installPlugin(app.plugin),

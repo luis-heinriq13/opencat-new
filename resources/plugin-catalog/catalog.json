@@ -12,7 +12,13 @@
       "slug": "whatscat",
       "version": "1.0.0",
       "featured": true,
-      "detailSha256": "2117a198144428fc19d35cf7d1ce0a14f97f56c463fbd53fd054cb77983dc288"
+      "detailSha256": "1fb9d6d94193b77fb356bfec9e44d13aaf11ec72a1a179c05c6e117f68e7907a"
+    },
+    {
+      "slug": "teams",
+      "version": "1.0.0",
+      "featured": false,
+      "detailSha256": "812b1520fb756b58ad5c3afc559efd2e395ada920f518a61bd76e7740c10fdf9"
     },
     {
       "slug": "aave",
@@ -25,6 +31,12 @@
       "version": "1.0.0",
       "featured": true,
       "detailSha256": "c3cb9682531e3e4cb1cf0ff4ae522c4e8d0d11b0b5f8450efcb14e352a5c0afb"
+    },
+    {
+      "slug": "meta-ads",
+      "version": "1.0.0",
+      "featured": false,
+      "detailSha256": "2dd9f263297ce2680cae15840110d4f9320d33f63b4b41bbf55ea6270f88fc06"
     },
     {
       "slug": "linear",

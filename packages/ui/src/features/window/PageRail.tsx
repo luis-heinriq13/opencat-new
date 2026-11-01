@@ -9,6 +9,7 @@ import {
   ListChecks,
   MotionTooltip,
   Pin,
+  Puzzle,
   Settings,
   Store,
   Waypoints,
@@ -192,6 +193,18 @@ export const PAGE_RAIL_PINNABLE_PAGES = [
 ] as const satisfies readonly PageRailPage[];
 export type PageRailPinnablePage = (typeof PAGE_RAIL_PINNABLE_PAGES)[number];
 
+/**
+ * An installed app that the user pinned to the rail. It has no icon address: the rail draws a mark
+ * from the slug, so the rail sends no request to the vendor of an app.
+ */
+export interface PageRailApp {
+  slug: string;
+  name: string;
+}
+
+/** The WhatsApp apps keep the WhatsApp mark that the attendance page has. Other apps get a plug-in mark. */
+const WHATSAPP_APP_SLUGS: ReadonlySet<string> = new Set(["whatscat", "whatsapp-oficial"]);
+
 export interface PageRailProps {
   hidden: boolean;
   /** The page in the card, or `null` while a page that the rail does not open shows. */
@@ -199,6 +212,9 @@ export interface PageRailProps {
   /** The pages that show as rail buttons. The More menu has all pages, with a pin for each one. */
   pinned: readonly PageRailPinnablePage[];
   onPinChange: (page: PageRailPinnablePage, pinned: boolean) => void;
+  /** The installed apps that the user pinned, after the pinned pages. Absent where there are no apps. */
+  apps?: readonly PageRailApp[] | undefined;
+  onOpenApp?: ((slug: string) => void) | undefined;
   /** The plan limits of each provider account. Each one with a reported window shows as rings. */
   usageRows: readonly AccountUsageProviderRow[];
   /** The answers of the custom agents on this computer that have a usage prompt. Absent on the web. */
@@ -397,6 +413,13 @@ export function PageRail(props: PageRailProps) {
           {(page) => (
             <RailButton label={page().label} current={props.current === page().id} onClick={page().open}>
               <Dynamic component={page().icon} aria-hidden="true" />
+            </RailButton>
+          )}
+        </For>
+        <For each={props.apps ?? []} keyed={(app) => app.slug}>
+          {(app) => (
+            <RailButton label={app().name} onClick={() => props.onOpenApp?.(app().slug)}>
+              <Dynamic component={WHATSAPP_APP_SLUGS.has(app().slug) ? WhatsAppIcon : Puzzle} aria-hidden="true" />
             </RailButton>
           )}
         </For>

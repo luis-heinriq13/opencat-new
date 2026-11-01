@@ -126,11 +126,77 @@ const WHATSCAT: MarketplacePluginDetail = {
   websiteUrl: "https://github.com/luis-heinriq13/local_whatsapp_mcp",
   privacyPolicyUrl: "https://www.whatsapp.com/legal/privacy-policy",
   termsUrl: "https://www.whatsapp.com/legal/terms-of-service",
+  panel: "interactive",
   skills: [],
   installs: 0,
   featured: true,
   updatedAt: "2026-09-30T00:00:00.000Z",
   shareUrl: "https://openbot.run/plugins/whatscat",
+};
+
+const TEAMS: MarketplacePluginDetail = {
+  id: "plugin-teams",
+  slug: "teams",
+  name: "Microsoft Teams (leitura)",
+  tagline: "Leia suas conversas do Teams. Não envia nada.",
+  description:
+    "Deixa o agente listar e ler as conversas (chats) do Microsoft Teams da pessoa que entrar, em um computador só seu. Somente leitura: não existe ferramenta para enviar mensagem.\n\nO que pede: uma conta de trabalho ou escola. Conta pessoal da Microsoft não funciona. O dono do OpenCat precisa registrar uma vez um app público no Azure (multilocatário, com fluxo de cliente público ligado e as permissões delegadas Chat.Read e User.Read) e colar o ID do app abaixo. Se o ID estiver vazio, as ferramentas explicam o passo a passo.\nAdministrador: Chat.Read e User.Read não exigem consentimento de administrador pela Microsoft, mas a organização pode bloquear o consentimento do usuário. Nesse caso o administrador precisa liberar o app.\nPrivacidade: o texto das mensagens vai para o modelo do agente. É texto de terceiros e o agente o trata como dado, não como instrução. A sessão fica no Chaveiro do macOS e nunca aparece em logs. Precisa de Node.js.",
+  category: "productivity",
+  creatorName: "OpenCat",
+  iconUrl: null,
+  version: "1.0.0",
+  prompts: [
+    { id: "prompt-status", text: "O Teams está conectado?" },
+    { id: "prompt-recent", text: "Liste minhas conversas mais recentes do Teams." },
+    { id: "prompt-summary", text: "Resuma as últimas mensagens da conversa do projeto no Teams." },
+  ],
+  apps: [
+    {
+      id: "app-teams",
+      name: "Microsoft Teams (leitura)",
+      description: "Lista conversas e lê mensagens do Teams pelo Microsoft Graph, em um servidor local, sem envio.",
+      iconUrl: null,
+      server: {
+        name: "teams",
+        transport: "stdio",
+        command: "~/.opencat/teams/teams-mcp.mjs",
+        args: [],
+        auth: [
+          {
+            id: "teams-app-id",
+            kind: "key",
+            label: "ID do app do Azure",
+            fields: [
+              {
+                id: "client-id",
+                label: "ID do aplicativo (cliente)",
+                env: "TEAMS_CLIENT_ID",
+                placeholder: "00000000-0000-0000-0000-000000000000",
+                hint: "Do registro de aplicativo no Azure. Se ainda não tem, veja o passo a passo ao lado; a ferramenta teams_status também o explica.",
+              },
+              {
+                id: "tenant-id",
+                label: "ID do diretório (locatário)",
+                env: "TEAMS_TENANT_ID",
+                placeholder: "Só se o app for de um locatário",
+                optional: true,
+              },
+            ],
+            docsUrl: "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app",
+            docsLabel: "Como registrar o app",
+          },
+        ],
+      },
+    },
+  ],
+  websiteUrl: "https://learn.microsoft.com/en-us/graph/api/chat-list",
+  privacyPolicyUrl: "https://privacy.microsoft.com/privacystatement",
+  termsUrl: "https://www.microsoft.com/servicesagreement",
+  skills: [],
+  installs: 0,
+  featured: false,
+  updatedAt: "2026-09-30T00:00:00.000Z",
+  shareUrl: "https://openbot.run/plugins/teams",
 };
 
 const AAVE: MarketplacePluginDetail = {
@@ -211,6 +277,51 @@ const CANVA: MarketplacePluginDetail = {
   featured: true,
   updatedAt: "2026-09-30T00:00:00.000Z",
   shareUrl: "https://openbot.run/plugins/canva",
+};
+
+const META_ADS: MarketplacePluginDetail = {
+  id: "plugin-meta-ads",
+  slug: "meta-ads",
+  name: "Meta Ads",
+  tagline: "Resultados e campanhas do Facebook e Instagram Ads",
+  description:
+    "Conecta o agente à sua conta de anúncios da Meta (Facebook e Instagram), pelo servidor MCP oficial da Meta. Cada pessoa entra com a própria conta Meta, e o agente faz o que essa conta pode fazer.\n\nO que o agente pode fazer: ler resultados de campanhas, conjuntos de anúncios e anúncios, gerar relatórios, ver criativos e catálogos.\nAtenção, pode gastar dinheiro de verdade: o agente também pode criar campanhas, conjuntos de anúncios e anúncios, alterar orçamento e ativar anúncios. Ativar ou aumentar o orçamento começa a gastar o saldo da sua conta de anúncios. A Meta cria os itens novos pausados e diz que o cliente de IA deve pedir confirmação antes de ativar, mas o OpenCat não exige aprovação por ferramenta para este servidor: a confirmação depende do agente.\nCuidados: peça só leitura enquanto testa, confira cada valor antes de aceitar uma mudança e defina limite de gasto na conta de anúncios da Meta.\nAcesso: o servidor da Meta pode estar em beta e liberado só para algumas contas de anúncios.",
+  category: "data-analytics",
+  creatorName: "Meta",
+  iconUrl: null,
+  version: "1.0.0",
+  prompts: [
+    { id: "prompt-accounts", text: "Liste minhas contas de anúncios da Meta." },
+    { id: "prompt-top-spend", text: "Resuma as campanhas que mais gastaram nos últimos 30 dias, só leitura." },
+    {
+      id: "prompt-draft-campaign",
+      text: "Monte o rascunho de uma campanha de tráfego, pausada, e me mostre antes de ativar.",
+    },
+  ],
+  apps: [
+    {
+      id: "app-meta-ads-mcp",
+      name: "Meta Ads",
+      description:
+        "Relatórios, campanhas, conjuntos de anúncios, anúncios, criativos e catálogos, em um servidor MCP da Meta.",
+      iconUrl: null,
+      server: {
+        name: "meta-ads",
+        transport: "http",
+        url: "https://mcp.facebook.com/ads",
+        auth: [{ id: "meta-ads-oauth", kind: "link", label: "Entrar" }],
+      },
+    },
+  ],
+  websiteUrl:
+    "https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview",
+  privacyPolicyUrl: "https://www.facebook.com/privacy/policy/",
+  termsUrl: "https://www.facebook.com/terms/",
+  skills: [],
+  installs: 0,
+  featured: false,
+  updatedAt: "2026-09-30T00:00:00.000Z",
+  shareUrl: "https://openbot.run/plugins/meta-ads",
 };
 
 const LINEAR: MarketplacePluginDetail = {
@@ -1473,8 +1584,10 @@ const COMPOSIO: MarketplacePluginDetail = {
 export const MARKETPLACE_PLUGINS: MarketplacePluginDetail[] = [
   WHATSAPP_OFICIAL,
   WHATSCAT,
+  TEAMS,
   AAVE,
   CANVA,
+  META_ADS,
   LINEAR,
   NOTION,
   OBSIDIAN,

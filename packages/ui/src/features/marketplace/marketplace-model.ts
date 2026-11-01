@@ -49,6 +49,12 @@ export interface MarketplaceAppAgent {
   openPanel: () => void;
 }
 
+/** Whether an installed app shows as a button in the page rail, and the choice to change it. */
+export interface MarketplaceRailPin {
+  pinned: (slug: string) => boolean;
+  set: (slug: string, pinned: boolean) => void;
+}
+
 /** A skill that can go to more agents: a catalog listing, or a skill made on this computer. */
 export type MarketplaceSkillRef = Pick<MarketplaceSkillSummary, "id" | "name">;
 
@@ -220,6 +226,8 @@ export interface MarketplaceModel {
   /** The agent that answers on WhatsApp (not official). Absent where the app cannot run: web, joined server. */
   whatsappAgent?: MarketplaceAppAgent | undefined;
   appBusy: (id: string) => boolean;
+  /** Pins an installed app to the page rail. Absent where there is no rail. */
+  railPin?: MarketplaceRailPin | undefined;
   /** Runs the connect step of a catalog app. False when the user closed it. */
   connectApp: (app: Extract<MarketplaceApp, { kind: "plugin" }>) => Promise<boolean>;
   /**

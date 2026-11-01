@@ -21,6 +21,12 @@ export const messages = {
     "O endereço aponta para outro servidor ou outra porta. Digite a chave de API e os cabeçalhos novamente para evitar que os dados salvos sejam enviados a ele.",
   "error.provider.endpointSecretUnreadable":
     "Este computador não consegue ler a chave de API e os cabeçalhos salvos. Digite a chave de API e os cabeçalhos novamente para que nenhum deles seja perdido.",
+  "error.provider.antigravityNoAccount":
+    "Nenhuma conta do Antigravity pode ser usada. Entre em uma conta nas configurações do provedor Gemini e tente novamente.",
+  "error.provider.antigravityLimit": "Todas as contas do Antigravity chegaram ao limite deste modelo.",
+  "error.provider.antigravityValidation": "O Google precisa verificar esta conta do Antigravity. Abra este link: {url}",
+  "error.provider.antigravityFailed": "O Google recusou o pedido do Antigravity (HTTP {status}). {detail}",
+  "error.provider.antigravityUnreachable": "O Google não respondeu ao pedido do Antigravity.",
   "error.provider.discoveryTimeout": "{host} não respondeu a tempo.",
   "error.provider.discoveryUnreachable": "O OpenBot não conseguiu se conectar a {host}.",
   "error.provider.discoveryRedirect": "{host} enviou um redirecionamento. Digite o endereço final do servidor.",

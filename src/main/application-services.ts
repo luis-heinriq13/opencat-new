@@ -148,6 +148,7 @@ import { catalogPluginSlug, isReportedMcpServerName, loadCatalogPluginServers } 
 import { AnalyticsPreferenceService } from "./analytics-preference-service";
 import { readAnalyticsPreference, saveAnalyticsDefault } from "./analytics-preference-store";
 import { providerAuthKind } from "./analytics-provider-auth";
+import { markerFileAt, startAntigravityGateway } from "./antigravity-gateway/provider-registration";
 import { AppBehaviorService } from "./app-behavior-service";
 import { AppearanceService } from "./appearance-service";
 import { ApprovalAutomation, readApprovalAutomation } from "./approval-automation-store";
@@ -485,6 +486,8 @@ const TEARDOWN_ORDER = {
   service: 110,
   mcpOAuth: 111,
   analytics: 112,
+  // After the service, so that its harnesses end their requests first.
+  antigravityGateway: 113,
   // After all account consumers have stopped.
   centralAuth: 115,
   // After the service, so the turns that end while the services stop are still written.
@@ -1335,6 +1338,22 @@ export async function createApplicationServices({
   // Before the service, which reads the endpoints at its first provider spawn. A file this build
   // cannot read leaves the list empty and every write refused; it does not stop the app.
   await runCauseEffect(customProviders.load());
+  // Before the service, so the first harness reads its address. A failure leaves the endpoint as it
+  // was and the app goes on: it answers null and throws nothing.
+  const antigravityGateway = await Effect.runPromise(
+    startAntigravityGateway(customProviders, {
+      marker: markerFileAt(join(app.getPath("userData"), "antigravity-gateway.json")),
+      accountHomes: () => [
+        process.env.GEMINI_HOME?.trim() || join(homedir(), ".gemini"),
+        ...providerAccounts.list("antigravity").map((account) => providerAccounts.home(account)),
+      ],
+    }),
+  ).catch(() => null);
+  if (antigravityGateway) {
+    teardown.push(TEARDOWN_ORDER.antigravityGateway, "the local Antigravity gateway", () =>
+      Effect.runPromise(antigravityGateway.stop()),
+    );
+  }
   // The same reasons as the endpoints: before the service, and a file this build cannot read only
   // refuses the writes.
   const customAgents = new CustomAgentStore({
@@ -2235,6 +2254,7 @@ export async function createApplicationServices({
     onChanged: () => service.notifyBrowserProfilesChanged(),
   });
   const customProviderChanges = createCustomProviderChanges({ service, customProviders });
+  antigravityGateway?.watchModels(customProviderChanges);
   const customAgentChanges = createCustomAgentChanges({ service, customAgents });
   const acpRegistry = createAcpRegistry({
     directory: app.getPath("userData"),

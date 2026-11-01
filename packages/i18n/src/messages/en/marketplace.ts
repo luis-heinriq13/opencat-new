@@ -97,6 +97,8 @@ export const messages = defineMessages("marketplace", {
   // The plugin page alert when only some of its apps or skills are installed. {name} is the plugin name.
   "marketplace.app.partialTitle": "{name} is not complete",
   "marketplace.app.partialDescription": "Some of its apps or skills are not installed. Reconnect installs them.",
+  "marketplace.app.pinToRail": "Pin to bar",
+  "marketplace.app.unpinFromRail": "Unpin from bar",
   "marketplace.whatscat.openPanel": "Open panel (QR code)",
   "marketplace.whatscat.agent.title": "Agent that answers",
   "marketplace.whatscat.agent.description": "This agent answers the contacts you allow, on your WhatsApp number.",

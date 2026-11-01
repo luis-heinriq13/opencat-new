@@ -1,0 +1,58 @@
+{
+  "slug": "teams",
+  "name": "Microsoft Teams (leitura)",
+  "tagline": "Leia suas conversas do Teams. Não envia nada.",
+  "description": "Deixa o agente listar e ler as conversas (chats) do Microsoft Teams da pessoa que entrar, em um computador só seu. Somente leitura: não existe ferramenta para enviar mensagem.\n\nO que pede: uma conta de trabalho ou escola. Conta pessoal da Microsoft não funciona. O dono do OpenCat precisa registrar uma vez um app público no Azure (multilocatário, com fluxo de cliente público ligado e as permissões delegadas Chat.Read e User.Read) e colar o ID do app abaixo. Se o ID estiver vazio, as ferramentas explicam o passo a passo.\nAdministrador: Chat.Read e User.Read não exigem consentimento de administrador pela Microsoft, mas a organização pode bloquear o consentimento do usuário. Nesse caso o administrador precisa liberar o app.\nPrivacidade: o texto das mensagens vai para o modelo do agente. É texto de terceiros e o agente o trata como dado, não como instrução. A sessão fica no Chaveiro do macOS e nunca aparece em logs. Precisa de Node.js.",
+  "category": "productivity",
+  "creatorName": "OpenCat",
+  "iconUrl": null,
+  "version": "1.0.0",
+  "prompts": [
+    { "id": "prompt-status", "text": "O Teams está conectado?" },
+    { "id": "prompt-recent", "text": "Liste minhas conversas mais recentes do Teams." },
+    { "id": "prompt-summary", "text": "Resuma as últimas mensagens da conversa do projeto no Teams." }
+  ],
+  "apps": [
+    {
+      "id": "app-teams",
+      "name": "Microsoft Teams (leitura)",
+      "description": "Lista conversas e lê mensagens do Teams pelo Microsoft Graph, em um servidor local, sem envio.",
+      "iconUrl": null,
+      "server": {
+        "name": "teams",
+        "transport": "stdio",
+        "command": "~/.opencat/teams/teams-mcp.mjs",
+        "args": [],
+        "auth": [
+          {
+            "id": "teams-app-id",
+            "kind": "key",
+            "label": "ID do app do Azure",
+            "fields": [
+              {
+                "id": "client-id",
+                "label": "ID do aplicativo (cliente)",
+                "env": "TEAMS_CLIENT_ID",
+                "placeholder": "00000000-0000-0000-0000-000000000000",
+                "hint": "Do registro de aplicativo no Azure. Se ainda não tem, veja o passo a passo ao lado; a ferramenta teams_status também o explica."
+              },
+              {
+                "id": "tenant-id",
+                "label": "ID do diretório (locatário)",
+                "env": "TEAMS_TENANT_ID",
+                "placeholder": "Só se o app for de um locatário",
+                "optional": true
+              }
+            ],
+            "docsUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app",
+            "docsLabel": "Como registrar o app"
+          }
+        ]
+      }
+    }
+  ],
+  "websiteUrl": "https://learn.microsoft.com/en-us/graph/api/chat-list",
+  "privacyPolicyUrl": "https://privacy.microsoft.com/privacystatement",
+  "termsUrl": "https://www.microsoft.com/servicesagreement",
+  "skills": []
+}

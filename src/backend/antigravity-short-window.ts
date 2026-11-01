@@ -13,8 +13,8 @@ import { join } from "node:path";
 import { Effect, Option, Schema } from "effect";
 import type { AccountRateLimitWindowResult } from "./protocol";
 
-const FETCH_MODELS_URL = "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
-const USER_AGENT = "antigravity/hub/2.24.0 darwin/arm64";
+export const FETCH_MODELS_URL = "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
+export const ANTIGRAVITY_USER_AGENT = "antigravity/hub/2.24.0 darwin/arm64";
 const SHORT_WINDOW_TIMEOUT_MS = 8_000;
 const FIVE_HOUR_WINDOW_MINS = 300;
 /** A reset further ahead than this belongs to a weekly quota, as on Plus accounts. */
@@ -49,6 +49,29 @@ const ModelsAnswer = Schema.Struct({
     }),
   ),
 });
+
+export type AntigravityAuth = typeof TokenFile.Type;
+
+/** The contents of a token file, or null when they are not one. */
+export function decodeAntigravityAuth(text: string): AntigravityAuth | null {
+  return Option.getOrNull(Schema.decodeUnknownOption(Schema.fromJsonString(TokenFile))(text));
+}
+
+/** The client secret and refresh token go only to a Google address over https. */
+export function isGoogleTokenUri(uri: string): boolean {
+  const url = URL.parse(uri);
+  return url?.protocol === "https:" && /(^|\.)(googleapis|google)\.com$/iu.test(url.hostname);
+}
+
+/** The form that exchanges a refresh token for an access token. */
+export function antigravityRefreshBody(auth: AntigravityAuth): string {
+  return new URLSearchParams({
+    client_id: auth.client_id,
+    client_secret: auth.client_secret,
+    refresh_token: auth.refresh_token,
+    grant_type: "refresh_token",
+  }).toString();
+}
 
 const TokenAnswer = Schema.Struct({ access_token: Schema.NonEmptyString });
 
@@ -110,20 +133,12 @@ const read = Effect.fn("Antigravity.readShortWindows")(function* (
     try: () => readFile(tokenFile, "utf8"),
     catch: (cause) => new ShortWindowFailed({ cause }),
   });
-  const auth = Option.getOrNull(Schema.decodeUnknownOption(Schema.fromJsonString(TokenFile))(text));
-  if (!auth) return {} satisfies AntigravityShortWindows;
-  const tokenUrl = URL.parse(auth.token_uri);
-  if (tokenUrl?.protocol !== "https:" || !/(^|\.)(googleapis|google)\.com$/iu.test(tokenUrl.hostname))
-    return {} satisfies AntigravityShortWindows;
+  const auth = decodeAntigravityAuth(text);
+  if (!auth || !isGoogleTokenUri(auth.token_uri)) return {} satisfies AntigravityShortWindows;
   const token = yield* post(doFetch, auth.token_uri, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: auth.client_id,
-      client_secret: auth.client_secret,
-      refresh_token: auth.refresh_token,
-      grant_type: "refresh_token",
-    }).toString(),
+    body: antigravityRefreshBody(auth),
   });
   const access = Option.getOrNull(Schema.decodeUnknownOption(TokenAnswer)(token));
   if (!access) return {} satisfies AntigravityShortWindows;
@@ -132,7 +147,7 @@ const read = Effect.fn("Antigravity.readShortWindows")(function* (
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${access.access_token}`,
-      "User-Agent": USER_AGENT,
+      "User-Agent": ANTIGRAVITY_USER_AGENT,
     },
     body: JSON.stringify({ project: auth.project_id }),
   });
