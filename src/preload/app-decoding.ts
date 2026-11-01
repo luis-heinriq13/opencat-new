@@ -86,6 +86,7 @@ import {
   isVoiceModelId,
   isVoiceServerProbe,
   isVoiceServerSettings,
+  type LocalUpdateInfo,
   type MobileConnectedDevice,
   type MobileConnectLink,
   type MobileConnectTicket,
@@ -333,7 +334,7 @@ export function decodeAccountSessions(value: unknown): AccountSession[] {
 
 export function decodeUpdateStatus(value: unknown): UpdateStatus {
   const status = decodeRecord(value, "update status");
-  const { phase, errorCode, managedByHost, scheduledRestart, idleRestart } = status;
+  const { phase, errorCode, managedByHost, scheduledRestart, idleRestart, localUpdate } = status;
   if (!isOneOf(UPDATE_PHASES, phase)) throw new Error("Invalid phase.");
   if (errorCode !== null && !isOneOf(["check_failed", "download_failed", "install_failed"] as const, errorCode)) {
     throw new Error("Invalid errorCode.");
@@ -348,9 +349,17 @@ export function decodeUpdateStatus(value: unknown): UpdateStatus {
     message: nullableString(status, "message"),
     errorCode,
     ...(managedByHost === undefined ? {} : { managedByHost }),
+    ...(localUpdate === undefined ? {} : { localUpdate: decodeLocalUpdate(localUpdate) }),
     ...(scheduledRestart === undefined ? {} : { scheduledRestart: decodeScheduledUpdateRestart(scheduledRestart) }),
     ...(idleRestart === undefined ? {} : { idleRestart: decodeIdleRestart(idleRestart) }),
   };
+}
+
+function decodeLocalUpdate(value: unknown): LocalUpdateInfo {
+  const update = decodeRecord(value, "local update");
+  const { changes } = update;
+  if (!Array.isArray(changes) || !changes.every(isString)) throw new Error("Invalid changes.");
+  return { commit: requiredString(update, "commit"), builtAt: requiredString(update, "builtAt"), changes };
 }
 
 function decodeIdleRestart(value: unknown): IdleRestart {

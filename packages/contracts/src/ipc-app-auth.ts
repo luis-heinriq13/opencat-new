@@ -58,6 +58,14 @@ export function isUpdateActivePhase(phase: UpdatePhase): boolean {
   return ACTIVE_PHASES.has(phase);
 }
 
+/** A build of this fork that the user made on this computer. It never comes from a remote feed. */
+export interface LocalUpdateInfo {
+  commit: string;
+  builtAt: string;
+  /** One line per change, as shown to the user before they accept. */
+  changes: string[];
+}
+
 export interface UpdateStatus {
   phase: UpdatePhase;
   currentVersion: string;
@@ -71,6 +79,8 @@ export interface UpdateStatus {
    * install, download and check actions but keeps showing the status; absent means unmanaged.
    */
   managedByHost?: boolean;
+  /** Set while the update is a local build. Installing it needs a confirmation in the main process. */
+  localUpdate?: LocalUpdateInfo;
   /** A restart that an admin of a joined server asked for. Absent when none waits. */
   scheduledRestart?: ScheduledUpdateRestart;
   /** A restart that the user of this computer asked for. Absent when none waits. */

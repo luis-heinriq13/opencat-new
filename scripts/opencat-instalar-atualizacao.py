@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""Instala a build local do OpenCat preparada por scripts/opencat-preparar-atualizacao.sh.
+
+Roda desacoplado do app (o app fecha logo depois de iniciar este script). Faz copia dos dados,
+troca o app, reabre e confere a saude. Se o app novo nao abrir ou se faltarem agentes, volta ao app
+anterior. Se a saude nao puder ser determinada, mantem o app novo e so registra no log.
+
+Uso: python3 -I opencat-instalar-atualizacao.py --commit <commit> [--atual /Applications/OpenCat.app] [--wait-pid N]
+"""
+import argparse
+import json
+import os
+import pathlib
+import re
+import shutil
+import signal
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+HOME = pathlib.Path.home()
+UPDATES = HOME / "OpenCat-updates"
+DATA = HOME / "Library/Application Support/OpenBot"
+FONTE = HOME / "Downloads/openbot/dist/mac-arm64/OpenBot.app"
+BUNDLE_ID = "app.openbot.desktop"
+AUTO = DATA / "automation"
+LOG = UPDATES / "instalacao.log"
+LOCK = UPDATES / "instalacao.lock"
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}(-dirty-[0-9a-f]{8})?$")
+HEALTH_ROUNDS = 90  # 90 x 10 s = 15 min: o Mac pode estar esperando a senha do usuario.
+
+ATUAL = pathlib.Path("/Applications/OpenCat.app")
+ANTERIOR = None
+COPIA = None
+PREPARADO = None
+TROCADO = False
+
+
+def log(text):
+    try:
+        fd = os.open(LOG, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        with os.fdopen(fd, "a") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + text + "\n")
+    except OSError:
+        pass
+
+
+def run(*cmd):
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip().replace("\n", " ")
+        log(f"comando falhou ({result.returncode}): {' '.join(cmd)} {detail[-500:]}")
+    return result
+
+
+def escrever_json(path, data):
+    fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def team_id(app):
+    out = run("codesign", "-dv", "--verbose=2", str(app))
+    match = re.search(r"TeamIdentifier=(\S+)", out.stderr + out.stdout)
+    return match.group(1) if match and match.group(1) != "not" else None
+
+
+def assinatura_ok(app):
+    return run("codesign", "--verify", "--deep", "--strict", str(app)).returncode == 0
+
+
+def rodando():
+    return bool(run("lsof", "-nP", str(DATA / "openbot.db")).stdout.strip())
+
+
+def pid_vivo(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def fechar(wait_pid):
+    if wait_pid:
+        for _ in range(90):
+            if not pid_vivo(wait_pid):
+                break
+            time.sleep(2)
+    if rodando():
+        run("osascript", "-e", f'quit app id "{BUNDLE_ID}"')
+    for _ in range(90):
+        if not rodando():
+            return True
+        time.sleep(2)
+    return False
+
+
+def contar_agentes_db():
+    """Leitura somente-leitura. Retorna None se nao der para ler."""
+    try:
+        con = sqlite3.connect(f"file:{DATA / 'openbot.db'}?mode=ro", uri=True, timeout=5)
+        try:
+            return con.execute("select count(*) from projection_agents").fetchone()[0]
+        finally:
+            con.close()
+    except Exception as error:
+        log(f"nao consegui contar agentes no banco: {error}")
+        return None
+
+
+def contar_agentes_api():
+    """So se a API de automacao existir. Retorna None se nao der para ler."""
+    try:
+        url = (AUTO / "url").read_text().strip() + "/v1/agents"
+        req = urllib.request.Request(url)
+        for line in (AUTO / "headers").read_text().splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                req.add_header(k.strip(), v.strip())
+        data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        return len(data if isinstance(data, list) else data.get("agents", []))
+    except Exception:
+        return None
+
+
+def reabrir_apos_interrupcao():
+    if ANTERIOR is not None and ANTERIOR.is_dir() and not ATUAL.exists():
+        shutil.move(str(ANTERIOR), str(ATUAL))
+    if ATUAL.is_dir() and not rodando():
+        run("open", str(ATUAL))
+
+
+def interromper(signum, _frame):
+    log("interrompido; reabrindo o app")
+    if not TROCADO:
+        reabrir_apos_interrupcao()
+    raise SystemExit(128 + signum)
+
+
+def tomar_trava():
+    for _ in range(2):
+        try:
+            fd = os.open(LOCK, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return True
+        except FileExistsError:
+            try:
+                if pid_vivo(int(LOCK.read_text().strip())):
+                    return False
+            except (OSError, ValueError):
+                pass
+            try:
+                LOCK.unlink()
+            except OSError:
+                pass
+    return False
+
+
+def voltar(dados_ruins, wait_pid):
+    log("voltando ao app anterior" + (" e aos dados anteriores" if dados_ruins else ""))
+    fechar(None)
+    if ATUAL.exists():
+        shutil.move(str(ATUAL), str(COPIA / "OpenCat-falhou.app"))
+    if dados_ruins:
+        shutil.move(str(DATA), str(COPIA / "dados-apos-falha"))
+        run("cp", "-c", "-R", str(COPIA / "dados-OpenBot"), str(DATA))
+    shutil.move(str(ANTERIOR), str(ATUAL))
+    run("open", str(ATUAL))
+
+
+def main():
+    global ATUAL, ANTERIOR, COPIA, PREPARADO, TROCADO
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--commit", required=True)
+    parser.add_argument("--atual", default=str(ATUAL))
+    parser.add_argument("--wait-pid", type=int, default=0)
+    args = parser.parse_args()
+
+    UPDATES.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(UPDATES, 0o700)
+    if not COMMIT_RE.match(args.commit):
+        log("commit invalido; nada foi alterado")
+        return 1
+    ATUAL = pathlib.Path(args.atual)
+    if ATUAL.suffix != ".app" or not ATUAL.is_dir() or ATUAL.is_symlink() or ATUAL.resolve() == FONTE.resolve():
+        log(f"app atual invalido: {ATUAL}; nada foi alterado")
+        return 1
+    if not tomar_trava():
+        log("ja existe uma instalacao em andamento; nada foi alterado")
+        return 1
+    signal.signal(signal.SIGINT, interromper)
+    signal.signal(signal.SIGTERM, interromper)
+    try:
+        return instalar(args)
+    finally:
+        try:
+            LOCK.unlink()
+        except OSError:
+            pass
+
+
+def instalar(args):
+    global ANTERIOR, COPIA, PREPARADO, TROCADO
+    log(f"inicio: commit {args.commit}")
+    pending = UPDATES / "pending.json"
+    try:
+        manifest = json.loads(pending.read_text())
+    except (OSError, ValueError):
+        log("pending.json ilegivel; nada foi alterado")
+        return 1
+    if manifest.get("commit") != args.commit or manifest.get("appPath") != str(FONTE):
+        log("pending.json nao confere com o pedido; nada foi alterado")
+        return 1
+    if FONTE.is_symlink() or not FONTE.is_dir() or not assinatura_ok(FONTE):
+        log("build preparada invalida; nada foi alterado")
+        return 1
+    novo_time, atual_time = team_id(FONTE), team_id(ATUAL)
+    if novo_time != atual_time:
+        log(f"Team ID diferente (novo={novo_time}, atual={atual_time}); nada foi alterado")
+        return 1
+
+    # Linha de base lida ANTES de fechar o app.
+    base_db = contar_agentes_db()
+    base_api = contar_agentes_api()
+    log(f"agentes antes: banco={base_db} api={base_api}")
+
+    PREPARADO = ATUAL.parent / ".OpenCat-preparado.app"
+    shutil.rmtree(PREPARADO, ignore_errors=True)
+    if run("ditto", str(FONTE), str(PREPARADO)).returncode or not assinatura_ok(PREPARADO):
+        log("preparo da instalacao falhou; nada foi alterado")
+        shutil.rmtree(PREPARADO, ignore_errors=True)
+        return 1
+
+    if not fechar(args.wait_pid):
+        log("o app nao fechou; nada foi alterado")
+        shutil.rmtree(PREPARADO, ignore_errors=True)
+        return 1
+
+    COPIA = UPDATES / "copias" / time.strftime("%Y%m%d-%H%M%S")
+    COPIA.mkdir(parents=True, mode=0o700)
+    ANTERIOR = COPIA / "OpenCat-anterior.app"
+    if run("cp", "-c", "-R", str(DATA), str(COPIA / "dados-OpenBot")).returncode:
+        log("copia dos dados falhou; nada foi alterado")
+        shutil.rmtree(PREPARADO, ignore_errors=True)
+        run("open", str(ATUAL))
+        return 1
+    log(f"copia dos dados pronta: {COPIA}")
+
+    try:
+        shutil.move(str(ATUAL), str(ANTERIOR))
+        shutil.move(str(PREPARADO), str(ATUAL))
+    except OSError as error:
+        log(f"troca falhou: {error}")
+        if ANTERIOR.exists() and not ATUAL.exists():
+            shutil.move(str(ANTERIOR), str(ATUAL))
+        run("open", str(ATUAL))
+        return 1
+    TROCADO = True
+    run("open", str(ATUAL))
+
+    veredito = "indeterminado"
+    dados_ruins = False
+    for _ in range(HEALTH_ROUNDS):
+        time.sleep(10)
+        api = contar_agentes_api()
+        if api is None:
+            continue
+        banco = contar_agentes_db()
+        if base_api is not None and api >= base_api:
+            veredito = "ok"
+        elif base_api is None and (base_db is None or (banco is not None and banco >= base_db)):
+            veredito = "ok"
+        if veredito == "ok":
+            break
+    if veredito != "ok":
+        banco = contar_agentes_db()
+        if base_db is not None and banco is not None and banco < base_db:
+            veredito, dados_ruins = "ruim", True
+            log(f"faltam agentes no banco: antes={base_db} agora={banco}")
+        elif not rodando():
+            veredito = "ruim"
+            log("o app novo nao esta rodando")
+    if veredito == "ruim":
+        voltar(dados_ruins, None)
+        log(f"FALHOU: voltei ao app anterior. Copia em {COPIA}")
+        return 1
+    if veredito == "indeterminado":
+        log("saude nao pode ser confirmada (sem API de automacao); mantendo o app novo")
+    else:
+        log("OK: app novo abriu com os agentes")
+
+    escrever_json(
+        UPDATES / "installed.json",
+        {
+            "commit": manifest["commit"],
+            "version": manifest.get("version"),
+            "installedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "backup": str(COPIA),
+            "healthConfirmed": veredito == "ok",
+        },
+    )
+    try:
+        if json.loads(pending.read_text()).get("commit") == manifest["commit"]:
+            pending.unlink()
+    except (OSError, ValueError):
+        pass
+    log(f"concluido. Copia de seguranca em {COPIA}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

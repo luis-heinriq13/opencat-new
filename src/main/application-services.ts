@@ -97,6 +97,7 @@ import {
   BrowserWindow,
   clipboard,
   desktopCapturer,
+  dialog,
   Notification,
   nativeImage,
   powerMonitor,
@@ -215,6 +216,13 @@ import { localRoutineFeedDocument } from "./local-routine-calendar";
 import { type LocalServerChildEnvironment, startLocalServerChild } from "./local-server-child";
 import { LOCAL_SERVERS_FILE } from "./local-servers/local-server-registry";
 import { LocalServers } from "./local-servers/local-servers";
+import {
+  bundlePathFromExecutable,
+  codesignWithSystemTool,
+  defaultLocalUpdatePaths,
+  LocalUpdateSource,
+  spawnLocalInstaller,
+} from "./local-update-source";
 import { createLoginItem } from "./login-item";
 import { LogoColorService } from "./logo-color-service";
 import type { MacHapticFeedback } from "./mac-haptic-feedback";
@@ -237,9 +245,9 @@ import {
   showMainWindow,
 } from "./main-window";
 import {
-  CAVEMAN_SKILL_SLUG,
   DATA_SKILL_SLUG,
   ManagedSkillService,
+  removeRetiredManagedSkills,
   SKILL_CREATOR_SKILL_SLUG,
 } from "./managed-skill-service";
 import { McpHostSignIns } from "./mcp-host-sign-ins";
@@ -1051,18 +1059,10 @@ export async function createApplicationServices({
     undefined,
     DATA_SKILL_SLUG,
   );
-  const cavemanSkill = new ManagedSkillService(
-    app.isPackaged
-      ? join(process.resourcesPath, "managed-skills", "caveman", "SKILL.md")
-      : resolve(__dirname, "../../resources/managed-skills/caveman/SKILL.md"),
-    undefined,
-    undefined,
-    CAVEMAN_SKILL_SLUG,
-  );
-  await Effect.runPromise(cavemanSkill.syncAll(store.list()));
   await Effect.runPromise(managedSkills.syncAll(store.list()));
   await Effect.runPromise(skillCreator.syncAll(store.list()));
   await Effect.runPromise(dataSkill.syncAll(store.list()));
+  await Effect.runPromise(removeRetiredManagedSkills(store.list()));
   performance.mark("openbot:services.skills");
   const hostedSites = new HostedSiteDesktopService(centralAuth, () => {
     // Read at request time: the team store is created later, and the server can register after launch.
@@ -1732,7 +1732,6 @@ export async function createApplicationServices({
         yield* managedSkills.syncAgent(agent);
         yield* skillCreator.syncAgent(agent);
         yield* dataSkill.syncAgent(agent);
-        yield* cavemanSkill.syncAgent(agent);
       }),
     hostedSites: {
       list: () => hostedSites.list().pipe(toHostedSiteOperationFailed),
@@ -2973,11 +2972,43 @@ export async function createApplicationServices({
       logger.warn("OpenBot updates are disabled: electron-updater failed to load");
     }
   }
+  const localUpdatePaths = defaultLocalUpdatePaths();
   const updater = new UpdateService(updateAdapter, {
     currentVersion,
     enabled: updaterEnabled,
     autoDownload: updatePreference.autoDownload,
     beforeInstall: prepareForUpdateInstall,
+    installLocalUpdate: async (update) => {
+      const bundlePath = bundlePathFromExecutable(app.getPath("exe"));
+      if (!app.isPackaged || !bundlePath) return false;
+      const busy = service.hasActiveWork().length > 0;
+      const choice = await dialog.showMessageBox({
+        type: "question",
+        title: language.translate("dialog.localUpdate.title"),
+        message: language.translate("dialog.localUpdate.message", { version: update.version }),
+        detail: [
+          language.translate("dialog.localUpdate.detail", {
+            changes: update.changes.map((line) => `- ${line}`).join("\n"),
+          }),
+          ...(busy ? [language.translate("dialog.localUpdate.busy")] : []),
+        ].join("\n\n"),
+        buttons: [language.translate("dialog.localUpdate.install"), language.translate("dialog.localUpdate.cancel")],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice.response !== 0) return false;
+      logger.info(`Local update ${update.commit} accepted by the user.`);
+      await spawnLocalInstaller({
+        resourcesPath: process.resourcesPath,
+        updatesDirectory: localUpdatePaths.updatesDirectory,
+        commit: update.commit,
+        bundlePath,
+      });
+      await prepareForUpdateInstall();
+      app.quit();
+      return true;
+    },
     // Packaged runs share one application bundle across macOS users. Installing while another
     // login session runs OpenBot from that bundle would replace it underneath that session, so
     // the service refuses the install until every sibling session stopped. Unpackaged runs never
@@ -3013,6 +3044,34 @@ export async function createApplicationServices({
     updaterCacheDirectory,
   });
   teardown.push(TEARDOWN_ORDER.updater, "the update service", () => Effect.runPromise(updater.stop()));
+  // Our own builds: a manifest that scripts/opencat-preparar-atualizacao.sh writes. The remote feed
+  // stays off, so an official release never installs through this path.
+  const localBundlePath = bundlePathFromExecutable(app.getPath("exe"));
+  if (
+    app.isPackaged &&
+    process.platform === "darwin" &&
+    localBundlePath &&
+    !localServerChild &&
+    !updaterEnabled &&
+    !hostedInstaller &&
+    typeof process.getuid === "function"
+  ) {
+    let ownTeamId: Promise<string | null> | undefined;
+    const localUpdateSource = new LocalUpdateSource({
+      onUpdate: (update) => updater.setLocalUpdate(update),
+      dependencies: {
+        paths: localUpdatePaths,
+        uid: process.getuid(),
+        codesign: codesignWithSystemTool,
+        ownTeamId: () => {
+          ownTeamId ??= codesignWithSystemTool(localBundlePath).then((result) => (result.valid ? result.teamId : null));
+          return ownTeamId;
+        },
+      },
+    });
+    localUpdateSource.start();
+    teardown.push(TEARDOWN_ORDER.updater, "the local update source", () => localUpdateSource.stop());
+  }
   const agentInitialization = new AgentInitializationGate(() =>
     Effect.gen(function* () {
       yield* Fiber.join(computerUseWarmUp);

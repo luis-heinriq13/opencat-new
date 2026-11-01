@@ -3,6 +3,7 @@ import { appendFile, mkdir, readdir, readFile, rename, rm, stat } from "node:fs/
 import { basename, join } from "node:path";
 import type {
   IdleRestart,
+  LocalUpdateInfo,
   ScheduledUpdateRestart,
   UpdateBusyPhase,
   UpdateFailureCode,
@@ -93,6 +94,11 @@ interface UpdateServiceOptions {
   enabled: boolean;
   autoDownload: boolean;
   beforeInstall: () => Promise<void>;
+  /**
+   * Installs a local build: asks the user, starts the installer and quits. It resolves to false when
+   * the user declined. Only the main process may show the question, so the renderer cannot skip it.
+   */
+  installLocalUpdate?: ((update: LocalUpdateInfo & { version: string }) => Promise<boolean>) | undefined;
   checkSiblingInstances?: (() => Effect.Effect<readonly OpenBotSiblingInstance[], SiblingScanFailed>) | undefined;
   /** The uid of this process. It tells a refusal in this account apart from another account. */
   currentUid?: number | undefined;
@@ -185,6 +191,7 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
     Pick<
       UpdateServiceOptions,
       | "beforeInstall"
+      | "installLocalUpdate"
       | "checkSiblingInstances"
       | "currentUid"
       | "logDirectory"
@@ -207,6 +214,7 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
   #autoDownload: boolean;
   #downloadedVersion: string | null = null;
   #managedByHost = false;
+  #localUpdate: (LocalUpdateInfo & { version: string }) | null = null;
   #scheduledRestart: ScheduledUpdateRestart | null = null;
   #idleRestart: IdleRestart | null = null;
   #cancellationToken: UpdateCancellationToken | null = null;
@@ -311,6 +319,10 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
   getStatus(): UpdateStatus {
     const status = { ...this.#status };
     if (this.#managedByHost) status.managedByHost = true;
+    if (this.#localUpdate) {
+      const { commit, builtAt, changes } = this.#localUpdate;
+      status.localUpdate = { commit, builtAt, changes: [...changes] };
+    }
     if (this.#scheduledRestart)
       status.scheduledRestart = { ...this.#scheduledRestart, waitingFor: [...this.#scheduledRestart.waitingFor] };
     if (this.#idleRestart) status.idleRestart = { ...this.#idleRestart, waitingFor: [...this.#idleRestart.waitingFor] };
@@ -349,6 +361,54 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
       yield* Effect.forkIn(this.downloadUpdate(), this.#workScope, { startImmediately: true });
     }
   });
+
+  /**
+   * Offers a build that the user made on this computer. It never replaces the remote feed: with the
+   * feed on, or a host in charge, the offer is ignored. Clearing it returns to "unsupported".
+   */
+  setLocalUpdate(update: (LocalUpdateInfo & { version: string }) | null): void {
+    if (this.#options.enabled || this.#managedByHost || this.#teardownCommitted) return;
+    if (this.#status.phase === "installing") return;
+    if (update === null) {
+      if (this.#localUpdate === null) return;
+      this.#localUpdate = null;
+      this.#setStatus({ phase: "unsupported", availableVersion: null, message: unsupportedMessage(), errorCode: null });
+      return;
+    }
+    if (this.#localUpdate?.commit === update.commit && this.#status.phase === "available") return;
+    this.#localUpdate = update;
+    this.#setStatus({
+      phase: "available",
+      availableVersion: update.version,
+      progress: null,
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  /** The click on "Update" for a local build. It asks first; a "no" leaves everything as it was. */
+  #installLocal(update: LocalUpdateInfo & { version: string }): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
+    return Effect.gen({ self: this }, function* () {
+      const install = this.#options.installLocalUpdate;
+      if (!install || this.#installStarted) return this.getStatus();
+      this.#installStarted = true;
+      const started = yield* Effect.result(updateIO(() => install(update)));
+      if (Result.isFailure(started)) {
+        this.#installStarted = false;
+        logUpdateFailure("OpenBot local update install failed.", started.failure.cause);
+        this.#setError("install_failed", INSTALL_FAILED_MESSAGE);
+        return this.getStatus();
+      }
+      if (!started.success) {
+        this.#installStarted = false;
+        return this.getStatus();
+      }
+      // The installer is running and the app is quitting. The latch stays set.
+      this.#operation = "install";
+      this.#setStatus({ phase: "installing", progress: 100, message: null, errorCode: null });
+      return this.getStatus();
+    });
+  }
 
   /** Host-managed sessions display host state and never invoke the tenant updater. */
   setManagedByHost(managed: boolean): void {
@@ -507,6 +567,9 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
   downloadUpdate(): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
     return Effect.gen({ self: this }, function* () {
       if (this.#managedByHost) return this.getStatus();
+      if (this.#localUpdate && !this.#options.enabled && !this.#teardownCommitted && this.#canDownload()) {
+        return yield* this.#installLocal(this.#localUpdate);
+      }
       if (!this.#options.enabled || this.#teardownCommitted || !this.#canDownload()) return this.getStatus();
       // Same deduplication applies to downloads, and starting a second attempt while the abandoned one
       // is still unsettled is also what would let its buffered events be read as the new attempt's.

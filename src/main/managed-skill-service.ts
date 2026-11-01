@@ -1,4 +1,5 @@
-import { lstat, mkdir, readdir, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, readdir, readFile, realpath, rename, rmdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { agentProviderDescriptor } from "@openbot/contracts/agent-providers";
 import type { AgentSummary, InstalledSkill } from "@openbot/contracts/ipc";
@@ -19,7 +20,6 @@ export const MANAGED_SKILL_SLUGS: ReadonlySet<string> = new Set([
   MANAGED_SKILL_SLUG,
   SKILL_CREATOR_SKILL_SLUG,
   DATA_SKILL_SLUG,
-  CAVEMAN_SKILL_SLUG,
 ]);
 export const OWNERSHIP_MARKER = ".openbot-managed.json";
 /** The workspace skill folders OpenBot writes. Each provider reads at least one of them. */
@@ -123,7 +123,7 @@ const syncTarget = Effect.fn("ManagedSkill.syncTarget")(function* (
   content: string,
   slug: string,
 ): Effect.fn.Return<"synced" | "collision", ManagedSkillFailure> {
-  const ownershipContent = `${JSON.stringify({ managedBy: "openbot", slug, version: 1 })}\n`;
+  const ownershipContent = ownershipMarkerText(slug);
   const parent = dirname(target);
   yield* ensureSafeDirectory(workspaceRoot, parent);
   const marker = join(parent, OWNERSHIP_MARKER);
@@ -232,6 +232,100 @@ const fileExists = Effect.fn("ManagedSkill.fileExists")((path: string) =>
 const optionalText = Effect.fn("ManagedSkill.optionalText")((path: string) =>
   managedIO(() => readFile(path, "utf8")).pipe(
     Effect.catch((error) => (isMissingFileError(error.cause) ? Effect.succeed(null) : Effect.fail(error))),
+  ),
+);
+
+function ownershipMarkerText(slug: string): string {
+  return `${JSON.stringify({ managedBy: "openbot", slug, version: 1 })}\n`;
+}
+
+/**
+ * Managed copies that OpenBot wrote before it stopped installing them. A copy is removed only when
+ * its ownership marker and the SHA-256 of its SKILL.md match what the service wrote.
+ */
+const RETIRED_MANAGED_SKILLS: readonly RetiredManagedSkill[] = [
+  {
+    slug: CAVEMAN_SKILL_SLUG,
+    sha256: ["04fe8c8fe64e9d15596b15ab6f2495edb440be1ca29485c8aab3c62293dcdd24"],
+  },
+];
+
+interface RetiredManagedSkill {
+  readonly slug: string;
+  readonly sha256: readonly string[];
+}
+
+/**
+ * Removes only the unedited managed copies of retired skills from each agent workspace.
+ * Failures are logged and never block startup.
+ */
+export const removeRetiredManagedSkills = Effect.fn("ManagedSkill.removeRetired")(function* (
+  agents: Pick<AgentSummary, "workspacePath">[],
+  retired: readonly RetiredManagedSkill[] = RETIRED_MANAGED_SKILLS,
+) {
+  const results = yield* Effect.forEach(
+    agents,
+    (agent) => Effect.result(removeRetiredFromWorkspace(agent.workspacePath, retired)),
+    { concurrency: "unbounded" },
+  );
+  for (const [index, result] of results.entries()) {
+    if (Result.isFailure(result))
+      logger.warn(
+        `OpenBot could not check retired managed skills in ${agents[index]?.workspacePath ?? "unknown workspace"}.`,
+        toLogValue(result.failure.cause),
+      );
+  }
+});
+
+const removeRetiredFromWorkspace = Effect.fn("ManagedSkill.removeRetiredFromWorkspace")(function* (
+  workspacePath: string,
+  retired: readonly RetiredManagedSkill[],
+) {
+  const workspaceRoot = yield* managedIO(() => realpath(resolve(workspacePath)));
+  for (const folder of MANAGED_SKILL_FOLDERS) {
+    for (const skill of retired) {
+      const directory = join(workspaceRoot, folder, skill.slug);
+      const result = yield* Effect.result(removeRetiredSkill(workspaceRoot, directory, skill));
+      if (Result.isFailure(result))
+        logger.warn(
+          `OpenBot could not remove the retired managed skill at ${directory}.`,
+          toLogValue(result.failure.cause),
+        );
+    }
+  }
+});
+
+const removeRetiredSkill = Effect.fn("ManagedSkill.removeRetiredSkill")(function* (
+  workspaceRoot: string,
+  directory: string,
+  skill: RetiredManagedSkill,
+) {
+  const stats = yield* Effect.result(managedIO(() => lstat(directory)));
+  if (Result.isFailure(stats)) {
+    if (isMissingFileError(stats.failure.cause)) return;
+    return yield* stats.failure;
+  }
+  if (!stats.success.isDirectory()) return;
+  yield* verifySafeDirectory(workspaceRoot, directory);
+  const entries = (yield* managedIO(() => readdir(directory))).sort();
+  const expected = ["SKILL.md", OWNERSHIP_MARKER].sort();
+  if (entries.length !== expected.length || entries.some((entry, index) => entry !== expected[index])) return;
+  const file = join(directory, "SKILL.md");
+  const marker = join(directory, OWNERSHIP_MARKER);
+  if (!(yield* isRegularFile(file)) || !(yield* isRegularFile(marker))) return;
+  if ((yield* optionalText(marker)) !== ownershipMarkerText(skill.slug)) return;
+  const content = yield* managedIO(() => readFile(file, "utf8"));
+  if (!skill.sha256.includes(createHash("sha256").update(content).digest("hex"))) return;
+  yield* verifySafeDirectory(workspaceRoot, directory);
+  yield* managedIO(() => unlink(file));
+  yield* managedIO(() => unlink(marker));
+  yield* managedIO(() => rmdir(directory));
+});
+
+const isRegularFile = Effect.fn("ManagedSkill.isRegularFile")((path: string) =>
+  managedIO(() => lstat(path)).pipe(
+    Effect.map((stats) => stats.isFile()),
+    Effect.catch((error) => (isMissingFileError(error.cause) ? Effect.succeed(false) : Effect.fail(error))),
   ),
 );
 

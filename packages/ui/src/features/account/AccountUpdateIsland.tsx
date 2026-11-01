@@ -72,6 +72,8 @@ export function AccountUpdateIsland(props: AccountUpdateIslandProps) {
   const busy = createMemo(() => actionPending() || isUpdateBusyPhase(phase()));
   // Host-managed tenants watch the status but never act on it.
   const managed = createMemo(() => props.updateStatus.managedByHost === true);
+  // A build made on this computer: the button asks for confirmation and lists the changes first.
+  const local = createMemo(() => props.updateStatus.localUpdate !== undefined);
   const ready = createMemo(() => !failed() && (phase() === "ready" || phase() === "installing"));
   const progress = createMemo(() => {
     const value = props.updateStatus.progress;
@@ -80,6 +82,7 @@ export function AccountUpdateIsland(props: AccountUpdateIslandProps) {
   const actionLabel = createMemo(() => {
     if (managed()) return t("account.update.managedByHost");
     if (failed()) return t("common.retry");
+    if (local() && !ready()) return t("account.update.localInstall");
     return ready() ? t("account.update.restart") : t("common.download");
   });
   const busyLabel = createMemo(() => {
@@ -95,6 +98,7 @@ export function AccountUpdateIsland(props: AccountUpdateIslandProps) {
     if (downloading() && percent !== null) return t("account.update.downloadingLabel", { percent });
     if (phase() === "installing" || (actionPending() && ready())) return t("account.update.restartingLabel");
     if (failed()) return t("account.update.retryLabel", { reason: errorMessage() });
+    if (local() && !ready()) return t("account.update.localInstallLabel");
     return ready() ? t("account.update.restartLabel") : t("account.update.downloadLabel");
   });
 
@@ -155,7 +159,7 @@ export function AccountUpdateIsland(props: AccountUpdateIslandProps) {
           aria-live="polite"
         >
           <strong data-text="available" aria-hidden={ready() || failed() ? "true" : undefined}>
-            {t("account.update.available")}
+            {local() ? t("account.update.localAvailable") : t("account.update.available")}
           </strong>
           <strong data-text="ready" aria-hidden={ready() && !failed() ? undefined : "true"}>
             {t("account.update.ready")}

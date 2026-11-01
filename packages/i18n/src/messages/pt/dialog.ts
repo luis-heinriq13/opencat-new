@@ -20,4 +20,11 @@ export const messages = {
   "dialog.filter.transfer": "Arquivos de transferência do OpenBot",
   "dialog.chooseExternalLinkApp": "Escolha um navegador",
   "dialog.filter.applications": "Aplicativos",
+  "dialog.localUpdate.title": "Atualizar o OpenCat",
+  "dialog.localUpdate.message": "Há uma nova versão do OpenCat pronta (versão {version}).",
+  "dialog.localUpdate.detail":
+    "O que muda:\n{changes}\n\nO OpenCat faz uma cópia dos seus dados e guarda o app anterior. Depois fecha e abre sozinho de novo.",
+  "dialog.localUpdate.busy": "Um agente está trabalhando agora. Se você atualizar, esse trabalho para.",
+  "dialog.localUpdate.install": "Atualizar",
+  "dialog.localUpdate.cancel": "Agora não",
 } as const satisfies PartialTranslation<typeof source>;
