@@ -308,6 +308,12 @@ const describeMedia = (message) => {
   return {
     ...base,
     origem: source,
+    ...(media.tipo === "image" && media.caminho
+      ? {
+          obrigatorio:
+            "Antes de responder, abra a imagem em caminhoLocal com a sua ferramenta de leitura de arquivos e olhe o conteúdo. Comente em poucas palavras o que ela mostra, sem citar o caminho. Se não conseguir abrir, diga isso ao contato.",
+        }
+      : {}),
     ...(media.texto ? { conteudoExtraido: media.texto } : {}),
     ...(media.truncado ? { truncado: `Texto cortado nos primeiros ${MAX_EXTRACTED_CHARS} caracteres.` } : {}),
     aviso: media.texto
@@ -709,7 +715,13 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
         audit("ignorada_pausa", { conversa: shortHash(chatId) });
         continue;
       }
-      if (state.outbox.some((item) => item.chatId === chatId) || openDelivery(state, chatId)) continue;
+      if (
+        state.outbox.some((item) => item.chatId === chatId) ||
+        openDelivery(state, chatId) ||
+        state.outgoing.some((item) => item.chatId === chatId && item.kind === "resposta")
+      ) {
+        continue;
+      }
       const quiet = current - entry.lastAt >= adaptiveWindowMs(entry, windowMs(), hardMs());
       const tooOld = current - entry.firstAt >= hardMs();
       if (!(quiet || tooOld || entry.messages.length >= MAX_BATCH)) continue;

@@ -543,3 +543,10 @@ test("anexo: lê o campo data_base64 real do motor, em pedaços", async () => {
   const result = await fetcher({ chatId: "1@s.whatsapp.net", messageId: "m1", maxBytes: 1024 });
   assert.equal(result.data.toString(), "OggS");
 });
+
+test("imagem: a mensagem manda o agente abrir o arquivo antes de responder", async () => {
+  const { wrapInbound } = await import("./whatscat-bridge.mjs");
+  const text = wrapInbound({ mediaType: "image", media: { tipo: "image", caminho: "/tmp/foto.jpg" }, text: "" }, "c1");
+  assert.match(text, /obrigatorio/);
+  assert.match(text, /abra a imagem/);
+});
