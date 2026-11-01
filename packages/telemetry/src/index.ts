@@ -4,6 +4,7 @@ export {
   ANALYTICS_GENERATIONS,
   classifyFailure,
   isCauseCode,
+  isRetiredModelNotice,
   operationForCode,
   safeProperties,
   safeReport,

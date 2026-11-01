@@ -196,6 +196,18 @@ const STRUCTURED_CAUSES: Readonly<Record<string, CauseCode>> = {
 };
 
 /** Inspect locally. The result is always a fixed code, never part of the input. */
+const RETIRED_MODEL_NOTICE =
+  /^\s*(?:[A-Za-z]*Error:\s*)*(?=(?:[^\n.]|\.(?=\S)){0,100}\b(?:model|gemini|gpt|claude|codex|flash|opus|sonnet|haiku|llama|grok|o[1-9])\b)(?:[^\n.]|\.(?=\S)){1,100}?\bis no longer available\b[.!]?\s+(?:please\s+)?(?:switch|migrate|upgrade|move) to\b[^\n]{1,160}$/iu;
+
+/**
+ * Whether a message is only a provider's retirement notice for a model, such as "Gemini 3.5 Flash is
+ * no longer available. Please switch to Gemini 3.7 Flash." The whole message must be the notice and
+ * it must be short, so an answer that only mentions the phrase does not match.
+ */
+export function isRetiredModelNotice(message: string): boolean {
+  return message.length <= 300 && RETIRED_MODEL_NOTICE.test(message);
+}
+
 export function classifyFailure(error: unknown): CauseCode {
   const record = isDynamicRecord(error) ? error : undefined;
   for (const key of [record?.codexErrorInfo, record?.code]) {
@@ -213,6 +225,7 @@ export function classifyFailure(error: unknown): CauseCode {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : record?.message;
   if (typeof message !== "string") return "unknown";
   if (/\binvalid upload request\b/iu.test(message)) return "invalid_upload_request";
+  if (isRetiredModelNotice(message)) return "provider_unavailable";
   if (
     /\b(?:401 unauthorized|invalid_api_key|not authenticated|authentication failed|authentication_error)\b/iu.test(
       message,

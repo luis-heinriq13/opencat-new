@@ -13,7 +13,9 @@ import {
   type ChannelThread,
   type ConversationQuestionPrompt,
   channelRoutingConversationEvent,
+  MODEL_SWITCH_ITEM_TYPE_PREFIX,
 } from "@openbot/contracts/ipc";
+import { isRetiredModelNotice } from "@openbot/telemetry";
 import type { AgentMessage, AgentProfile } from "@openbot/ui/data";
 import type { ChannelWorker } from "@openbot/ui/features/channels/ChannelActivityIndicator";
 import { toAgentMessage, toAgentMessages } from "../../app-message-projection";
@@ -50,13 +52,22 @@ function foldedEntry(entry: ChannelMessage): boolean {
   return entry.message.author === "assistant" && entry.message.itemType === "commentary";
 }
 
+/** A note that an agent moved to another model, or a provider's notice that a model is retired. */
+function hiddenChannelEntry(entry: ChannelMessage): boolean {
+  const { message } = entry;
+  if (message.itemType?.startsWith(MODEL_SWITCH_ITEM_TYPE_PREFIX)) return true;
+  return message.author === "assistant" && isRetiredModelNotice(message.text);
+}
+
 /**
  * The rows of a channel page. The thinking and narration of a member's turn fold into one thinking
  * row, as in an agent chat, and show as the steps above the member's answer. Before, each part showed
  * as a message, and a model that streams its whole reasoning (DeepSeek through OpenCode) showed a
  * very long one.
  */
-export function channelConversationRows(entries: readonly ChannelMessage[]): AgentMessage[] {
+export function channelConversationRows(allEntries: readonly ChannelMessage[]): AgentMessage[] {
+  // Model-switch notes and provider retirement notices stay in the history but not in this view.
+  const entries = allEntries.filter((entry) => !hiddenChannelEntry(entry));
   return toAgentMessages(
     entries.map((entry) => ({ ...entry.message, id: entry.id })),
     undefined,

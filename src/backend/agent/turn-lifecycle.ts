@@ -21,7 +21,7 @@ import {
 import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger } from "@openbot/logging";
-import { type CauseCode, classifyFailure } from "@openbot/telemetry";
+import { type CauseCode, classifyFailure, isRetiredModelNotice } from "@openbot/telemetry";
 import { Cause, Deferred, Effect, Exit, Schema, Scope } from "effect";
 import type { AgentClient } from "../agent-client";
 import type { AgentStore } from "../agent-store";
@@ -902,7 +902,8 @@ export class TurnLifecycle {
   }
 
   readonly #completeTurn = Effect.fn("TurnLifecycle.completeTurn")(
-    function* (this: TurnLifecycle, agentId: string, threadId: string, turnId: string, status: string) {
+    function* (this: TurnLifecycle, agentId: string, threadId: string, turnId: string, endStatus: string) {
+      let status = endStatus;
       const running = this.#runningTurns.get(turnId);
       this.#runningTurns.delete(turnId);
       this.#markEnded(turnId);
@@ -936,8 +937,29 @@ export class TurnLifecycle {
       const limited = status === "failed" && this.#limitedTurns.has(turnId);
       const resetsAt = this.#limitedTurns.get(turnId) ?? null;
       this.#limitedTurns.delete(turnId);
-      const failover = this.#failoverTurns.get(turnId);
+      let failover = this.#failoverTurns.get(turnId);
       this.#failoverTurns.delete(turnId);
+      // A provider can answer a retired model with a notice as a normal final answer. That is an outage:
+      // the notice is not kept as an answer, and the turn fails over like a held provider error.
+      if (status === "completed" && running !== undefined && failover === undefined && !limited) {
+        const answers = this.#conversation.ensureSnapshot(agentId, threadId).messages;
+        const notice = latestTurnAnswer(answers, turnId);
+        if (notice !== undefined && isRetiredModelNotice(notice.text)) {
+          answers.splice(answers.indexOf(notice), 1);
+          status = "failed";
+          if (!trace?.steps.some((step) => step.kind === "tool")) running.acted = false;
+          failover = {
+            message: notice.text,
+            context: {
+              causeCode: "provider_unavailable",
+              provider: running.client.provider,
+              model: this.#hooks.turnModel(agentId, turnId),
+              turnId,
+              severity: "error",
+            },
+          };
+        }
+      }
       this.#deltas.flushTurn(turnId);
       yield* this.#images.waitForOperations(threadId, turnId);
       const association = this.#turnAssociations.get(turnId);
@@ -953,14 +975,13 @@ export class TurnLifecycle {
       const mayRunAgain =
         failover !== undefined && !limited && status === "failed" && running !== undefined && !running.acted;
       const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
-      // Fork: a provider error in a channel task can continue on a backup model, also after work started.
+      // Fork: a provider error in a channel or task thread can continue on a backup model, also after work started.
       const channelProviderError =
         failover !== undefined &&
         !limited &&
         status === "failed" &&
         running !== undefined &&
-        !this.#conversation.isTaskThread(snapshot.threadId) &&
-        this.#conversation.isExecutionThread(snapshot.threadId);
+        (this.#conversation.isTaskThread(snapshot.threadId) || this.#conversation.isExecutionThread(snapshot.threadId));
       const shouldCompact =
         !refused &&
         !limited &&
@@ -1026,7 +1047,8 @@ export class TurnLifecycle {
         this.#hooks.mayFailOver(agentId);
       if (channelFailedOver) {
         for (const { delivery, channelId } of deliveries) {
-          if (channelId && !(yield* this.#hooks.requeueChannelDelivery(delivery.id, true))) {
+          // A task keeps its delivery in its own lane: only a channel execution thread gives it back.
+          if (!taskTurn && channelId && !(yield* this.#hooks.requeueChannelDelivery(delivery.id, true))) {
             channelFailedOver = false;
             break;
           }
