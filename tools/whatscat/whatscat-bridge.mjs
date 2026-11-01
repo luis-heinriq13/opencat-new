@@ -1282,6 +1282,9 @@ export function createBridge({ config, dir, deps, now = Date.now }) {
       freeze(state);
       await deliver(state);
       await sendReady(state);
+      // A resposta saiu: o que chegou enquanto ela era enviada já pode seguir, junto.
+      freeze(state);
+      await deliver(state);
       if (config.threadsPorContato !== false && now() - state.lastThreadSweep > THREAD_SWEEP_MS) {
         state.lastThreadSweep = now();
         await closeIdleThreads(state);
