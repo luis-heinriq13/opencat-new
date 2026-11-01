@@ -203,6 +203,7 @@ export const messages = defineMessages("routine", {
   "routine.calendar.upcoming": "Upcoming runs",
   "routine.calendar.upcomingEmpty": "No upcoming runs.",
   "routine.calendar.dayEmpty": "No runs on this day.",
+  "routine.calendar.filterAgents": "Filter by agent",
   "routine.calendar.emptyLead": "Set it once.",
   "routine.calendar.emptyTitle": "Wake up to it {done}.",
   "routine.calendar.emptyDone": "done",

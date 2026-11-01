@@ -161,6 +161,7 @@
     "./features/conversation/RoutineTriggerMenu": "./src/features/conversation/RoutineTriggerMenu.tsx",
     "./features/conversation/RoutineCalendar": "./src/features/conversation/RoutineCalendar.tsx",
     "./features/conversation/RoutineScheduleCard": "./src/features/conversation/RoutineScheduleCard.tsx",
+    "./features/conversation/routine-calendar-week": "./src/features/conversation/routine-calendar-week.ts",
     "./features/conversation/routine-schedule-draft": "./src/features/conversation/routine-schedule-draft.ts",
     "./features/conversation/routine-schedule-saved": "./src/features/conversation/routine-schedule-saved.ts",
     "./features/conversation/SelectionActions": "./src/features/conversation/SelectionActions.tsx",

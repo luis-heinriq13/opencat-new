@@ -278,6 +278,148 @@
   color: var(--openbot-text-muted);
 }
 
+/* The agent chips and the new-routine action share one row under the navigation. */
+.routine-planner-filters {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--openbot-space-2);
+}
+
+.routine-planner-filters > :only-child {
+  margin-left: auto;
+}
+
+.routine-planner-agent-filter {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--openbot-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-planner-agent-chip.ui-icon-button[aria-pressed="true"] {
+  background: var(--openbot-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
+}
+
+/*
+ * The week: an hour axis and seven day columns. Each column is a subgrid of the same hour rows, so
+ * a cell that grows with many runs grows the row for every day. A narrow pane scrolls sideways.
+ */
+.routine-planner-timegrid-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.routine-planner-timegrid {
+  display: grid;
+  min-width: 44rem;
+  grid-template-columns: 3.5rem repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto repeat(var(--routine-planner-hours), minmax(3.25rem, auto));
+  border: 1px solid var(--openbot-border-strong);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+}
+
+.routine-planner-hour-axis,
+.routine-planner-column {
+  display: grid;
+  grid-row: 1 / span calc(var(--routine-planner-hours) + 1);
+  grid-template-rows: subgrid;
+  min-width: 0;
+}
+
+.routine-planner-hour-axis {
+  grid-column: 1;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-planner-hour-axis > span {
+  grid-row: auto;
+  padding: var(--openbot-space-1-5) var(--openbot-space-1-5) 0 0;
+  text-align: right;
+}
+
+.routine-planner-hour-axis > span:first-child {
+  grid-row: 2;
+}
+
+.routine-planner-column {
+  border-left: 1px solid var(--openbot-border);
+}
+
+.routine-planner-column[data-today] {
+  background: var(--openbot-accent-soft);
+}
+
+.routine-planner-column .routine-planner-day-heading {
+  padding: var(--openbot-space-1);
+}
+
+.routine-planner-column[data-today] .routine-planner-day-button strong {
+  color: var(--openbot-accent-text);
+}
+
+.routine-planner-cell {
+  min-width: 0;
+  border-top: 1px solid var(--openbot-border);
+  padding: var(--openbot-space-0-5);
+}
+
+.routine-planner-chip.ui-button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: var(--openbot-control-xs);
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--openbot-space-1);
+  border-radius: var(--openbot-radius-sm);
+  background: var(--openbot-bg-control);
+  padding: var(--openbot-space-0-5) var(--openbot-space-1);
+  text-align: left;
+  font-size: var(--openbot-text-sm);
+}
+
+.routine-planner-chip .routine-planner-run-time {
+  flex: 0 0 auto;
+}
+
+.routine-planner-chip-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routine-planner-chip .routine-planner-status {
+  flex: 0 0 auto;
+}
+
+.routine-planner-chip[data-status="paused"] {
+  outline: 1px dashed var(--openbot-border-grouped);
+  outline-offset: -1px;
+  background: var(--openbot-transparent);
+  opacity: 0.6;
+}
+
+.routine-planner-chip[data-status="failed"] {
+  background: var(--openbot-danger-soft);
+}
+
+.routine-planner-chip[data-status="completed"] .routine-planner-chip-name {
+  color: var(--openbot-text-muted);
+}
+
 /* A month has up to six rows of days: a run is one line, and the column heads name the weekdays. */
 .routine-planner[data-view="month"] .routine-planner-day {
   min-height: 7rem;

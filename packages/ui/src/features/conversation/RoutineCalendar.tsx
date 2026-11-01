@@ -19,20 +19,23 @@ import {
   AlertDescription,
   ArrowLeft,
   Button,
+  buttonVariants,
   Check,
   ChevronLeft,
   ChevronRight,
   CirclePause,
+  DropdownMenu,
   IconButton,
   Skeleton,
   SlidingTabs,
   X,
 } from "@openbot/ui";
-import { createMemo, createStore, For, Match, onSettled, Show, Switch, untrack } from "solid-js";
+import { createMemo, createSignal, createStore, For, Match, onSettled, Show, Switch, untrack } from "solid-js";
 import type { AgentProfile } from "../../data";
 import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
 import { RoutineCalendarEmpty } from "./RoutineCalendarEmpty";
+import { weekHourRange } from "./routine-calendar-week";
 import { routineScheduleSummary } from "./routine-schedule-ui";
 
 /**
@@ -139,6 +142,18 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
   };
   const visibleDays = createMemo(() => daysFor(state.anchor, state.view));
 
+  // The agents whose runs show. None picked means every agent.
+  const [picked, setPicked] = createSignal<string[]>([]);
+  const togglePicked = (agentId: string) =>
+    setPicked((current) =>
+      current.includes(agentId) ? current.filter((id) => id !== agentId) : [...current, agentId],
+    );
+  /** Only agents with a routine are worth a chip. */
+  const routineAgents = createMemo(() => {
+    const owners = new Set(props.routines.flatMap((routine) => routine.agentIds));
+    return props.agents.filter((agent) => owners.has(agent.id));
+  });
+
   const entries = createMemo(() => {
     const routines = new Map(props.routines.map((routine) => [routine.id, routine]));
     const agents = new Map(props.agents.map((agent) => [agent.id, agent]));
@@ -147,6 +162,8 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
       const routine = routines.get(run.routineId);
       if (!routine) continue;
       const runAgents = routine.agentIds.flatMap((id) => agents.get(id) ?? []);
+      const chosen = picked();
+      if (chosen.length > 0 && !routine.agentIds.some((id) => chosen.includes(id))) continue;
       result.push({ run, routine, agents: runAgents });
     }
     return result.sort((left, right) => Date.parse(left.run.at) - Date.parse(right.run.at));
@@ -328,6 +345,33 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
             </SlidingTabs.Root>
           </div>
         </Show>
+        <Show when={!empty()}>
+          <div class="routine-planner-filters">
+            <Show when={routineAgents().length > 1}>
+              <ul class="routine-planner-agent-filter" aria-label={t("routine.calendar.filterAgents")}>
+                <For each={routineAgents()} keyed={(agent) => agent.id}>
+                  {(agent) => (
+                    <li>
+                      <IconButton
+                        variant="ghost"
+                        class="routine-planner-agent-chip"
+                        label={agent().name}
+                        aria-pressed={picked().includes(agent().id) ? "true" : "false"}
+                        data-cuelume-tap="navigate"
+                        onClick={() => togglePicked(agent().id)}
+                      >
+                        <AgentAvatar agent={agent()} class="routine-planner-avatar" />
+                      </IconButton>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+            <Show when={props.onCreateRoutine}>
+              {(create) => <RoutineCalendarCreate agents={props.agents} onCreate={create()} />}
+            </Show>
+          </div>
+        </Show>
         <Show when={!empty() && clockChange()}>
           {(day) => (
             <p class="routine-planner-clock-change">{t("routine.calendar.clockChange", { day: longDay(day()) })}</p>
@@ -394,81 +438,99 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
                 />
               }
             >
-              <div class="routine-planner-grid">
-                {weekdayHeads()}
-                <ol class="routine-planner-week">
-                  <For each={visibleDays()}>
-                    {(day) => {
-                      const dayEntries = () => entriesByDay().get(day) ?? [];
-                      const limit = () => (state.view === "month" ? DAY_CELL_LIMIT.month : DAY_CELL_LIMIT.week);
-                      const hidden = () => Math.max(0, dayEntries().length - limit());
-                      return (
-                        <li
-                          class="routine-planner-day"
-                          aria-current={day === today() ? "date" : undefined}
-                          data-past={day < today() ? "" : undefined}
-                          data-outside={outsideMonth(day) ? "" : undefined}
-                        >
-                          <h3 class="routine-planner-day-heading">
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              class="routine-planner-day-button"
-                              aria-label={t("routine.calendar.openDay", { day: longDay(day) })}
-                              data-cuelume-tap="navigate"
-                              onClick={() => moveFrom(day, "day")}
-                            >
-                              <span>{dayText(day, { weekday: "short" })}</span>
-                              <strong>{dayText(day, { day: "numeric" })}</strong>
-                            </Button>
-                          </h3>
-                          <Show when={dayEntries().length > 0}>
-                            <ul class="routine-planner-runs">
-                              <For each={dayEntries().slice(0, limit())}>
-                                {(entry) => (
-                                  <li>
-                                    <Button
-                                      variant="ghost"
-                                      class="routine-planner-run"
-                                      data-status={entry.run.status}
-                                      aria-label={t("routine.calendar.runLabel", {
-                                        name: entry.routine.name,
-                                        time: timeText(entry.run.at),
-                                        status: statusText(entry.run.status),
-                                      })}
-                                      onClick={() => props.onOpenRoutine(entry.routine.id)}
-                                    >
-                                      <RoutineCalendarStatusMark status={entry.run.status} />
-                                      <span class="routine-planner-run-time">{timeText(entry.run.at)}</span>
-                                      <span class="routine-planner-run-name">{entry.routine.name}</span>
-                                      <RoutineCalendarAvatars agents={entry.agents} />
-                                    </Button>
-                                  </li>
-                                )}
-                              </For>
-                            </ul>
-                          </Show>
-                          <Show when={hidden() > 0}>
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              class="routine-planner-more"
-                              aria-label={t("routine.calendar.showAll", {
-                                count: dayEntries().length,
-                                day: longDay(day),
-                              })}
-                              data-cuelume-tap="navigate"
-                              onClick={() => moveFrom(day, "day")}
-                            >
-                              {t("routine.calendar.more", { count: hidden() })}
-                            </Button>
-                          </Show>
-                        </li>
-                      );
-                    }}
-                  </For>
-                </ol>
-              </div>
+              <Show
+                when={state.view === "month"}
+                fallback={
+                  <RoutineCalendarWeek
+                    days={visibleDays()}
+                    today={today()}
+                    entriesByDay={entriesByDay()}
+                    timeZone={props.timeZone}
+                    timeText={timeText}
+                    statusText={statusText}
+                    dayText={dayText}
+                    longDay={longDay}
+                    onOpenDay={(day) => moveFrom(day, "day")}
+                    onOpenRoutine={props.onOpenRoutine}
+                  />
+                }
+              >
+                <div class="routine-planner-grid">
+                  {weekdayHeads()}
+                  <ol class="routine-planner-week">
+                    <For each={visibleDays()}>
+                      {(day) => {
+                        const dayEntries = () => entriesByDay().get(day) ?? [];
+                        const limit = () => (state.view === "month" ? DAY_CELL_LIMIT.month : DAY_CELL_LIMIT.week);
+                        const hidden = () => Math.max(0, dayEntries().length - limit());
+                        return (
+                          <li
+                            class="routine-planner-day"
+                            aria-current={day === today() ? "date" : undefined}
+                            data-past={day < today() ? "" : undefined}
+                            data-outside={outsideMonth(day) ? "" : undefined}
+                          >
+                            <h3 class="routine-planner-day-heading">
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                class="routine-planner-day-button"
+                                aria-label={t("routine.calendar.openDay", { day: longDay(day) })}
+                                data-cuelume-tap="navigate"
+                                onClick={() => moveFrom(day, "day")}
+                              >
+                                <span>{dayText(day, { weekday: "short" })}</span>
+                                <strong>{dayText(day, { day: "numeric" })}</strong>
+                              </Button>
+                            </h3>
+                            <Show when={dayEntries().length > 0}>
+                              <ul class="routine-planner-runs">
+                                <For each={dayEntries().slice(0, limit())}>
+                                  {(entry) => (
+                                    <li>
+                                      <Button
+                                        variant="ghost"
+                                        class="routine-planner-run"
+                                        data-status={entry.run.status}
+                                        aria-label={t("routine.calendar.runLabel", {
+                                          name: entry.routine.name,
+                                          time: timeText(entry.run.at),
+                                          status: statusText(entry.run.status),
+                                        })}
+                                        onClick={() => props.onOpenRoutine(entry.routine.id)}
+                                      >
+                                        <RoutineCalendarStatusMark status={entry.run.status} />
+                                        <span class="routine-planner-run-time">{timeText(entry.run.at)}</span>
+                                        <span class="routine-planner-run-name">{entry.routine.name}</span>
+                                        <RoutineCalendarAvatars agents={entry.agents} />
+                                      </Button>
+                                    </li>
+                                  )}
+                                </For>
+                              </ul>
+                            </Show>
+                            <Show when={hidden() > 0}>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                class="routine-planner-more"
+                                aria-label={t("routine.calendar.showAll", {
+                                  count: dayEntries().length,
+                                  day: longDay(day),
+                                })}
+                                data-cuelume-tap="navigate"
+                                onClick={() => moveFrom(day, "day")}
+                              >
+                                {t("routine.calendar.more", { count: hidden() })}
+                              </Button>
+                            </Show>
+                          </li>
+                        );
+                      }}
+                    </For>
+                  </ol>
+                </div>
+              </Show>
             </Show>
 
             <aside class="routine-planner-upcoming" aria-labelledby="routine-planner-upcoming-heading">
@@ -496,6 +558,154 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
         </Match>
       </Switch>
     </section>
+  );
+}
+
+interface RoutineCalendarCreateProps {
+  agents: RoutineCalendarAgent[];
+  onCreate: (agentId: string) => void;
+}
+
+/** Starts a routine for the only agent, or for the agent that the person picks. */
+function RoutineCalendarCreate(props: RoutineCalendarCreateProps) {
+  const { t } = useText();
+  return (
+    <Switch>
+      <Match when={props.agents.length === 1 ? props.agents[0] : undefined}>
+        {(agent) => (
+          <Button variant="outline" size="sm" onClick={() => props.onCreate(agent().id)}>
+            {t("routine.settings.create")}
+          </Button>
+        )}
+      </Match>
+      <Match when={props.agents.length > 1}>
+        <DropdownMenu.Root placement="bottom-end" gutter={4}>
+          <DropdownMenu.Trigger class={buttonVariants({ variant: "outline", size: "sm" })}>
+            {t("routine.settings.create")}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content class="routine-planner-empty-menu">
+              <For each={props.agents} keyed={(agent) => agent.id}>
+                {(agent) => (
+                  <DropdownMenu.Item
+                    class="routine-planner-empty-agent"
+                    onSelectAfterClose={() => props.onCreate(agent().id)}
+                  >
+                    <AgentAvatar agent={agent()} class="routine-planner-avatar" />
+                    <span>{agent().name}</span>
+                  </DropdownMenu.Item>
+                )}
+              </For>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </Match>
+    </Switch>
+  );
+}
+
+interface RoutineCalendarWeekProps {
+  days: CalendarDay[];
+  today: CalendarDay;
+  entriesByDay: Map<CalendarDay, CalendarEntry[]>;
+  timeZone: string;
+  timeText: (at: string) => string;
+  statusText: (status: RoutineCalendarStatus) => string;
+  dayText: (day: CalendarDay, options: Intl.DateTimeFormatOptions) => string;
+  longDay: (day: CalendarDay) => string;
+  onOpenDay: (day: CalendarDay) => void;
+  onOpenRoutine: (routineId: string) => void;
+}
+
+/** A week as a grid: hours down the left, a column for each day, and each run in the row of its hour. */
+function RoutineCalendarWeek(props: RoutineCalendarWeekProps) {
+  const { t, format } = useText();
+  /** Runs by day and hour, in the zone of the viewer. */
+  const cells = createMemo(() => {
+    const byCell = new Map<string, CalendarEntry[]>();
+    const hours: number[] = [];
+    for (const day of props.days) {
+      for (const entry of props.entriesByDay.get(day) ?? []) {
+        const hour = calendarHourOf(new Date(entry.run.at), props.timeZone);
+        hours.push(hour);
+        const key = `${day}@${hour}`;
+        const list = byCell.get(key);
+        if (list) list.push(entry);
+        else byCell.set(key, [entry]);
+      }
+    }
+    return { byCell, range: weekHourRange(hours) };
+  });
+  const rows = () => {
+    const { first, last } = cells().range;
+    return Array.from({ length: last - first + 1 }, (_, index) => first + index);
+  };
+  const hourText = (hour: number) =>
+    format.date(new Date(Date.UTC(2000, 0, 3, hour)), { hour: "numeric", timeZone: "UTC" });
+  return (
+    <div class="routine-planner-timegrid-scroll">
+      <div class="routine-planner-timegrid" style={{ "--routine-planner-hours": String(rows().length) }}>
+        <div class="routine-planner-hour-axis" aria-hidden="true">
+          <For each={rows()}>{(hour) => <span>{hourText(hour)}</span>}</For>
+        </div>
+        <For each={props.days}>
+          {(day) => (
+            <section class="routine-planner-column" data-today={day === props.today ? "" : undefined}>
+              <h3 class="routine-planner-day-heading">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  class="routine-planner-day-button"
+                  aria-label={t("routine.calendar.openDay", { day: props.longDay(day) })}
+                  aria-current={day === props.today ? "date" : undefined}
+                  data-cuelume-tap="navigate"
+                  onClick={() => props.onOpenDay(day)}
+                >
+                  <span>{props.dayText(day, { weekday: "short" })}</span>
+                  <strong>{props.dayText(day, { day: "numeric" })}</strong>
+                </Button>
+              </h3>
+              <For each={rows()}>
+                {(hour) => (
+                  <div class="routine-planner-cell">
+                    <Show when={cells().byCell.get(`${day}@${hour}`)}>
+                      {(list) => (
+                        <ul class="routine-planner-runs">
+                          <For each={list()} keyed={(entry) => entry.run.id}>
+                            {(entry) => (
+                              <li>
+                                <Button
+                                  variant="ghost"
+                                  class="routine-planner-chip"
+                                  data-status={entry().run.status}
+                                  aria-label={t("routine.calendar.runLabel", {
+                                    name: entry().routine.name,
+                                    time: props.timeText(entry().run.at),
+                                    status: props.statusText(entry().run.status),
+                                  })}
+                                  onClick={() => props.onOpenRoutine(entry().routine.id)}
+                                >
+                                  <RoutineCalendarAvatars agents={entry().agents.slice(0, 1)} />
+                                  <span class="routine-planner-run-time">{props.timeText(entry().run.at)}</span>
+                                  <span class="routine-planner-chip-name">{entry().routine.name}</span>
+                                  <Show when={entry().run.status !== "active"}>
+                                    <RoutineCalendarStatusMark status={entry().run.status} />
+                                  </Show>
+                                </Button>
+                              </li>
+                            )}
+                          </For>
+                        </ul>
+                      )}
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </section>
+          )}
+        </For>
+      </div>
+    </div>
   );
 }
 

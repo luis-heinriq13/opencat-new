@@ -196,6 +196,7 @@ export const messages = {
   "routine.calendar.upcoming": "Próximas execuções",
   "routine.calendar.upcomingEmpty": "Nenhuma execução futura.",
   "routine.calendar.dayEmpty": "Nenhuma execução neste dia.",
+  "routine.calendar.filterAgents": "Filtrar por agente",
   "routine.calendar.emptyLead": "Configure uma vez.",
   "routine.calendar.emptyTitle": "Acorde com tudo {done}.",
   "routine.calendar.emptyDone": "pronto",

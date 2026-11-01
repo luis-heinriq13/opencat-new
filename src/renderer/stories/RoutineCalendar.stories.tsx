@@ -186,8 +186,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Past runs show their outcome. Weekly planning is paused, so its Friday run is a dashed ghost. */
+/**
+ * Hours down the left, a column for each day, today highlighted. Only the hours with runs show.
+ * Past runs show their outcome. Weekly planning is paused, so its Friday run is a dashed ghost.
+ * The agent chips above the grid filter the runs; Create Routine asks for the agent.
+ */
 export const Week: Story = {};
+
+/** One routine: the grid keeps a minimum of eight hour rows, so the week is not a thin strip. */
+export const WeekOneRoutine: Story = {
+  args: { routines: ROUTINES.slice(0, 1), runs: runsFor(ROUTINES.slice(0, 1), NOW, WARSAW) },
+};
+
+/** One agent has nobody to filter against, so the chips leave the row. */
+export const WeekOneAgent: Story = { args: { agents: STORY_AGENTS.slice(0, 1) } };
 
 /** One day by the hour. Each run opens its routine; each avatar opens its agent. */
 export const Day: Story = { args: { initialView: "day" } };
@@ -233,7 +245,7 @@ export const Loading: Story = { args: { state: "loading" } };
 
 export const LoadError: Story = { args: { state: "error" } };
 
-/** A phone or a side panel: the week becomes a list of days, and the next runs move below it. */
+/** A phone or a side panel: the week grid scrolls sideways, and the next runs move below it. */
 export const Narrow: Story = {
   render: (args) => (
     <main style={{ width: "390px", padding: "var(--openbot-space-4)" }}>
