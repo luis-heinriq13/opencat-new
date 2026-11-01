@@ -148,5 +148,5 @@ if novidades:
     except OSError as error:
         print("Aviso: nao consegui arquivar opencat-novidades.md:", error, file=sys.stderr)
 print("Atualizacao pronta em", os.path.join(updates, "pending.json"))
-print("O OpenCat vai mostrar o botao Atualizar em ate 15 minutos.")
+print("O OpenCat vai mostrar o botao Atualizar em poucos segundos.")
 PY

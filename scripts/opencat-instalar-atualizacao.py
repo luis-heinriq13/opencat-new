@@ -7,7 +7,7 @@ anterior. Se a saude nao puder ser determinada, mantem o app novo e so registra 
 
 Marcadores: durante a instalacao o app novo NAO pode oferecer a mesma atualizacao de novo. Por isso,
 antes de abrir o app novo, o instalador grava installed.json e move pending.json para
-pending.instalando.json (alem da trava installacao.lock). Num rollback os dois voltam ao que eram.
+pending.instalando.json (alem da trava instalacao.lock). Num rollback os dois voltam ao que eram.
 Toda recusa depois que o app pode ter fechado reabre o app.
 
 Uso: python3 -I opencat-instalar-atualizacao.py --commit <commit> [--atual /Applications/OpenCat.app] [--wait-pid N]

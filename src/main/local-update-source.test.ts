@@ -213,7 +213,7 @@ describe("installation in progress", () => {
     await utimes(path, when, when);
   }
 
-  it.each(["installacao.lock", "pending.instalando.json"])("offers nothing while %s exists", async (name) => {
+  it.each(["instalacao.lock", "pending.instalando.json"])("offers nothing while %s exists", async (name) => {
     await writePending(manifest());
     await marker(name, 1_000);
     expect(await reasonOf()).toContain("an installation is in progress");

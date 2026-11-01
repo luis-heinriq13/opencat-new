@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { type FSWatcher, watch } from "node:fs";
 import { copyFile, lstat, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -64,12 +65,12 @@ const MANIFEST_KEYS = ["appPath", "builtAt", "changes", "commit", "schema", "ver
 const BUILD_COMMIT_PATTERN = /^[0-9a-f]{7,12}$/u;
 const MAX_BUILD_NUMBER = 10_000_000;
 /**
- * The installer holds `installacao.lock` for the whole install and parks `pending.json` as
+ * The installer holds `instalacao.lock` for the whole install and parks `pending.json` as
  * `pending.instalando.json` before it opens the new app. While either exists nothing is offered, or
  * the new app would offer the update it is part of. A marker an interrupted installer left behind
  * stops counting after this long.
  */
-const INSTALL_MARKERS = ["installacao.lock", "pending.instalando.json"];
+const INSTALL_MARKERS = ["instalacao.lock", "pending.instalando.json"];
 const INSTALL_MARKER_MAX_AGE_MS = 45 * 60 * 1000;
 const MAX_CHANGES = 50;
 const MAX_CHANGE_LENGTH = 200;
@@ -275,25 +276,54 @@ export interface LocalUpdateSourceOptions {
   intervalMs?: number;
 }
 
-/** Reads `pending.json` at startup and every 15 minutes. An invalid file is logged and ignored. */
+/** Reads `pending.json` at startup, whenever the updates folder changes, and every minute. An invalid file is logged and ignored. */
 export class LocalUpdateSource {
   readonly #options: LocalUpdateSourceOptions;
   #timer: ReturnType<typeof setTimeout> | null = null;
   #stopped = false;
   #lastReason: string | null = null;
+  #watcher: FSWatcher | null = null;
+  #debounce: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: LocalUpdateSourceOptions) {
     this.#options = options;
   }
 
   start(): void {
-    this.#schedule(this.#options.initialDelayMs ?? 15_000);
+    this.#schedule(this.#options.initialDelayMs ?? 2_000);
+    this.#watchFolder();
   }
 
   stop(): void {
     this.#stopped = true;
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = null;
+    if (this.#debounce) clearTimeout(this.#debounce);
+    this.#debounce = null;
+    this.#watcher?.close();
+    this.#watcher = null;
+  }
+
+  /** A new build shows at once. The folder can be missing or unwatchable: the timer still finds it. */
+  #watchFolder(): void {
+    try {
+      this.#watcher = watch(this.#options.dependencies.paths.updatesDirectory, () => {
+        if (this.#debounce) clearTimeout(this.#debounce);
+        this.#debounce = setTimeout(() => {
+          void this.checkNow().catch((error: unknown) =>
+            logger.warn(`The local update check failed: ${String(error)}`),
+          );
+        }, 1_000);
+        this.#debounce.unref();
+      });
+      this.#watcher.on("error", () => {
+        this.#watcher?.close();
+        this.#watcher = null;
+      });
+      this.#watcher.unref();
+    } catch {
+      this.#watcher = null;
+    }
   }
 
   async checkNow(): Promise<void> {
@@ -315,7 +345,7 @@ export class LocalUpdateSource {
     this.#timer = setTimeout(() => {
       void this.checkNow()
         .catch((error: unknown) => logger.warn(`The local update check failed: ${String(error)}`))
-        .finally(() => this.#schedule(this.#options.intervalMs ?? 15 * 60 * 1_000));
+        .finally(() => this.#schedule(this.#options.intervalMs ?? 60_000));
     }, delayMs);
     this.#timer.unref();
   }
