@@ -1934,7 +1934,6 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                             void select(agentId);
                           }}
                           onOpenRoutine={openRoutine}
-                          onCreateRoutine={createRoutine}
                         />
                       </Loading>
                     </Match>

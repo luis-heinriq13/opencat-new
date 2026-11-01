@@ -19,12 +19,10 @@ import {
   AlertDescription,
   ArrowLeft,
   Button,
-  buttonVariants,
   Check,
   ChevronLeft,
   ChevronRight,
   CirclePause,
-  DropdownMenu,
   IconButton,
   Skeleton,
   SlidingTabs,
@@ -78,8 +76,6 @@ export interface RoutineCalendarProps {
   onOpenRoutine: (routineId: string) => void;
   onOpenAgent: (agentId: string) => void;
   onRetry?: () => void;
-  /** Starts a new routine for the agent. Without it, the empty calendar has no action. */
-  onCreateRoutine?: (agentId: string) => void;
   /** A full-pane calendar has a way back. With it, the heading takes focus when the calendar opens. */
   onBack?: () => void;
   /** The host whose routines show, after the title. */
@@ -367,9 +363,6 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
                 </For>
               </ul>
             </Show>
-            <Show when={props.onCreateRoutine}>
-              {(create) => <RoutineCalendarCreate agents={props.agents} onCreate={create()} />}
-            </Show>
           </div>
         </Show>
         <Show when={!empty() && clockChange()}>
@@ -416,12 +409,7 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
           </Alert>
         </Match>
         <Match when={empty()}>
-          <RoutineCalendarEmpty
-            days={emptyMonth()}
-            today={today()}
-            agents={props.agents}
-            onCreateRoutine={props.onCreateRoutine}
-          />
+          <RoutineCalendarEmpty days={emptyMonth()} today={today()} agents={props.agents} />
         </Match>
         <Match when={true}>
           <div class="routine-planner-body">
@@ -558,49 +546,6 @@ export function RoutineCalendar(props: RoutineCalendarProps) {
         </Match>
       </Switch>
     </section>
-  );
-}
-
-interface RoutineCalendarCreateProps {
-  agents: RoutineCalendarAgent[];
-  onCreate: (agentId: string) => void;
-}
-
-/** Starts a routine for the only agent, or for the agent that the person picks. */
-function RoutineCalendarCreate(props: RoutineCalendarCreateProps) {
-  const { t } = useText();
-  return (
-    <Switch>
-      <Match when={props.agents.length === 1 ? props.agents[0] : undefined}>
-        {(agent) => (
-          <Button variant="outline" size="sm" onClick={() => props.onCreate(agent().id)}>
-            {t("routine.settings.create")}
-          </Button>
-        )}
-      </Match>
-      <Match when={props.agents.length > 1}>
-        <DropdownMenu.Root placement="bottom-end" gutter={4}>
-          <DropdownMenu.Trigger class={buttonVariants({ variant: "outline", size: "sm" })}>
-            {t("routine.settings.create")}
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content class="routine-planner-empty-menu">
-              <For each={props.agents} keyed={(agent) => agent.id}>
-                {(agent) => (
-                  <DropdownMenu.Item
-                    class="routine-planner-empty-agent"
-                    onSelectAfterClose={() => props.onCreate(agent().id)}
-                  >
-                    <AgentAvatar agent={agent()} class="routine-planner-avatar" />
-                    <span>{agent().name}</span>
-                  </DropdownMenu.Item>
-                )}
-              </For>
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
-      </Match>
-    </Switch>
   );
 }
 

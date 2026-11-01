@@ -1,7 +1,7 @@
 import type { AppTextKey } from "@openbot/i18n";
 import { type CalendarDay, calendarDayDate, calendarMonthStart } from "@openbot/team-client/routine-calendar-dates";
-import { Button, buttonVariants, Check, DropdownMenu } from "@openbot/ui";
-import { createMemo, createSignal, For, Match, onSettled, Show, Switch } from "solid-js";
+import { Check } from "@openbot/ui";
+import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import { useText } from "../../text";
 import { prefersReducedMotion } from "../../utils";
 import { AgentAvatar } from "../agents/AgentAvatar";
@@ -92,7 +92,6 @@ export interface RoutineCalendarEmptyProps {
   days: CalendarDay[];
   today: CalendarDay;
   agents: RoutineCalendarAgent[];
-  onCreateRoutine?: ((agentId: string) => void) | undefined;
 }
 
 /**
@@ -137,41 +136,6 @@ export function RoutineCalendarEmpty(props: RoutineCalendarEmptyProps) {
           <span>{t("routine.calendar.emptySchedule")}</span>
           <span>{t("routine.calendar.emptyNote")}</span>
         </p>
-        <Show when={props.onCreateRoutine}>
-          {(create) => (
-            <Switch>
-              <Match when={props.agents.length === 1 ? props.agents[0] : undefined}>
-                {(agent) => (
-                  <Button class="routine-planner-empty-action" onClick={() => create()(agent().id)}>
-                    {t("routine.settings.create")}
-                  </Button>
-                )}
-              </Match>
-              <Match when={props.agents.length > 1}>
-                <DropdownMenu.Root placement="bottom" gutter={4}>
-                  <DropdownMenu.Trigger class={`${buttonVariants()} routine-planner-empty-action`}>
-                    {t("routine.settings.create")}
-                  </DropdownMenu.Trigger>
-                  <DropdownMenu.Portal>
-                    <DropdownMenu.Content class="routine-planner-empty-menu">
-                      <For each={props.agents} keyed={(agent) => agent.id}>
-                        {(agent) => (
-                          <DropdownMenu.Item
-                            class="routine-planner-empty-agent"
-                            onSelectAfterClose={() => create()(agent().id)}
-                          >
-                            <AgentAvatar agent={agent()} class="routine-planner-avatar" />
-                            <span>{agent().name}</span>
-                          </DropdownMenu.Item>
-                        )}
-                      </For>
-                    </DropdownMenu.Content>
-                  </DropdownMenu.Portal>
-                </DropdownMenu.Root>
-              </Match>
-            </Switch>
-          )}
-        </Show>
       </div>
     </div>
   );

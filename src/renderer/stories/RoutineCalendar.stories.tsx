@@ -174,7 +174,6 @@ const meta = {
     onOpenAgent: fn(),
     onRangeChange: fn(),
     onRetry: fn(),
-    onCreateRoutine: fn(),
   },
   argTypes: {
     state: { control: "inline-radio", options: ["ready", "loading", "error"] },
