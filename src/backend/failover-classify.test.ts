@@ -14,6 +14,12 @@ describe("classifyFailure for provider errors seen in channels", () => {
     );
   });
 
+  it("treats a broken stream as a failover cause", () => {
+    expect(classifyFailure("RequestError: Internal error: OpenAI Chat stream ended without finish_reason")).toBe(
+      "provider_unavailable",
+    );
+  });
+
   it("keeps an unrelated error unknown", () => {
     expect(classifyFailure("The model refused this request")).toBe("unknown");
   });

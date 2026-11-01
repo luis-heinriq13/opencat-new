@@ -243,6 +243,8 @@ export function classifyFailure(error: unknown): CauseCode {
     /\b(?:service unavailable|bad gateway|internal server error|overloaded(?:_error)?|server_error|api_error|server had an error|high demand|temporarily unavailable|upstream connect error)\b/iu.test(
       message,
     ) ||
+    /(?:^|[^a-z])internal error(?:[^a-z]|$)/iu.test(message) ||
+    /\bstream ended without\b/iu.test(message) ||
     /\bUNAVAILABLE\b/u.test(message) ||
     /\ball\b.{0,40}\bmodels failed\b/iu.test(message) ||
     /\b(?:API Error|status(?: code)?|HTTP(?:\/[\d.]+)?)\W{0,4}5\d\d\b/iu.test(message)
