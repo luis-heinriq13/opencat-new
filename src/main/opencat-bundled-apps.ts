@@ -1,6 +1,7 @@
 // OpenCat: the WhatsApp servers that ship with the app. A store listing names a command in the home
 // folder, because a listing cannot know where the app is installed, so startup copies them there.
 import { type ChildProcess, type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { chmod, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -12,11 +13,8 @@ import { isPanelCloseUrl, isPanelUrlAllowed } from "./whatscat-panel-navigation"
 export const WHATSCAT_PANEL_URL = "https://opencat.invalid/whatscat-panel";
 
 const INSTALL_DIRECTORY = join(homedir(), ".opencat", "whatscat");
-/**
- * Raise this when a file in tools/whatscat changes without an app version change: the installed copy
- * refreshes only when the stamp differs, so an older panel would otherwise stay in the home folder.
- */
-const BUNDLE_REVISION = 4;
+/** The scripts whose content decides whether the installed copy is current. */
+const BUNDLE_FILES = ["whatscat-mcp.mjs", "whatsapp-oficial-mcp.mjs", "whatscat-panel.html"];
 const PANEL_START_TIMEOUT_MS = 30_000;
 /** Same folder the scripts use: WHATSCAT_DATA_DIR, or the default under Application Support. */
 const DATA_DIRECTORY =
@@ -30,7 +28,10 @@ export async function installBundledApps(): Promise<void> {
   const source = join(process.resourcesPath, "whatscat");
   if (!app.isPackaged || !existsSync(source)) return;
   const stamp = join(INSTALL_DIRECTORY, ".versao");
-  const wanted = `${app.getVersion()}+whatscat${BUNDLE_REVISION}`;
+  // A hash of the files, not a number to remember: a build with a changed script always refreshes the copy.
+  const hash = createHash("sha256");
+  for (const file of BUNDLE_FILES) hash.update(await readFile(join(source, file)));
+  const wanted = `${app.getVersion()}+${hash.digest("hex")}`;
   const installed = await readFile(stamp, "utf8").catch(() => null);
   if (installed === wanted && existsSync(join(INSTALL_DIRECTORY, "whatscat-mcp.mjs"))) return;
   await mkdir(INSTALL_DIRECTORY, { recursive: true, mode: 0o700 });
