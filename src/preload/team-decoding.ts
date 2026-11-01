@@ -79,6 +79,7 @@ export function decodeInvitePreview(value: unknown): InvitePreview {
     expiresAt: requiredString(preview, "expiresAt"),
     emailBound: requiredBoolean(preview, "emailBound"),
     permanent: requiredBoolean(preview, "permanent"),
+    ...(preview.direct === true ? { direct: true } : {}),
   };
 }
 

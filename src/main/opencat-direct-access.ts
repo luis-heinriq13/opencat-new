@@ -28,6 +28,7 @@ const CLOUDFLARED_DARWIN_ARM64_URL = `https://github.com/cloudflare/cloudflared/
 const TUNNEL_URL_PATTERN = /https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.trycloudflare\.com/u;
 const TUNNEL_START_TIMEOUT_MS = 45_000;
 const TUNNEL_RESTART_DELAY_MS = 5_000;
+const TUNNEL_REACHABLE_TIMEOUT_MS = 40_000;
 const MAX_HEADER_BYTES = 64 * 1024;
 
 /** The routes that hand this computer's screen or browser to the caller. A joined member needs none of them. */
@@ -215,6 +216,21 @@ async function installCloudflared(): Promise<string> {
   }
 }
 
+/**
+ * A new tunnel's name takes a few seconds to reach the DNS. A link that goes out before that fails
+ * for the person who opens it. It still goes out after the wait: this computer's DNS can lag others.
+ */
+async function waitUntilReachable(address: string): Promise<void> {
+  const deadline = Date.now() + TUNNEL_REACHABLE_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const answer = await fetch(`${address}${TEAM_API_ROUTES.compatibility}`, {
+      signal: AbortSignal.timeout(5_000),
+    }).catch(() => null);
+    if (answer?.ok) return;
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+}
+
 /** The gateway and the tunnel of this computer's direct invitations. */
 export class DirectAccess {
   readonly #apiPort: () => number | null;
@@ -257,7 +273,9 @@ export class DirectAccess {
       this.#publicUrl = config.publicUrl;
       return config.publicUrl;
     }
-    return this.#startTunnel(await installCloudflared());
+    const address = await this.#startTunnel(await installCloudflared());
+    await waitUntilReachable(address);
+    return address;
   }
 
   #startTunnel(binary: string): Promise<string> {

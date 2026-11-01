@@ -931,6 +931,8 @@ export class HostService extends EventEmitter<HostEvents> {
     if (this.#status.phase === "stopping") return this.getStatus();
     const generation = ++this.#runtimeGeneration;
     const signedInUser = yield* remoteDecode(() => this.#options.getSignedInUser());
+    // OpenCat: with no account there is nothing to publish to. Direct invitations start what they need.
+    if (signedInUser.id.startsWith("local-")) return this.getStatus();
     yield* remoteDecode(() => this.#options.store.assertOwnerAccount(signedInUser));
     if (yield* this.#options.store.syncAccount(signedInUser)) this.#api.refreshPresence();
     this.#setStatus({ phase: "starting", message: sourceText("status.host.starting") });
