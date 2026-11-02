@@ -5,6 +5,9 @@
 // Leitura sempre ligada. Alterações (criar campanha pausada, pausar, retomar, mudar orçamento) só com
 // META_PERMITIR_ALTERACOES=sim e com um teto META_LIMITE_ORCAMENTO_DIARIO. O token vai só no cabeçalho
 // Authorization, nunca na URL, e é removido de erros e saídas.
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const GRAPH_VERSION = "v26.0";
@@ -32,8 +35,58 @@ const DATE_PRESETS = [
   "last_month",
   "maximum",
 ];
-/** Moedas sem centavos: o orçamento da Meta já vem na unidade principal. */
-const ZERO_DECIMAL = new Set(["JPY", "KRW", "CLP", "VND", "ISK", "HUF", "TWD", "PYG", "UGX"]);
+/**
+ * Casas decimais do orçamento na Marketing API: a Meta guarda o valor na unidade menor da moeda
+ * ("offset" 100 na maioria, 1 nas moedas sem centavos). Moeda fora das duas listas é recusada.
+ */
+const OFFSET_1 = new Set(["JPY", "KRW", "CLP", "VND", "ISK", "HUF", "TWD", "PYG", "UGX"]);
+const OFFSET_100 = new Set([
+  "BRL",
+  "USD",
+  "EUR",
+  "GBP",
+  "MXN",
+  "ARS",
+  "COP",
+  "PEN",
+  "UYU",
+  "CAD",
+  "AUD",
+  "NZD",
+  "CHF",
+  "SEK",
+  "NOK",
+  "DKK",
+  "PLN",
+  "CZK",
+  "TRY",
+  "ZAR",
+  "INR",
+  "IDR",
+  "PHP",
+  "THB",
+  "MYR",
+  "SGD",
+  "HKD",
+  "CNY",
+  "AED",
+  "SAR",
+  "ILS",
+  "EGP",
+  "NGN",
+  "KES",
+  "RON",
+  "BGN",
+  "RUB",
+  "UAH",
+]);
+function offsetOf(currency) {
+  if (OFFSET_1.has(currency)) return 1;
+  if (OFFSET_100.has(currency)) return 100;
+  throw new Error(
+    `Moeda da conta desconhecida (${String(currency || "?").slice(0, 8)}): não sei converter o orçamento. Nada foi alterado.`,
+  );
+}
 const OBJECT_ID = /^\d{3,30}$/;
 const ACCOUNT_ID = /^(?:act_)?\d{3,30}$/;
 
@@ -72,10 +125,85 @@ const yes = (value) => /^(sim|true|1|yes)$/i.test(String(value ?? "").trim());
 function toMajor(minor, currency) {
   const number = Number(minor);
   if (!Number.isFinite(number)) return null;
-  return ZERO_DECIMAL.has(currency) ? number : number / 100;
+  return number / offsetOf(currency);
+}
+/** Para listagens: moeda desconhecida mostra a unidade menor em vez de falhar. */
+function toMajorOrRaw(minor, currency) {
+  try {
+    return toMajor(minor, currency) ?? "?";
+  } catch {
+    return `${minor} (unidade menor)`;
+  }
+}
+function toMinor(major, currency) {
+  return String(Math.round(Number(major) * offsetOf(currency)));
 }
 
-export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = process.env, now = Date.now } = {}) {
+// ---- Limite por hora, guardado em arquivo ----------------------------------------------------------
+
+/**
+ * Limite deslizante de 1 hora. Os horários ficam num arquivo 0600 (gravação atômica), então reiniciar o
+ * servidor não zera a contagem. Tudo é síncrono: conferir e registrar acontecem sem `await` no meio, e
+ * chamadas em paralelo não passam juntas do limite. Sem `file`, só em memória (testes).
+ */
+export function createFileLimiter({ file = null, limit, now = Date.now, windowMs = 3_600_000 }) {
+  let stamps = [];
+  if (file) {
+    try {
+      const parsed = JSON.parse(readFileSync(file, "utf8"));
+      if (Array.isArray(parsed)) stamps = parsed.filter((value) => Number.isFinite(value));
+    } catch {
+      // Sem arquivo ainda, ou ilegível: começa vazio.
+    }
+  }
+  const prune = () => {
+    const cutoff = now() - windowMs;
+    stamps = stamps.filter((stamp) => stamp > cutoff);
+  };
+  const persist = () => {
+    if (!file) return;
+    try {
+      mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+      const temp = `${file}.${process.pid}.tmp`;
+      writeFileSync(temp, JSON.stringify(stamps), { mode: 0o600 });
+      renameSync(temp, file);
+      chmodSync(file, 0o600);
+    } catch {
+      // Se não der para gravar, a contagem da memória continua valendo neste processo.
+    }
+  };
+  return {
+    /** Devolve o horário registrado, ou null se o limite da hora já foi atingido. */
+    take() {
+      prune();
+      if (stamps.length >= limit) return null;
+      const stamp = now();
+      stamps.push(stamp);
+      persist();
+      return stamp;
+    },
+    /** Devolve a vaga de um envio que com certeza não aconteceu. */
+    give(stamp) {
+      const index = stamps.lastIndexOf(stamp);
+      if (index >= 0) {
+        stamps.splice(index, 1);
+        persist();
+      }
+    },
+    count() {
+      prune();
+      return stamps.length;
+    },
+  };
+}
+
+export function createMetaAdsTools({
+  fetch: fetchImpl = globalThis.fetch,
+  env = process.env,
+  now = Date.now,
+  /** Arquivo dos horários das alterações. Sem ele o limite fica só na memória. */
+  limitFile = null,
+} = {}) {
   const token = String(env.META_ACCESS_TOKEN ?? "").trim();
   const capRaw = Number(String(env.META_LIMITE_ORCAMENTO_DIARIO ?? "").replace(",", "."));
   const cap = Number.isFinite(capRaw) && capRaw > 0 ? capRaw : null;
@@ -84,7 +212,7 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
   const changesAllowed =
     !/^(nao|não|no|false|0)$/i.test(String(env.META_PERMITIR_ALTERACOES ?? "").trim()) &&
     (yes(env.META_PERMITIR_ALTERACOES) || cap !== null);
-  const changedAt = [];
+  const limiter = createFileLimiter({ file: limitFile, limit: CHANGES_PER_HOUR, now });
   const secrets = [token];
   const clean = (value) => redact(value, secrets);
   const text = (value, isError = false) => ({
@@ -114,20 +242,23 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
       data = {};
     }
     if (!response.ok || data?.error) {
+      // Depois de uma resposta de erro, a alteração com certeza não foi aplicada.
+      const fail = (message) => Object.assign(new Error(message), { definite: true });
       const code = data?.error?.code;
       if (response.status === 401 || code === 190) {
-        throw new Error("A Meta recusou o token (expirado ou revogado). Gere outro e atualize o META_ACCESS_TOKEN.");
+        throw fail("A Meta recusou o token (expirado ou revogado). Gere outro e atualize o META_ACCESS_TOKEN.");
       }
       if (response.status === 403 || code === 200 || code === 10) {
-        throw new Error(
+        throw fail(
           "A Meta negou a permissão. O token precisa de ads_read (e ads_management para alterar) e acesso a essa conta.",
         );
       }
       if (response.status === 429 || [4, 17, 32, 613, 80004].includes(code)) {
-        throw new Error("A Meta pediu para esperar (limite de chamadas). Tente de novo em alguns minutos.");
+        throw fail("A Meta pediu para esperar (limite de chamadas). Tente de novo em alguns minutos.");
       }
-      const detail = data?.error?.message ? ` ${String(data.error.message).slice(0, 200)}` : "";
-      throw new Error(`A Meta respondeu ${response.status}${code ? ` (código ${code})` : ""}.${detail}`);
+      // O texto do erro vem da Meta e pode ecoar dados de terceiros: é dado, não instrução.
+      const detail = data?.error?.message ? `\n${untrusted(String(data.error.message).slice(0, 200))}` : "";
+      throw fail(`A Meta respondeu ${response.status}${code ? ` (código ${code})` : ""}.${detail}`);
     }
     return data;
   }
@@ -150,12 +281,39 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
     if (cap === null) {
       return "As alterações exigem um teto: defina META_LIMITE_ORCAMENTO_DIARIO (valor positivo, na moeda da conta). Nada foi alterado.";
     }
-    const cutoff = now() - 3_600_000;
-    while (changedAt.length > 0 && changedAt[0] <= cutoff) changedAt.shift();
-    if (changedAt.length >= CHANGES_PER_HOUR) {
-      return `Limite de ${CHANGES_PER_HOUR} alterações por hora atingido. Nada foi alterado.`;
-    }
     return null;
+  }
+
+  /**
+   * Roda uma alteração com uma vaga do limite por hora. A vaga é tomada antes do primeiro await, então
+   * chamadas em paralelo não furam o limite. Ela volta quando nada foi enviado (recusa) ou quando a Meta
+   * respondeu erro; um erro de rede deixa a vaga tomada, porque a alteração pode ter sido aplicada.
+   * `run` recebe `post(caminho, corpo)`, o único jeito de alterar algo.
+   */
+  async function withChange(run) {
+    const blocked = checkChangesAllowed();
+    if (blocked) return text(blocked, true);
+    const slot = limiter.take();
+    if (slot === null)
+      return text(`Limite de ${CHANGES_PER_HOUR} alterações por hora atingido. Nada foi alterado.`, true);
+    let posted = false;
+    const post = async (path, body) => {
+      posted = true;
+      try {
+        return await graph(path, { method: "POST", body });
+      } catch (error) {
+        if (error?.definite) posted = false;
+        throw error;
+      }
+    };
+    try {
+      const result = await run(post);
+      if (!posted) limiter.give(slot);
+      return result;
+    } catch (error) {
+      if (!posted) limiter.give(slot);
+      throw error;
+    }
   }
 
   /** Lê o objeto (campanha ou conjunto) com orçamento, status e conta. */
@@ -165,13 +323,14 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
     });
   }
 
+  /** A moeda da conta. Falha (e a alteração é recusada) se ela não vier ou não for conhecida. */
   async function currencyOf(accountId) {
-    try {
-      const data = await graph(`/act_${accountId}`, { query: { fields: "currency" } });
-      return data.currency ?? "";
-    } catch {
-      return "";
-    }
+    const id = String(accountId ?? "");
+    if (!/^\d{3,30}$/.test(id))
+      throw new Error("Não sei a conta desse item, então não confirmo a moeda. Nada foi alterado.");
+    const data = await graph(`/act_${id}`, { query: { fields: "currency" } });
+    offsetOf(data.currency);
+    return data.currency;
   }
 
   const show = (object, currency) =>
@@ -179,27 +338,63 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
       `id: ${object.id}`,
       untrusted(`nome: ${object.name ?? ""}`),
       `status: ${object.status ?? "?"} (efetivo: ${object.effective_status ?? "?"})`,
-      `orçamento diário: ${object.daily_budget === undefined ? "nenhum neste nível" : `${toMajor(object.daily_budget, currency)} ${currency}`}`,
+      `orçamento diário: ${object.daily_budget === undefined ? "nenhum neste nível" : `${toMajorOrRaw(object.daily_budget, currency)} ${currency}`}`,
+      ...(object.lifetime_budget === undefined ? [] : ["orçamento vitalício: definido"]),
     ].join("\n");
 
-  function recordChange() {
-    changedAt.push(now());
+  /** Todas as páginas dos conjuntos de uma campanha. Falha se uma página falhar. */
+  async function allAdSets(campaignId) {
+    const sets = [];
+    let after;
+    for (let page = 0; page < 40; page += 1) {
+      const data = await graph(`/${campaignId}/adsets`, {
+        query: { fields: "daily_budget,lifetime_budget,status", limit: 100, after },
+      });
+      sets.push(...(data.data ?? []));
+      after = data.paging?.next ? data.paging?.cursors?.after : undefined;
+      if (!after) return sets;
+    }
+    throw new Error("Campanha com conjuntos demais para conferir o teto.");
   }
 
-  /** O orçamento diário que ficaria ativo ao retomar: o do objeto ou a soma dos conjuntos da campanha. */
+  /**
+   * O orçamento diário que ficaria ativo ao retomar: o do objeto ou a soma de todos os conjuntos da
+   * campanha. Devolve um texto de recusa quando o teto não pode ser conferido (orçamento vitalício,
+   * leitura que falhou).
+   */
   async function dailyBudgetIfResumed(object, currency) {
-    if (object.daily_budget !== undefined) return toMajor(object.daily_budget, currency);
-    let total = 0;
-    try {
-      const sets = await graph(`/${object.id}/adsets`, { query: { fields: "daily_budget,status", limit: 100 } });
-      for (const set of sets.data ?? []) {
-        if (set.status === "ACTIVE" || set.status === "PAUSED") total += toMajor(set.daily_budget, currency) ?? 0;
-      }
-    } catch {
-      return null;
+    if (object.lifetime_budget !== undefined) {
+      return { refusal: "tem orçamento vitalício, e o teto é diário: não consigo conferi-lo" };
     }
-    return total;
+    if (object.daily_budget !== undefined) return { daily: toMajor(object.daily_budget, currency) };
+    let sets;
+    try {
+      sets = await allAdSets(object.id);
+    } catch {
+      return { refusal: "não consegui ler todos os conjuntos de anúncios para conferir o teto" };
+    }
+    let total = 0;
+    for (const set of sets) {
+      if (set.status !== "ACTIVE" && set.status !== "PAUSED") continue;
+      if (set.lifetime_budget !== undefined) {
+        return { refusal: "um conjunto tem orçamento vitalício, e o teto é diário: não consigo conferi-lo" };
+      }
+      total += toMajor(set.daily_budget, currency) ?? 0;
+    }
+    return { daily: total };
   }
+
+  const cursorOf = (value) => {
+    if (value === undefined || value === null || value === "") return undefined;
+    if (!/^[\w=+/-]{1,400}$/.test(String(value)))
+      throw new Error("cursor inválido. Use o próximo cursor devolvido pela listagem.");
+    return String(value);
+  };
+  /** Linha final de uma listagem: o cursor da próxima página, quando existe. */
+  const nextCursor = (data) =>
+    data?.paging?.next && data?.paging?.cursors?.after
+      ? [`próximo cursor: ${data.paging.cursors.after} (passe em "cursor" para ver mais)`]
+      : [];
 
   const tools = {
     async meta_status() {
@@ -222,7 +417,11 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
     async meta_listar_contas(args = {}) {
       if (!token) return text(NO_TOKEN, true);
       const data = await graph("/me/adaccounts", {
-        query: { fields: "id,name,account_status,currency,amount_spent,balance", limit: clampLimit(args.limite) },
+        query: {
+          fields: "id,name,account_status,currency,amount_spent,balance",
+          limit: clampLimit(args.limite),
+          after: cursorOf(args.cursor),
+        },
       });
       const accounts = data.data ?? [];
       if (accounts.length === 0) return text("Nenhuma conta de anúncios encontrada para este token.");
@@ -231,11 +430,11 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
           `id: ${account.id}`,
           `moeda: ${account.currency ?? "?"}`,
           `status da conta: ${account.account_status ?? "?"} (1 = ativa)`,
-          `gasto total: ${toMajor(account.amount_spent, account.currency) ?? "?"}`,
+          `gasto total: ${toMajorOrRaw(account.amount_spent, account.currency)}`,
           untrusted(`nome: ${account.name ?? ""}`),
         ].join("\n"),
       );
-      return text([UNTRUSTED_NOTICE, ...blocks].join("\n\n"));
+      return text([UNTRUSTED_NOTICE, ...blocks, ...nextCursor(data)].join("\n\n"));
     },
 
     async meta_listar_campanhas(args = {}) {
@@ -245,27 +444,36 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
         query: {
           fields: "id,name,status,effective_status,objective,daily_budget,lifetime_budget",
           limit: clampLimit(args.limite),
+          after: cursorOf(args.cursor),
         },
       });
       const items = data.data ?? [];
       if (items.length === 0) return text("Nenhuma campanha encontrada.");
-      const currency = await currencyOf(account.slice(4));
-      return text([UNTRUSTED_NOTICE, ...items.map((item) => show(item, currency))].join("\n\n"));
+      const currency = await currencyOf(account.slice(4)).catch(() => "");
+      return text([UNTRUSTED_NOTICE, ...items.map((item) => show(item, currency)), ...nextCursor(data)].join("\n\n"));
     },
 
     async meta_listar_conjuntos(args = {}) {
       if (!token) return text(NO_TOKEN, true);
       const parent = args.campanha_id ? objectId(args.campanha_id, "campanha_id") : accountPath(args.conta);
       const data = await graph(`/${parent}/adsets`, {
-        query: { fields: "id,name,status,effective_status,daily_budget,campaign_id", limit: clampLimit(args.limite) },
+        query: {
+          fields: "id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id",
+          limit: clampLimit(args.limite),
+          after: cursorOf(args.cursor),
+        },
       });
       const items = data.data ?? [];
       if (items.length === 0) return text("Nenhum conjunto de anúncios encontrado.");
-      const currency = String(parent).startsWith("act_") ? await currencyOf(String(parent).slice(4)) : "";
+      const accountId = String(parent).startsWith("act_")
+        ? String(parent).slice(4)
+        : (await readObject(parent).catch(() => ({}))).account_id;
+      const currency = await currencyOf(accountId).catch(() => "");
       return text(
         [
           UNTRUSTED_NOTICE,
           ...items.map((item) => `${show(item, currency)}\ncampanha: ${item.campaign_id ?? "?"}`),
+          ...nextCursor(data),
         ].join("\n\n"),
       );
     },
@@ -281,6 +489,7 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
         fields: "campaign_name,adset_name,spend,impressions,reach,clicks,ctr,cpc,cpm,actions",
         level: ["account", "campaign", "adset", "ad"].includes(args.nivel) ? args.nivel : undefined,
         limit: clampLimit(args.limite),
+        after: cursorOf(args.cursor),
       };
       if (args.desde && args.ate) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(args.desde) || !/^\d{4}-\d{2}-\d{2}$/.test(args.ate)) {
@@ -309,102 +518,101 @@ export function createMetaAdsTools({ fetch: fetchImpl = globalThis.fetch, env = 
             : []),
         ].join("\n"),
       );
-      return text([UNTRUSTED_NOTICE, ...blocks].join("\n\n"));
+      return text([UNTRUSTED_NOTICE, ...blocks, ...nextCursor(data)].join("\n\n"));
     },
 
     async meta_criar_campanha(args = {}) {
-      const blocked = checkChangesAllowed();
-      if (blocked) return text(blocked, true);
       const account = accountPath(args.conta);
       const name = String(args.nome ?? "").trim();
       if (!name || name.length > 200) return text("nome é obrigatório (até 200 caracteres). Nada foi criado.", true);
       if (!OBJECTIVES.includes(args.objetivo)) {
         return text(`objetivo deve ser um de: ${OBJECTIVES.join(", ")}. Nada foi criado.`, true);
       }
-      const currency = await currencyOf(account.slice(4));
-      const body = { name, objective: args.objetivo, status: "PAUSED", special_ad_categories: [] };
-      if (args.orcamento_diario !== undefined) {
-        const budget = Number(args.orcamento_diario);
-        if (!Number.isFinite(budget) || budget <= 0) return text("orcamento_diario inválido. Nada foi criado.", true);
-        if (budget > cap) return text(`Recusado: ${budget} passa do teto diário de ${cap}. Nada foi criado.`, true);
-        body.daily_budget = String(ZERO_DECIMAL.has(currency) ? Math.round(budget) : Math.round(budget * 100));
-        body.bid_strategy = "LOWEST_COST_WITHOUT_CAP";
+      const budget = args.orcamento_diario === undefined ? null : Number(args.orcamento_diario);
+      if (budget !== null && (!Number.isFinite(budget) || budget <= 0)) {
+        return text("orcamento_diario inválido. Nada foi criado.", true);
       }
-      recordChange();
-      const created = await graph(`/${account}/campaigns`, { method: "POST", body });
-      return text(
-        [
-          "Campanha criada, PAUSADA (nada gasta até ser retomada).",
-          `conta: ${account}`,
-          `id: ${created.id ?? "?"}`,
-          untrusted(`nome: ${name}`),
-          `objetivo: ${args.objetivo}`,
-          `antes: não existia`,
-          `depois: status PAUSED, orçamento diário ${body.daily_budget ? `${args.orcamento_diario} ${currency}` : "nenhum neste nível"}`,
-        ].join("\n"),
-      );
+      if (budget !== null && cap !== null && budget > cap) {
+        return text(`Recusado: ${budget} passa do teto diário de ${cap}. Nada foi criado.`, true);
+      }
+      return withChange(async (post) => {
+        const body = { name, objective: args.objetivo, status: "PAUSED", special_ad_categories: [] };
+        let currency = "";
+        if (budget !== null) {
+          currency = await currencyOf(account.slice(4));
+          body.daily_budget = toMinor(budget, currency);
+          body.bid_strategy = "LOWEST_COST_WITHOUT_CAP";
+        }
+        const created = await post(`/${account}/campaigns`, body);
+        return text(
+          [
+            "Campanha criada, PAUSADA (nada gasta até ser retomada).",
+            `conta: ${account}`,
+            `id: ${created.id ?? "?"}`,
+            untrusted(`nome: ${name}`),
+            `objetivo: ${args.objetivo}`,
+            "antes: não existia",
+            `depois: status PAUSED, orçamento diário ${budget === null ? "nenhum neste nível" : `${budget} ${currency}`}`,
+          ].join("\n"),
+        );
+      });
     },
 
     async meta_pausar(args = {}) {
-      const blocked = checkChangesAllowed();
-      if (blocked) return text(blocked, true);
       const id = objectId(args.id);
-      const before = await readObject(id);
-      const currency = await currencyOf(before.account_id ?? "");
-      recordChange();
-      await graph(`/${id}`, { method: "POST", body: { status: "PAUSED" } });
-      const after = await readObject(id);
-      return text(["Pausado.", "ANTES:", show(before, currency), "DEPOIS:", show(after, currency)].join("\n"));
+      return withChange(async (post) => {
+        const before = await readObject(id);
+        // Pausar só para gasto: não precisa da moeda, então uma moeda desconhecida não impede.
+        const currency = await currencyOf(before.account_id).catch(() => "");
+        await post(`/${id}`, { status: "PAUSED" });
+        const after = await readObject(id);
+        return text(["Pausado.", "ANTES:", show(before, currency), "DEPOIS:", show(after, currency)].join("\n"));
+      });
     },
 
     async meta_retomar(args = {}) {
-      const blocked = checkChangesAllowed();
-      if (blocked) return text(blocked, true);
       const id = objectId(args.id);
-      const before = await readObject(id);
-      const currency = await currencyOf(before.account_id ?? "");
-      const daily = await dailyBudgetIfResumed(before, currency);
-      if (daily === null) {
-        return text("Recusado: não consegui conferir o orçamento diário que seria ativado. Nada foi alterado.", true);
-      }
-      if (daily > cap) {
+      return withChange(async (post) => {
+        const before = await readObject(id);
+        const currency = await currencyOf(before.account_id);
+        const result = await dailyBudgetIfResumed(before, currency);
+        if (result.refusal) return text(`Recusado: ${result.refusal}. Nada foi alterado.`, true);
+        if (result.daily > cap) {
+          return text(
+            `Recusado: retomar ativaria ${result.daily} ${currency} por dia, acima do teto de ${cap}. Reduza o orçamento antes. Nada foi alterado.`,
+            true,
+          );
+        }
+        await post(`/${id}`, { status: "ACTIVE" });
+        const after = await readObject(id);
         return text(
-          `Recusado: retomar ativaria ${daily} ${currency} por dia, acima do teto de ${cap}. Reduza o orçamento antes. Nada foi alterado.`,
-          true,
+          ["Retomado: começa a gastar.", "ANTES:", show(before, currency), "DEPOIS:", show(after, currency)].join("\n"),
         );
-      }
-      recordChange();
-      await graph(`/${id}`, { method: "POST", body: { status: "ACTIVE" } });
-      const after = await readObject(id);
-      return text(
-        ["Retomado: começa a gastar.", "ANTES:", show(before, currency), "DEPOIS:", show(after, currency)].join("\n"),
-      );
+      });
     },
 
     async meta_alterar_orcamento(args = {}) {
-      const blocked = checkChangesAllowed();
-      if (blocked) return text(blocked, true);
       const id = objectId(args.id);
       const budget = Number(args.orcamento_diario);
       if (!Number.isFinite(budget) || budget <= 0) return text("orcamento_diario inválido. Nada foi alterado.", true);
-      if (budget > cap) {
+      if (cap !== null && budget > cap) {
         return text(`Recusado: ${budget} passa do teto diário de ${cap}. Nada foi alterado.`, true);
       }
-      const before = await readObject(id);
-      const currency = await currencyOf(before.account_id ?? "");
-      if (before.daily_budget === undefined) {
+      return withChange(async (post) => {
+        const before = await readObject(id);
+        const currency = await currencyOf(before.account_id);
+        if (before.daily_budget === undefined) {
+          return text(
+            "Esse item não tem orçamento diário próprio (use o conjunto de anúncios, ou o orçamento é vitalício). Nada foi alterado.",
+            true,
+          );
+        }
+        await post(`/${id}`, { daily_budget: toMinor(budget, currency) });
+        const after = await readObject(id);
         return text(
-          "Esse item não tem orçamento diário próprio (use o conjunto de anúncios, ou o orçamento é vitalício). Nada foi alterado.",
-          true,
+          ["Orçamento alterado.", "ANTES:", show(before, currency), "DEPOIS:", show(after, currency)].join("\n"),
         );
-      }
-      const minor = ZERO_DECIMAL.has(currency) ? Math.round(budget) : Math.round(budget * 100);
-      recordChange();
-      await graph(`/${id}`, { method: "POST", body: { daily_budget: String(minor) } });
-      const after = await readObject(id);
-      return text(
-        ["Orçamento alterado.", "ANTES:", show(before, currency), "DEPOIS:", show(after, currency)].join("\n"),
-      );
+      });
     },
   };
 
@@ -441,13 +649,20 @@ export const READ_TOOLS = [
   {
     name: "meta_listar_contas",
     description: `Lista as contas de anúncios do token. ${NOTE}`,
-    inputSchema: obj({ limite: { type: "number", description: "De 1 a 50." } }),
+    inputSchema: obj({
+      limite: { type: "number", description: "De 1 a 50." },
+      cursor: { type: "string", description: "O próximo cursor devolvido pela página anterior." },
+    }),
   },
   {
     name: "meta_listar_campanhas",
     description: `Lista campanhas de uma conta, com status e orçamento. ${NOTE}`,
     inputSchema: obj(
-      { conta: { type: "string", description: "act_123... de meta_listar_contas." }, limite: { type: "number" } },
+      {
+        conta: { type: "string", description: "act_123... de meta_listar_contas." },
+        limite: { type: "number" },
+        cursor: { type: "string", description: "O próximo cursor devolvido pela página anterior." },
+      },
       ["conta"],
     ),
   },
@@ -458,6 +673,7 @@ export const READ_TOOLS = [
       conta: { type: "string" },
       campanha_id: { type: "string", description: "Em vez de conta." },
       limite: { type: "number" },
+      cursor: { type: "string", description: "O próximo cursor da página anterior." },
     }),
   },
   {
@@ -471,6 +687,7 @@ export const READ_TOOLS = [
         ate: { type: "string" },
         nivel: { type: "string", enum: ["account", "campaign", "adset", "ad"] },
         limite: { type: "number" },
+        cursor: { type: "string", description: "O próximo cursor da página anterior." },
       },
       ["id"],
     ),
@@ -519,7 +736,7 @@ export const CHANGE_TOOLS = [
 
 async function main() {
   const { createInterface } = await import("node:readline");
-  const meta = createMetaAdsTools();
+  const meta = createMetaAdsTools({ limitFile: join(homedir(), ".opencat", "meta-ads", "alteracoes.json") });
   const send = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
   createInterface({ input: process.stdin }).on("line", async (line) => {
     if (!line.trim()) return;

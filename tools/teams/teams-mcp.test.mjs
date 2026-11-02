@@ -1,5 +1,9 @@
 // node --test tools/teams/teams-mcp.test.mjs
+
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   createKeychainTokenStore,
@@ -306,4 +310,74 @@ test("auxiliares", () => {
   assert.equal(htmlToText("<p>a&nbsp;b</p>"), "a b");
   assert.match(untrusted("<<<x>>>"), /‹‹‹x›››/);
   assert.doesNotMatch(redact(`Bearer ${ACCESS}`), /eyJ/);
+});
+
+test("o limite de envio é gravado em arquivo 0600 e sobrevive a reiniciar", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "teams-test-")), "envios.json");
+  const routes = { "/messages": { status: 201, body: { id: "m" } }, "/chats/": { status: 200, body: {} } };
+  const mk = async () => {
+    const store = createMemoryTokenStore();
+    await store.save(REFRESH);
+    const fetch = fakeFetch({
+      "/token": { status: 200, body: { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 } },
+      ...routes,
+    });
+    return createTeamsTools({
+      fetch,
+      env: { TEAMS_PERMITIR_ENVIO: "sim" },
+      store,
+      sleep: noSleep,
+      now: () => 9_000,
+      limitFile: file,
+    });
+  };
+  const first = await mk();
+  for (let i = 0; i < 20; i += 1)
+    await first.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "y" });
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  const second = await mk();
+  const blocked = await second.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "z" });
+  assert.match(text(blocked), /Limite/);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).length, 20);
+});
+
+test("envios em paralelo não passam de 20, e a vaga volta só quando o Graph recusa", async () => {
+  const { teams } = await signedInWith(
+    { TEAMS_PERMITIR_ENVIO: "sim" },
+    { "/messages": { status: 201, body: { id: "m" } }, "/chats/": { status: 200, body: {} } },
+  );
+  const results = await Promise.all(
+    Array.from({ length: 30 }, () =>
+      teams.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "p" }),
+    ),
+  );
+  assert.equal(results.filter((r) => !r.isError).length, 20);
+
+  const file = join(mkdtempSync(join(tmpdir(), "teams-test-")), "envios.json");
+  let mode = "reject";
+  const store = createMemoryTokenStore();
+  await store.save(REFRESH);
+  const base = fakeFetch({
+    "/token": { status: 200, body: { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 } },
+    "/chats/": { status: 200, body: {} },
+  });
+  const fetch = async (url, init = {}) => {
+    if (init.method === "POST" && String(url).includes("/messages")) {
+      if (mode === "reject") return { ok: false, status: 400, json: async () => ({}) };
+      throw new Error("rede caiu");
+    }
+    return base(url, init);
+  };
+  const flaky = createTeamsTools({
+    fetch,
+    env: { TEAMS_PERMITIR_ENVIO: "sim" },
+    store,
+    sleep: noSleep,
+    limitFile: file,
+  });
+  await flaky.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "a" });
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).length, 0);
+  mode = "network";
+  await flaky.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "a" });
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).length, 1);
 });

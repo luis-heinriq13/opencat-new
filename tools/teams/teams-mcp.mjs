@@ -8,6 +8,9 @@
 // até TEAMS_PERMITIR_ENVIO ser "sim"; só então as permissões de envio são pedidas e a ferramenta aparece.
 // O refresh token só existe no Chaveiro do macOS. Nenhum token vai para log, erro ou saída de ferramenta.
 import { execFile } from "node:child_process";
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
@@ -125,6 +128,64 @@ export function createKeychainTokenStore({ account, run = runSecurity, platform 
   };
 }
 
+// ---- Limite por hora, guardado em arquivo ----------------------------------------------------------
+
+/**
+ * Limite deslizante de 1 hora. Os horários ficam num arquivo 0600 (gravação atômica), então reiniciar o
+ * servidor não zera a contagem. Tudo é síncrono: conferir e registrar acontecem sem `await` no meio, e
+ * chamadas em paralelo não passam juntas do limite. Sem `file`, só em memória (testes).
+ */
+export function createFileLimiter({ file = null, limit, now = Date.now, windowMs = 3_600_000 }) {
+  let stamps = [];
+  if (file) {
+    try {
+      const parsed = JSON.parse(readFileSync(file, "utf8"));
+      if (Array.isArray(parsed)) stamps = parsed.filter((value) => Number.isFinite(value));
+    } catch {
+      // Sem arquivo ainda, ou ilegível: começa vazio.
+    }
+  }
+  const prune = () => {
+    const cutoff = now() - windowMs;
+    stamps = stamps.filter((stamp) => stamp > cutoff);
+  };
+  const persist = () => {
+    if (!file) return;
+    try {
+      mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+      const temp = `${file}.${process.pid}.tmp`;
+      writeFileSync(temp, JSON.stringify(stamps), { mode: 0o600 });
+      renameSync(temp, file);
+      chmodSync(file, 0o600);
+    } catch {
+      // Se não der para gravar, a contagem da memória continua valendo neste processo.
+    }
+  };
+  return {
+    /** Devolve o horário registrado, ou null se o limite da hora já foi atingido. */
+    take() {
+      prune();
+      if (stamps.length >= limit) return null;
+      const stamp = now();
+      stamps.push(stamp);
+      persist();
+      return stamp;
+    },
+    /** Devolve a vaga de um envio que com certeza não aconteceu. */
+    give(stamp) {
+      const index = stamps.lastIndexOf(stamp);
+      if (index >= 0) {
+        stamps.splice(index, 1);
+        persist();
+      }
+    },
+    count() {
+      prune();
+      return stamps.length;
+    },
+  };
+}
+
 // ---- Servidor ------------------------------------------------------------------------------------
 
 export function createTeamsTools({
@@ -133,11 +194,13 @@ export function createTeamsTools({
   store,
   now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  /** Arquivo dos horários de envio. Sem ele o limite fica só na memória. */
+  limitFile = null,
 } = {}) {
   const clientId = String(env.TEAMS_CLIENT_ID ?? "").trim() || DEFAULT_CLIENT_ID;
   const sendEnabled = /^(sim|true|1|yes)$/i.test(String(env.TEAMS_PERMITIR_ENVIO ?? "").trim());
   const scopes = sendEnabled ? SEND_SCOPES : SCOPES;
-  const sentAt = []; // horários dos envios na última hora
+  const limiter = createFileLimiter({ file: limitFile, limit: SEND_LIMIT_PER_HOUR, now });
   const tenant = String(env.TEAMS_TENANT_ID ?? "").trim() || "organizations";
   const tokens = store ?? createKeychainTokenStore({ account: clientId });
   const authority = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0`;
@@ -203,8 +266,16 @@ export function createTeamsTools({
     return access.token;
   }
 
+  /** Erro depois de uma resposta (ou antes de qualquer pedido): a mensagem com certeza não foi enviada. */
+  const definite = (message) => Object.assign(new Error(message), { definite: true });
+
   async function graph(path, post = null, retried = false) {
-    const token = await accessToken();
+    let token;
+    try {
+      token = await accessToken();
+    } catch (error) {
+      throw Object.assign(error instanceof Error ? error : new Error("Erro desconhecido."), { definite: true });
+    }
     const response = await fetchImpl(`${GRAPH}${path}`, {
       ...(post ? { method: "POST", body: JSON.stringify(post) } : {}),
       headers: {
@@ -219,13 +290,13 @@ export function createTeamsTools({
       return graph(path, post, true);
     }
     if (response.status === 403) {
-      throw new Error(
+      throw definite(
         "O Microsoft recusou o acesso (403). A conta pode ser pessoal (não tem chats do Teams no Graph), ou o administrador da organização bloqueou a permissão pedida (pode exigir consentimento de administrador).",
       );
     }
-    if (response.status === 404) throw new Error("Não encontrei esse item no Teams (404).");
-    if (response.status === 429) throw new Error("O Teams pediu para esperar (429). Tente de novo em alguns minutos.");
-    if (!response.ok) throw new Error(`O Microsoft Graph respondeu ${response.status}.`);
+    if (response.status === 404) throw definite("Não encontrei esse item no Teams (404).");
+    if (response.status === 429) throw definite("O Teams pediu para esperar (429). Tente de novo em alguns minutos.");
+    if (!response.ok) throw definite(`O Microsoft Graph respondeu ${response.status}.`);
     return response.json();
   }
 
@@ -350,9 +421,9 @@ export function createTeamsTools({
       if (toChat ? !CHAT_ID.test(chatId) : !ID_PART.test(teamId) || !ID_PART.test(channelId)) {
         return text("Id inválido. Use ids de listar_conversas. Nada foi enviado.", true);
       }
-      const cutoff = now() - 3_600_000;
-      while (sentAt.length > 0 && sentAt[0] <= cutoff) sentAt.shift();
-      if (sentAt.length >= SEND_LIMIT_PER_HOUR) {
+      // Conferir e registrar o envio acontecem aqui, antes de qualquer await: chamadas em paralelo não furam o limite.
+      const slot = limiter.take();
+      if (slot === null) {
         return text(`Limite de ${SEND_LIMIT_PER_HOUR} mensagens por hora atingido. Nada foi enviado.`, true);
       }
       const base = toChat
@@ -376,8 +447,14 @@ export function createTeamsTools({
       } catch {
         // O nome é só para mostrar; o envio segue pelo id.
       }
-      sentAt.push(now());
-      const sent = await graph(`${base}/messages`, { body: { contentType: "text", content } });
+      let sent;
+      try {
+        sent = await graph(`${base}/messages`, { body: { contentType: "text", content } });
+      } catch (error) {
+        // Só devolve a vaga quando o envio com certeza não aconteceu; um erro de rede pode ter enviado.
+        if (error?.definite) limiter.give(slot);
+        throw error;
+      }
       return text(
         [
           "Mensagem enviada pelo Teams.",
@@ -386,7 +463,7 @@ export function createTeamsTools({
           "Texto enviado:",
           untrusted(content),
           `id: ${sent.id ?? "?"}`,
-          `Envios na última hora: ${sentAt.length} de ${SEND_LIMIT_PER_HOUR}.`,
+          `Envios na última hora: ${limiter.count()} de ${SEND_LIMIT_PER_HOUR}.`,
         ].join("\n"),
       );
     },
@@ -516,7 +593,7 @@ export const SEND_TOOL = {
 
 async function main() {
   const { createInterface } = await import("node:readline");
-  const teams = createTeamsTools();
+  const teams = createTeamsTools({ limitFile: join(homedir(), ".opencat", "teams", "envios.json") });
   const send = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
   createInterface({ input: process.stdin }).on("line", async (line) => {
     if (!line.trim()) return;
