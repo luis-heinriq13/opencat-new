@@ -114,3 +114,28 @@ Pedido do Luis: dar a animação 3D de https://libraries.dev/bots aos mascotes a
    - Meça uso de CPU com a lista cheia, antes e depois. Se subir muito, reduza.
 6. **Fora do escopo:** o app mobile (o port React Native não está no npm) e o site continuam com o motor atual. Não remova `@norbert_bodziony/bloub`.
 7. **Prova:** story com os 11 mascotes em 20, 32, 64 e 128 px, nos 3 estados, claro e escuro. Envie um vídeo ou print ao Luis antes de trocar nas telas. Depois, o `check:ui`, a geração da versão e o relato do que foi visto no app.
+
+## Depois: página Receita (pagamentos)
+
+Combinado com o Luis: uma página só na barra lateral, com filtro por gateway, em vez de um painel por gateway. Comece só com leitura, com Stripe e Cakto. Hotmart entra depois.
+
+**Antes de começar:** veja como o Stripe está hoje em `marketplace/plugin-catalog/plugins/`. Leia a documentação oficial da Cakto: índice em `https://docs.cakto.com.br/llms.txt`, com `/authentication`, `/conceitos/ambientes`, `/conceitos/webhooks`, `/conceitos/idempotencia` e `/conceitos/rate-limits`. A Cakto também tem um conector próprio, o CaktoMCP: confira se aceita o OpenCat antes de construir, porque a Meta recusou o nosso cliente.
+
+**Fatos já vistos na Cakto:** API REST em `https://api.cakto.com.br/public_api/`, OAuth2 com `client_id` e `client_secret`, listas paginadas, webhooks, idempotência e limite de requisições. O acesso a staging é sob pedido. A página de Hotmart não abriu na leitura automática, então nada sobre ela está confirmado.
+
+**Etapa 1: painel, só leitura.**
+- Página nos moldes de `packages/ui/src/features/app-pages/`, fixada na barra lateral como Anúncios. O processo principal lê o token, e ele nunca chega à interface.
+- Indicadores: faturamento bruto e líquido, vendas, ticket médio, reembolsos, assinaturas ativas, cancelamentos e receita recorrente, com seletor de período.
+- Gráfico por dia e tabela de vendas e assinaturas, com filtro por gateway, produto e status. Moedas diferentes ficam separadas, sem somar. Não invente valor que a API não entrega.
+- Dados de comprador mascarados por padrão: nome e e-mail só ao abrir o item. Sem dados de cartão.
+- Sem URL pública: o painel consulta a API de tempos em tempos, com cache e sem consultar com a janela oculta. Webhook só depois, no backend do servidor, nunca por túnel neste computador.
+- Falha em um gateway mostra aviso nele e não derruba os outros.
+
+**Etapa 2: agentes em desenvolvimento, só com chaves de teste.**
+- Conector separado para agentes: criar produto ou plano de teste, gerar link de checkout e consultar o resultado. Stripe em modo de teste, Cakto em staging, depois que o Luis pedir o acesso.
+- Recuse chave real: `sk_live_` no Stripe. Na Cakto, use a URL de staging fixa e não aceite outra.
+- Toda criação envia chave de idempotência.
+
+**Fora de questão, salvo decisão explícita do Luis:** cobrança direta de cartão, reembolso ou cancelamento real por agente, e chave real ao alcance de agente. Eles têm acesso total ao disco.
+
+**Fim:** testes com `fetch` falso, `PRIVACY.md`, changelog e geração da versão. O Luis conecta as contas dele.
