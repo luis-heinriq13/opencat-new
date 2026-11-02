@@ -160,7 +160,7 @@ export function SettingsUpdatesTab(props: SettingsUpdatesTabProps) {
             <ItemDescription class={props.store.messageClass()}>{props.store.message()}</ItemDescription>
           </ItemContent>
           {/* The host installs the shared application itself, so a tenant has no action to take. */}
-          <Show when={!managed() && !props.store.automaticLocalUpdate()}>
+          <Show when={!managed()}>
             <ItemActions class="settings-modal-update-actions">
               <Button
                 variant="outline"

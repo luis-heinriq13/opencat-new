@@ -68,9 +68,7 @@ export function AccountUpdateIsland(props: AccountUpdateIslandProps) {
   // Local builds are installed by the main process as soon as the workspace is idle. Do not flash a
   // redundant "Update" button while that safe handover is waiting; failures still remain visible.
   const open = createMemo(
-    () =>
-      (isUpdateActivePhase(phase()) && !(props.updateStatus.localUpdate !== undefined && phase() === "available")) ||
-      (failed() && props.updateStatus.errorCode !== "check_failed"),
+    () => isUpdateActivePhase(phase()) || (failed() && props.updateStatus.errorCode !== "check_failed"),
   );
   const downloading = createMemo(() => phase() === "downloading");
   const busy = createMemo(() => actionPending() || isUpdateBusyPhase(phase()));

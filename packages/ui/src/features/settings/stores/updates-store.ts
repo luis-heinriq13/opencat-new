@@ -97,7 +97,7 @@ export function createSettingsUpdatesStore(props: UpdatesStoreProps) {
   };
 
   async function runAction(): Promise<void> {
-    if (automaticLocalUpdate() || presentation().busy || !presentation().supported) return;
+    if (presentation().busy || !presentation().supported) return;
     setError(null);
     try {
       await props.onUpdateAction();
