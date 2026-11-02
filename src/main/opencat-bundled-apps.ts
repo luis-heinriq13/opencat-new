@@ -46,6 +46,7 @@ async function installBundledSingleFile(folder: string, file: string): Promise<v
 export async function installBundledApps(): Promise<void> {
   await installBundledSingleFile("teams", "teams-mcp.mjs").catch(() => undefined);
   await installBundledSingleFile("meta-ads", "meta-ads-mcp.mjs").catch(() => undefined);
+  await installBundledSingleFile("cakto", "cakto-mcp.mjs").catch(() => undefined);
   const source = join(process.resourcesPath, "whatscat");
   if (!app.isPackaged || !existsSync(source)) return;
   const stamp = join(INSTALL_DIRECTORY, ".versao");

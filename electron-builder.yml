@@ -61,6 +61,11 @@ extraResources:
     to: meta-ads
     filter:
       - meta-ads-mcp.mjs
+  # OpenCat: Cakto is a local read-only API connector. It intentionally has no production write tools.
+  - from: tools/cakto
+    to: cakto
+    filter:
+      - cakto-mcp.mjs
   # OpenCat: the installer that swaps in a local build. The app copies it out and runs it detached.
   - from: scripts/opencat-instalar-atualizacao.py
     to: opencat/opencat-instalar-atualizacao.py

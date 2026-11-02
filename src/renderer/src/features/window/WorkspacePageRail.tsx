@@ -106,6 +106,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
     if (app?.panel === "interactive" && isLocalHost()) {
       if (slug === "meta-ads") return windowPage.openMetaAds(null);
       if (slug === "teams") return windowPage.openTeams(null);
+      if (slug === "cakto") return windowPage.openRevenue(null);
     }
     setPendingPluginSlug(slug);
     setSkillsMarketplaceOpen(true);
@@ -113,7 +114,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   const current = (): PageRailPage | null => {
     const page = windowPage.page();
     if (page === "agents") return layout.sidebarView();
-    return page === "server-settings" || page === "meta-ads" || page === "teams" ? null : page;
+    return page === "server-settings" || page === "meta-ads" || page === "teams" || page === "revenue" ? null : page;
   };
   return (
     <PageRail
@@ -122,7 +123,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       pinned={layout.railPinned()}
       onPinChange={layout.setRailPinned}
       apps={pinnedApps()}
-      currentApp={windowPage.page() === "meta-ads" || windowPage.page() === "teams" ? windowPage.page() : null}
+      currentApp={windowPage.page() === "meta-ads" || windowPage.page() === "teams" || windowPage.page() === "revenue" ? windowPage.page() : null}
       onOpenApp={openApp}
       usageRows={usageRows()}
       customAgentUsage={localAgentUsage()}

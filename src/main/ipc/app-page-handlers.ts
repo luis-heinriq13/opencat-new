@@ -12,6 +12,7 @@ import {
   META_ADS_SERVER_NAME,
   type MetaAdsDashboardDependencies,
 } from "../opencat-meta-ads-dashboard";
+import { CAKTO_SERVER_NAME, createRevenueDashboard } from "../opencat-revenue-dashboard";
 import {
   createTeamsPanel,
   loadInstalledTeamsModule,
@@ -31,6 +32,7 @@ import {
   parseTeamsTarget,
 } from "./app-page-inputs";
 import { handler, type IpcGroupHandlers, payloadHandler } from "./define-ipc-group";
+import { isObject } from "./validation";
 
 export interface AppPageIpcDependencies {
   service: Pick<AgentService, "listMcpServers" | "createRoutine"> & {
@@ -73,6 +75,7 @@ export function appPageIpcHandlers({
       },
     },
   });
+  const revenue = createRevenueDashboard({ environment: environmentOf(CAKTO_SERVER_NAME) });
   const timezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return {
@@ -80,6 +83,12 @@ export function appPageIpcHandlers({
       metaOverview: payloadHandler(parseMetaAdsQuery, (query) => meta.overview(query)),
       metaChildren: payloadHandler(parseMetaAdsChildrenQuery, (query) => meta.children(query)),
       metaChange: payloadHandler(parseMetaAdsChange, (change) => meta.change(change)),
+      revenueOverview: payloadHandler((value): { refresh?: boolean | undefined } => {
+        if (value === undefined) return {};
+        if (!isObject(value) || (value.refresh !== undefined && value.refresh !== true && value.refresh !== false))
+          throw new Error("A refresh value must be boolean.");
+        return { refresh: value.refresh === true };
+      }, (query) => revenue.overview(query.refresh)),
       teamsOverview: handler(() => teams.overview()),
       teamsMessages: payloadHandler(parseTeamsTarget, (target) => teams.messages(target)),
       teamsSend: payloadHandler(parseTeamsSend, (input) => teams.send(input)),

@@ -129,3 +129,25 @@ export function TeamsMark(props: { class?: string | undefined; colored?: boolean
     </svg>
   );
 }
+
+
+/** The Cakto card/payment mark. */
+export function CaktoMark(props: { class?: string | undefined; colored?: boolean | undefined }) {
+  const color = () => (props.colored ? "#00E599" : "currentColor");
+  return (
+    <svg
+      class={props.class}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color()}
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2" y="5" width="20" height="14" rx="3" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+      <line x1="6" y1="15" x2="10" y2="15" />
+    </svg>
+  );
+}

@@ -6,7 +6,7 @@ import { useServers } from "../servers/servers-context";
  * The host pane over the middle of the workspace: the usage report, the routine schedule, the
  * tasks or the workflows. One state holds them, so each path that uncovers the conversation closes any of them.
  */
-type HostPaneView = "usage" | "schedule" | "attendance" | "tasks" | "workflows" | "meta-ads" | "teams";
+type HostPaneView = "usage" | "schedule" | "attendance" | "tasks" | "workflows" | "meta-ads" | "teams" | "revenue";
 
 const context = createSimpleContext({
   name: "UsageProvider",
@@ -52,6 +52,10 @@ const context = createSimpleContext({
       open("teams", serverId, source);
     }
 
+    function openRevenue(serverId: string, source: HTMLElement | null) {
+      open("revenue", serverId, source);
+    }
+
     function openTasks(serverId: string, source: HTMLElement | null) {
       open("tasks", serverId, source);
     }
@@ -79,7 +83,7 @@ const context = createSimpleContext({
         const view = untrack(() => state.view);
         // The Meta Ads and Teams pages read this computer's apps and act on them. On another host they must
         // not stay open, because a Pause or a send there would still act here.
-        if (view === "meta-ads" || view === "teams") clear();
+        if (view === "meta-ads" || view === "teams" || view === "revenue") clear();
         else open(view, serverId, null);
       }
       previousServer = serverId;
@@ -99,6 +103,7 @@ const context = createSimpleContext({
       openAttendance,
       openMetaAds,
       openTeams,
+      openRevenue,
       openTasks,
       openWorkflows,
       closeUsage() {

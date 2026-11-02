@@ -5,6 +5,7 @@ import { SkillsMarketplace } from "../../WorkspaceOverlays";
 import { useAgents } from "../agents/agents-context";
 import { MetaAdsPanel } from "../app-pages/MetaAdsPanel";
 import { TeamsPanel } from "../app-pages/TeamsPanel";
+import { RevenuePanel } from "../app-pages/RevenuePanel";
 import { AttendancePanel } from "../attendance/AttendancePanel";
 import { SchedulePanel } from "../schedule/SchedulePanel";
 import { useServers } from "../servers/servers-context";
@@ -85,6 +86,9 @@ export function WindowPageView() {
               onOpenTasks={() => windowPage.openTasks(null)}
               onBack={usage.closeUsage}
             />
+          </Match>
+          <Match when={usage.state.view === "revenue"}>
+            <RevenuePanel onOpenApp={() => openApp("cakto")} onBack={usage.closeUsage} />
           </Match>
           <Match when={usage.state.view === "workflows"}>
             <Loading>

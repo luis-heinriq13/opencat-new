@@ -17,6 +17,22 @@ export const messages = {
   "appPages.agents.failed": "Não foi possível iniciar a tarefa. Tente de novo.",
   "appPages.agents.openTasks": "Abrir Tarefas",
 
+  "appPages.revenue.title": "Receita",
+  "appPages.revenue.subtitle": "Visão somente leitura das vendas Stripe e Cakto.",
+  "appPages.revenue.back": "Voltar",
+  "appPages.revenue.readOnly": "Somente leitura. Esta página nunca cobra cartão, reembolsa pedidos ou cancela assinaturas.",
+  "appPages.revenue.gross": "Receita bruta",
+  "appPages.revenue.sales": "Vendas",
+  "appPages.revenue.activeSubscriptions": "Assinaturas ativas",
+  "appPages.revenue.orders": "Pedidos recentes",
+  "appPages.revenue.product": "Produto",
+  "appPages.revenue.provider": "Gateway",
+  "appPages.revenue.status": "Status",
+  "appPages.revenue.amount": "Valor",
+  "appPages.revenue.notConnected.title": "Receita não está conectada",
+  "appPages.revenue.notConnected.body": "Conecte Stripe ou Cakto na Loja para ler produtos, pedidos e assinaturas.",
+  "appPages.revenue.notConnected.action": "Abrir apps",
+
   "appPages.meta.title": "Anúncios",
   "appPages.meta.risk":
     "Anúncios gastam dinheiro de verdade. Retomar uma campanha começa a gastar na hora. As alterações só funcionam com um teto diário definido ao conectar o app. Sem ele, esta página só lê.",

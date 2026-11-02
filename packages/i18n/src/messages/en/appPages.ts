@@ -17,6 +17,22 @@ export const messages = defineMessages("appPages", {
   "appPages.agents.failed": "Could not start the task. Try again.",
   "appPages.agents.openTasks": "Open Tasks",
 
+  "appPages.revenue.title": "Revenue",
+  "appPages.revenue.subtitle": "Read-only view of Stripe and Cakto sales.",
+  "appPages.revenue.back": "Back",
+  "appPages.revenue.readOnly": "Read-only. This page never charges cards, refunds orders, or cancels subscriptions.",
+  "appPages.revenue.gross": "Gross revenue",
+  "appPages.revenue.sales": "Sales",
+  "appPages.revenue.activeSubscriptions": "Active subscriptions",
+  "appPages.revenue.orders": "Recent orders",
+  "appPages.revenue.product": "Product",
+  "appPages.revenue.provider": "Provider",
+  "appPages.revenue.status": "Status",
+  "appPages.revenue.amount": "Amount",
+  "appPages.revenue.notConnected.title": "Revenue is not connected",
+  "appPages.revenue.notConnected.body": "Connect Stripe or Cakto in the Marketplace to read products, orders and subscriptions.",
+  "appPages.revenue.notConnected.action": "Open apps",
+
   "appPages.meta.title": "Ads",
   "appPages.meta.risk":
     "Ads spend real money. Resuming a campaign starts spending at once. Changes work only with a daily cap set when you connect the app. Without it, this page only reads.",

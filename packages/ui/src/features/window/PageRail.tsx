@@ -18,7 +18,7 @@ import {
 import { AccountUsageDetails } from "@openbot/ui/features/account/AccountUsageDetails";
 import { type AccountUsageProviderRow, accountUsageRowKey } from "@openbot/ui/features/account/account-usage-view";
 import { WhatsAppIcon } from "@openbot/ui/features/attendance/WhatsAppIcon";
-import { MetaMark, TeamsMark } from "@openbot/ui/features/settings/brand-marks";
+import { CaktoMark, MetaMark, TeamsMark } from "@openbot/ui/features/settings/brand-marks";
 import { useText } from "@openbot/ui/text";
 import { Dynamic, type JSX } from "@solidjs/web";
 import { type Component, createMemo, createSignal, For, Show } from "solid-js";
@@ -211,6 +211,7 @@ function railAppIcon(slug: string): Component<{ class?: string | undefined; "ari
   if (WHATSAPP_APP_SLUGS.has(slug)) return WhatsAppIcon;
   if (slug === "meta-ads") return MetaMark;
   if (slug === "teams") return TeamsMark;
+  if (slug === "cakto") return CaktoMark;
   return Puzzle;
 }
 

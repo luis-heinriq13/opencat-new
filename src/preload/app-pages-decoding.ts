@@ -10,6 +10,10 @@ import {
   type MetaAdsFailure,
   type MetaAdsOverview,
   type MetaAdsRow,
+  type RevenueCurrencyTotals,
+  type RevenueOrderRow,
+  type RevenueOverview,
+  type RevenueProviderStatus,
   TEAMS_AGENT_LEVELS,
   TEAMS_CHAT_KINDS,
   TEAMS_FAILURES,
@@ -330,4 +334,81 @@ export function decodeTeamsSendSetting(value: unknown): TeamsSendSetting {
     throw new Error("Invalid Teams send setting.");
   }
   return { sendEnabled: value.sendEnabled, signInAgain: value.signInAgain };
+}
+
+
+function revenueCurrencyTotal(value: DynamicRecord): RevenueCurrencyTotals {
+  if (
+    !isString(value.currency) ||
+    !isNumber(value.gross) ||
+    !nullableNumber(value.net) ||
+    !isNumber(value.sales) ||
+    !isNumber(value.refunds) ||
+    !isNumber(value.activeSubscriptions) ||
+    !isNumber(value.cancellations) ||
+    !nullableNumber(value.recurring)
+  ) {
+    throw new Error("Invalid Revenue currency total.");
+  }
+  return {
+    currency: value.currency,
+    gross: value.gross,
+    net: value.net,
+    sales: value.sales,
+    refunds: value.refunds,
+    activeSubscriptions: value.activeSubscriptions,
+    cancellations: value.cancellations,
+    recurring: value.recurring,
+  };
+}
+
+function revenueOrder(value: DynamicRecord): RevenueOrderRow {
+  if (
+    !isString(value.id) ||
+    !isOneOf(["stripe", "cakto"] as const, value.provider) ||
+    !isString(value.product) ||
+    !isString(value.status) ||
+    !isString(value.currency) ||
+    !isNumber(value.amount) ||
+    !(value.occurredAt === null || isString(value.occurredAt))
+  ) {
+    throw new Error("Invalid Revenue order row.");
+  }
+  return {
+    id: value.id,
+    provider: value.provider,
+    product: value.product,
+    status: value.status,
+    currency: value.currency,
+    amount: value.amount,
+    occurredAt: value.occurredAt,
+  };
+}
+
+function revenueProvider(value: DynamicRecord): RevenueProviderStatus {
+  if (
+    !isOneOf(["stripe", "cakto"] as const, value.provider) ||
+    !isOneOf(["ready", "not-connected", "error"] as const, value.state) ||
+    !(value.detail === null || isOneOf(REASONS, value.detail))
+  ) {
+    throw new Error("Invalid Revenue provider status.");
+  }
+  return {
+    provider: value.provider,
+    state: value.state,
+    detail: value.detail,
+  };
+}
+
+export function decodeRevenueOverview(value: unknown): RevenueOverview {
+  if (!isDynamicRecord(value) || value.state !== "ready" || !isNumber(value.fetchedAt)) {
+    throw new Error("Invalid Revenue overview.");
+  }
+  return {
+    state: "ready",
+    fetchedAt: value.fetchedAt,
+    providers: records(value.providers, "Revenue providers").map(revenueProvider),
+    totals: records(value.totals, "Revenue totals").map(revenueCurrencyTotal),
+    orders: records(value.orders, "Revenue orders").map(revenueOrder),
+  };
 }

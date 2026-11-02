@@ -14,6 +14,7 @@ export type WindowPage =
   | "attendance"
   | "meta-ads"
   | "teams"
+  | "revenue"
   | "workflows"
   | "usage"
   | "marketplace"
@@ -151,6 +152,10 @@ const context = createSimpleContext({
       openTeams(source: HTMLElement | null) {
         const serverId = activeServerId();
         if (serverId) usage.openTeams(serverId, source);
+      },
+      openRevenue(source: HTMLElement | null) {
+        const serverId = activeServerId();
+        if (serverId) usage.openRevenue(serverId, source);
       },
       openWorkflows(source: HTMLElement | null) {
         const serverId = activeServerId();

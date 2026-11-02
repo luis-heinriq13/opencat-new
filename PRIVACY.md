@@ -1135,9 +1135,9 @@ Full access also permits that agent to publish, update and delete public hosted 
 another confirmation. Publishing makes the selected site content publicly accessible. At Workspace
 only or Ask first, hosted-site changes require confirmation. Site ownership and source validation still apply.
 
-## Meta Ads, Microsoft Teams and the Antigravity gateway
+## Meta Ads, Microsoft Teams, Cakto and the Antigravity gateway
 
-These three make network calls only after the owner connects them. OpenBot sends nothing to them
+These services make network calls only after the owner connects them. OpenBot sends nothing to them
 before that, and no part of these calls goes to the OpenBot account service.
 
 - **Meta Ads.** After the owner pastes an access token in the app settings, the Meta Ads server
@@ -1156,6 +1156,11 @@ before that, and no part of these calls goes to the OpenBot account service.
   instruction, its automations and their read position are in `~/.opencat/teams/permissoes.json`
   (mode 0600). The Teams server cannot tell which agent calls it, so it enforces the union of all
   allowlists.
+- **Cakto.** After the owner pastes a client ID and client secret in the Cakto app settings,
+  the connector and the Revenue page query orders, products, offers and subscriptions from
+  `api.cakto.com.br`. In production, the connector is strictly read-only and has no charging,
+  refund or cancellation capabilities. Credentials stay in the main process and local server
+  settings; they never reach the renderer interface. Reads are cached in memory for 90 seconds.
 - **Antigravity gateway.** When the owner selects Antigravity, the gateway on this computer refreshes
   the Google token of the signed-in Antigravity accounts with `accounts.google.com` and sends the
   conversation of the agent to `daily-cloudcode-pa.googleapis.com`. It reads the token file of the

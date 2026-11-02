@@ -39,6 +39,12 @@
       "detailSha256": "2a35658ad1e0daeda6d9f9701e34a828a09d3a4525688bbfdf175bbe6ecbbaf3"
     },
     {
+      "slug": "cakto",
+      "version": "1.0.0",
+      "featured": false,
+      "detailSha256": "8c524c600b415b06455cbeb87aebfd39ff6b1628e5dc5400ee71969b01d4cda6"
+    },
+    {
       "slug": "linear",
       "version": "1.0.0",
       "featured": false,

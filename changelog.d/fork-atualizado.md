@@ -36,3 +36,9 @@
   when sending is on (a switch on the page writes `TEAMS_PERMITIR_ENVIO`). Both pages list the
   agents that can use the app and start a task from an editable draft. The app reads the services
   in the main process with the saved credentials; the page never gets a token.
+
+- A new Revenue page can be pinned to the page rail, providing read-only financial metrics
+  for Stripe and Cakto with currency breakdown, sales counts, active subscriptions, and order rows.
+  Buyer personal details remain masked by default.
+- The store lists Cakto, connecting via client_id and client_secret to a local read-only connector
+  exposing products, offers, orders, and subscriptions. It intentionally excludes charging and refund actions.

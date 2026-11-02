@@ -19,7 +19,7 @@ import { useText } from "@openbot/ui/text";
 import type { JSX } from "@solidjs/web";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { CONNECTOR_LISTINGS } from "../connectors/connector-catalog";
-import { MetaMark, TeamsMark } from "../settings/brand-marks";
+import { CaktoMark, MetaMark, TeamsMark } from "../settings/brand-marks";
 import { LogoTile } from "../settings/IntegrationLayout";
 import type { MarketplaceListing } from "./marketplace-listing";
 import type { MarketplaceApp, MarketplaceModel } from "./marketplace-model";
@@ -157,6 +157,9 @@ export function AppMark(props: { app: MarketplaceApp }) {
       </Match>
       <Match when={props.app.kind === "plugin" && props.app.plugin.slug === "teams"}>
         <TeamsMark colored />
+      </Match>
+      <Match when={props.app.kind === "plugin" && props.app.plugin.slug === "cakto"}>
+        <CaktoMark colored />
       </Match>
       <Match when={url()} keyed>
         {(src) => <img src={src} alt="" onError={() => setFailed(src)} />}

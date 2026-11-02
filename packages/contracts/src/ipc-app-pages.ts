@@ -109,6 +109,45 @@ export type MetaAdsChangeResult =
   | { ok: true }
   | { ok: false; reason: "disabled" | "refused" | "limit" | "failed"; detail: string };
 
+// ---- Receita (Stripe e Cakto) ----
+
+/** The dashboard never combines currencies: each provider reports one currency at a time. */
+export interface RevenueCurrencyTotals {
+  currency: string;
+  gross: number;
+  net: number | null;
+  sales: number;
+  refunds: number;
+  activeSubscriptions: number;
+  cancellations: number;
+  recurring: number | null;
+}
+
+/** One order is deliberately summary-only: buyer identity stays out of this first overview. */
+export interface RevenueOrderRow {
+  id: string;
+  provider: "stripe" | "cakto";
+  product: string;
+  status: string;
+  currency: string;
+  amount: number;
+  occurredAt: string | null;
+}
+
+export interface RevenueProviderStatus {
+  provider: "stripe" | "cakto";
+  state: "ready" | "not-connected" | "error";
+  detail: "permission" | "rate" | "network" | "unknown" | null;
+}
+
+export interface RevenueOverview {
+  state: "ready";
+  fetchedAt: number;
+  providers: RevenueProviderStatus[];
+  totals: RevenueCurrencyTotals[];
+  orders: RevenueOrderRow[];
+}
+
 // ---- Microsoft Teams ----
 
 export const TEAMS_CHAT_KINDS = ["oneOnOne", "group", "meeting", "other"] as const;

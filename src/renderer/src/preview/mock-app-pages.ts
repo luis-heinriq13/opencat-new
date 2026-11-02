@@ -245,6 +245,16 @@ export function createMockAppPages(scenario: MockAppPagesScenario = "ready"): Op
       return { state: "ready", rows };
     },
     metaChange: async () => ({ ok: true }),
+    revenueOverview: async () => ({
+      state: "ready" as const,
+      fetchedAt: now,
+      providers: [
+        { provider: "stripe" as const, state: "not-connected" as const, detail: null },
+        { provider: "cakto" as const, state: "not-connected" as const, detail: null },
+      ],
+      totals: [],
+      orders: [],
+    }),
     teamsOverview: async () => teamsOverview(scenario, sendEnabled, now),
     teamsMessages: async (target) => ({
       state: "ready",

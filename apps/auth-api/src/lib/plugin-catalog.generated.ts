@@ -55,6 +55,12 @@ export const PLUGIN_CATALOG_INDEX: PluginCatalogIndex = {
       detailSha256: "2a35658ad1e0daeda6d9f9701e34a828a09d3a4525688bbfdf175bbe6ecbbaf3",
     },
     {
+      slug: "cakto",
+      version: "1.0.0",
+      featured: false,
+      detailSha256: "8c524c600b415b06455cbeb87aebfd39ff6b1628e5dc5400ee71969b01d4cda6",
+    },
+    {
       slug: "linear",
       version: "1.0.0",
       featured: false,
@@ -509,6 +515,67 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
     websiteUrl: "https://developers.facebook.com/docs/marketing-apis",
     privacyPolicyUrl: "https://www.facebook.com/privacy/policy/",
     termsUrl: "https://www.facebook.com/terms/",
+    panel: "interactive",
+    skills: [],
+  },
+  cakto: {
+    slug: "cakto",
+    name: "Cakto",
+    tagline: "Produtos, ofertas, pedidos e assinaturas, somente leitura",
+    description:
+      "Conecta a Cakto ao OpenCat com uma chave de API colada uma única vez neste computador. Em produção, este app expõe apenas leituras: produtos, ofertas, pedidos e assinaturas. Ele não cria cobranças, não processa cartão, não reembolsa nem cancela nada.\n\nCrie uma chave no painel Cakto com somente os escopos read necessários e cole o client_id e o client_secret abaixo. As credenciais ficam no servidor local do app e não são enviadas ao agente nem aparecem em logs.\n\nCriação de produto, oferta ou checkout ficará disponível apenas em staging, depois de autorização explícita.",
+    category: "data-analytics",
+    creatorName: "Cakto",
+    iconUrl: "https://cakto.com.br/favicon.ico",
+    version: "1.0.0",
+    prompts: [
+      { id: "prompt-orders", text: "Resuma os pedidos pagos da Cakto no período, somente leitura." },
+      { id: "prompt-products", text: "Liste meus produtos e ofertas da Cakto, somente leitura." },
+      { id: "prompt-subscriptions", text: "Mostre as assinaturas ativas e canceladas da Cakto, sem alterar nada." },
+    ],
+    apps: [
+      {
+        id: "app-cakto",
+        name: "Cakto",
+        description:
+          "Leitura de produtos, ofertas, pedidos e assinaturas da Cakto, por um conector local que bloqueia qualquer escrita em produção.",
+        iconUrl: "https://cakto.com.br/favicon.ico",
+        server: {
+          name: "cakto",
+          transport: "stdio",
+          command: "~/.opencat/cakto/cakto-mcp.mjs",
+          args: [],
+          auth: [
+            {
+              id: "cakto-api-key",
+              kind: "key",
+              label: "Chave da Cakto",
+              fields: [
+                {
+                  id: "client-id",
+                  label: "Client ID",
+                  env: "CAKTO_CLIENT_ID",
+                  placeholder: "ck_...",
+                  hint: "Chave criada no painel Cakto com escopos somente leitura.",
+                },
+                {
+                  id: "client-secret",
+                  label: "Client secret",
+                  env: "CAKTO_CLIENT_SECRET",
+                  placeholder: "••••••••",
+                  hint: "Exibido uma vez pela Cakto. O OpenCat não mostra este valor depois de salvar.",
+                },
+              ],
+              docsUrl: "https://docs.cakto.com.br/authentication.md",
+              docsLabel: "Como criar a chave",
+            },
+          ],
+        },
+      },
+    ],
+    websiteUrl: "https://docs.cakto.com.br",
+    privacyPolicyUrl: "https://cakto.com.br/politica-de-privacidade",
+    termsUrl: "https://cakto.com.br/termos-de-uso",
     panel: "interactive",
     skills: [],
   },
