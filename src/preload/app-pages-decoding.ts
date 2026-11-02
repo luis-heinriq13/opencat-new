@@ -10,14 +10,18 @@ import {
   type MetaAdsFailure,
   type MetaAdsOverview,
   type MetaAdsRow,
+  TEAMS_AGENT_LEVELS,
   TEAMS_CHAT_KINDS,
   TEAMS_FAILURES,
+  type TeamsChannelsInfo,
   type TeamsChat,
   type TeamsMessage,
   type TeamsMessages,
   type TeamsOverview,
+  type TeamsPolicy,
   type TeamsSendResult,
   type TeamsSendSetting,
+  type TeamsTarget,
 } from "@openbot/contracts/ipc";
 import {
   type DynamicRecord,
@@ -121,6 +125,10 @@ export function decodeMetaAdsOverview(value: unknown): MetaAdsOverview {
     daily: records(value.daily, "Meta Ads days").map(day),
     changes: { enabled: changes.enabled, dailyCap: changes.dailyCap },
     truncated: value.truncated,
+    failedAccounts: records(value.failedAccounts, "Meta Ads failed accounts").map((account) => {
+      if (!isString(account.id) || !isString(account.name)) throw new Error("Invalid Meta Ads failed account.");
+      return { id: account.id, name: account.name };
+    }),
   };
 }
 
@@ -164,6 +172,85 @@ function chat(value: DynamicRecord): TeamsChat {
   };
 }
 
+function target(value: unknown): TeamsTarget {
+  if (isDynamicRecord(value) && value.type === "chat" && isString(value.chatId))
+    return { type: "chat", chatId: value.chatId };
+  if (isDynamicRecord(value) && value.type === "channel" && isString(value.teamId) && isString(value.channelId)) {
+    return { type: "channel", teamId: value.teamId, channelId: value.channelId };
+  }
+  throw new Error("Invalid Teams target.");
+}
+
+function decodeChannels(value: unknown): TeamsChannelsInfo {
+  if (
+    !isDynamicRecord(value) ||
+    !isOneOf(["ready", "blocked", "off"], value.state) ||
+    !isString(value.adminConsentUrl)
+  ) {
+    throw new Error("Invalid Teams channels.");
+  }
+  return {
+    state: value.state,
+    adminConsentUrl: value.adminConsentUrl,
+    teams: records(value.teams, "Teams teams").map((team) => {
+      if (!isString(team.id) || !isString(team.name)) throw new Error("Invalid Teams team.");
+      return {
+        id: team.id,
+        name: team.name,
+        channels: records(team.channels, "Teams channels").map((channel) => {
+          if (!isString(channel.id) || !isString(channel.name)) throw new Error("Invalid Teams channel.");
+          return { id: channel.id, name: channel.name };
+        }),
+      };
+    }),
+  };
+}
+
+export function decodeTeamsPolicy(value: unknown): TeamsPolicy {
+  if (!isDynamicRecord(value)) throw new Error("Invalid Teams policy.");
+  return {
+    agents: records(value.agents, "Teams agents").map((agent) => {
+      if (
+        !isString(agent.agentId) ||
+        !isOneOf(TEAMS_AGENT_LEVELS, agent.level) ||
+        !isString(agent.instruction) ||
+        !Array.isArray(agent.targets)
+      ) {
+        throw new Error("Invalid Teams agent policy.");
+      }
+      return {
+        agentId: agent.agentId,
+        level: agent.level,
+        targets: agent.targets.map(target),
+        instruction: agent.instruction,
+      };
+    }),
+    automations: records(value.automations, "Teams automations").map((entry) => {
+      if (
+        !isString(entry.id) ||
+        !isString(entry.agentId) ||
+        !isString(entry.label) ||
+        !isString(entry.instruction) ||
+        !isString(entry.routineId) ||
+        !isNumber(entry.frequencyMinutes) ||
+        !isString(entry.createdAt)
+      ) {
+        throw new Error("Invalid Teams automation.");
+      }
+      return {
+        id: entry.id,
+        agentId: entry.agentId,
+        target: target(entry.target),
+        label: entry.label,
+        instruction: entry.instruction,
+        routineId: entry.routineId,
+        frequencyMinutes: entry.frequencyMinutes,
+        createdAt: entry.createdAt,
+      };
+    }),
+  };
+}
+
 export function decodeTeamsOverview(value: unknown): TeamsOverview {
   if (
     !isDynamicRecord(value) ||
@@ -199,6 +286,7 @@ export function decodeTeamsOverview(value: unknown): TeamsOverview {
     account: value.account,
     chats: records(value.chats, "Teams chats").map(chat),
     failure: value.failure,
+    channels: decodeChannels(value.channels),
   };
 }
 

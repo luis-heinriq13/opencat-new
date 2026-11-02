@@ -6,7 +6,11 @@ import {
   type MetaAdsChange,
   type MetaAdsChildrenQuery,
   type MetaAdsQuery,
+  TEAMS_AGENT_LEVELS,
+  type TeamsAgentPolicy,
+  type TeamsAutomationInput,
   type TeamsSendInput,
+  type TeamsTarget,
 } from "@openbot/contracts/ipc";
 import { isBoolean, isOneOf } from "@openbot/contracts/runtime-values";
 import { isObject } from "./validation";
@@ -56,11 +60,75 @@ export function parseTeamsChatId(value: unknown): string {
   return value;
 }
 
+const ID_PART = /^[\w:.@=-]{3,200}$/;
+const AGENT_ID = /^[\w.:-]{1,128}$/;
+export const TEAMS_MAX_INSTRUCTION = 2000;
+const MAX_TARGETS = 50;
+
+export function parseTeamsTarget(value: unknown): TeamsTarget {
+  if (!isObject(value)) throw new Error("A target is required.");
+  if (value.type === "chat") return { type: "chat", chatId: parseTeamsChatId(value.chatId) };
+  if (
+    value.type === "channel" &&
+    typeof value.teamId === "string" &&
+    ID_PART.test(value.teamId) &&
+    typeof value.channelId === "string" &&
+    ID_PART.test(value.channelId)
+  ) {
+    return { type: "channel", teamId: value.teamId, channelId: value.channelId };
+  }
+  throw new Error("The target is not a chat or a channel.");
+}
+
 export function parseTeamsSend(value: unknown): TeamsSendInput {
   if (!isObject(value)) throw new Error("A message is required.");
   const text = typeof value.text === "string" ? value.text.trim() : "";
   if (text === "" || text.length > TEAMS_MAX_TEXT) throw new Error("text is empty or too long.");
-  return { chatId: parseTeamsChatId(value.chatId), text };
+  return { target: parseTeamsTarget(value.target), text };
+}
+
+function agentId(value: unknown): string {
+  if (typeof value !== "string" || !AGENT_ID.test(value)) throw new Error("agentId is not an agent.");
+  return value;
+}
+
+function instruction(value: unknown): string {
+  if (typeof value !== "string" || value.length > TEAMS_MAX_INSTRUCTION) throw new Error("instruction is too long.");
+  return value.trim();
+}
+
+export function parseTeamsAgentPolicy(value: unknown): TeamsAgentPolicy {
+  if (!isObject(value)) throw new Error("A policy is required.");
+  if (!isOneOf(TEAMS_AGENT_LEVELS, value.level)) throw new Error("level is not known.");
+  if (!Array.isArray(value.targets) || value.targets.length > MAX_TARGETS) throw new Error("targets is not a list.");
+  return {
+    agentId: agentId(value.agentId),
+    level: value.level,
+    targets: value.targets.map(parseTeamsTarget),
+    instruction: instruction(value.instruction),
+  };
+}
+
+export function parseTeamsAutomation(value: unknown): TeamsAutomationInput {
+  if (!isObject(value)) throw new Error("An automation is required.");
+  const minutes = value.frequencyMinutes;
+  if (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < 3 || minutes > 10_080) {
+    throw new Error("frequencyMinutes is out of range.");
+  }
+  const label = typeof value.label === "string" ? value.label.trim().slice(0, 200) : "";
+  const text = instruction(value.instruction);
+  if (label === "" || text === "") throw new Error("label and instruction are required.");
+  return {
+    agentId: agentId(value.agentId),
+    target: parseTeamsTarget(value.target),
+    label,
+    frequencyMinutes: minutes,
+    instruction: text,
+  };
+}
+
+export function parseTeamsAutomationId(value: unknown): string {
+  return agentId(value);
 }
 
 export function parseSendEnabled(value: unknown): boolean {

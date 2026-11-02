@@ -1,11 +1,15 @@
 import type {
+  TeamsAgentPolicy,
+  TeamsAutomationInput,
   TeamsChat,
   TeamsFailure,
   TeamsMessages,
   TeamsOverview,
+  TeamsPolicy,
   TeamsSendInput,
   TeamsSendResult,
   TeamsSendSetting,
+  TeamsTarget,
 } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import {
@@ -25,6 +29,7 @@ import {
 import { useText } from "@openbot/ui/text";
 import { createMemo, createStore, createUniqueId, For, Show } from "solid-js";
 import { AppAgentsSection, type AppPageAgent } from "./AppAgentsSection";
+import { TeamsAgentsPermissions, type TeamsTargetChoice } from "./TeamsAgentsPermissions";
 
 export interface TeamsViewProps {
   /** The reading, or null before the first answer. */
@@ -34,7 +39,13 @@ export interface TeamsViewProps {
   onBack: () => void;
   /** Starts the device-code sign-in. The page then shows the link and the code. */
   onSignIn: () => Promise<void>;
-  loadMessages: (chatId: string) => Promise<TeamsMessages>;
+  loadMessages: (target: TeamsTarget) => Promise<TeamsMessages>;
+  policy: TeamsPolicy | null;
+  onSavePolicy: (policy: TeamsAgentPolicy) => Promise<boolean>;
+  onCreateAutomation: (input: TeamsAutomationInput) => Promise<boolean>;
+  onStopAutomation: (id: string) => Promise<void>;
+  /** The owner says an administrator approved the channel permissions: read them again. */
+  onRetryChannels: () => void;
   onSend: (input: TeamsSendInput) => Promise<TeamsSendResult>;
   /** Saves the send choice. Null when it could not be saved. */
   onSetSend: (enabled: boolean) => Promise<TeamsSendSetting | null>;
@@ -67,7 +78,7 @@ const SEND_LABELS = {
 } as const satisfies Record<Exclude<TeamsSendResult, { ok: true }>["reason"], AppTextKey>;
 
 interface TeamsState {
-  chatId: string | null;
+  target: TeamsTarget | null;
   messages: {
     phase: "idle" | "loading" | "ready" | "failed";
     data: Extract<TeamsMessages, { state: "ready" }>["messages"];
@@ -90,7 +101,7 @@ export function TeamsView(props: TeamsViewProps) {
   const headingId = `app-page-teams-${createUniqueId()}`;
   const composeId = `${headingId}-compose`;
   const [state, setState] = createStore<TeamsState>({
-    chatId: null,
+    target: null,
     messages: { phase: "idle", data: [] },
     text: "",
     sending: false,
@@ -107,7 +118,31 @@ export function TeamsView(props: TeamsViewProps) {
     const current = props.overview;
     return current?.connection === "ready" ? current : null;
   });
-  const selected = createMemo(() => ready()?.chats.find((chat) => chat.id === state.chatId) ?? null);
+  const targetKey = (target: TeamsTarget): string => JSON.stringify(target);
+  /** Every chat and channel the owner can pick, for the lists of the agents. Names come from other people. */
+  const choices = createMemo<TeamsTargetChoice[]>(() => {
+    const data = ready();
+    if (!data) return [];
+    const chats: TeamsTargetChoice[] = data.chats.map((chat) => ({
+      target: { type: "chat", chatId: chat.id },
+      label: chat.title === "" ? t("appPages.teams.chats.untitled") : chat.title,
+    }));
+    const channels: TeamsTargetChoice[] = data.channels.teams.flatMap((team) =>
+      team.channels.map((channel) => ({
+        target: { type: "channel", teamId: team.id, channelId: channel.id },
+        label: t("appPages.teams.channels.name", { team: team.name, channel: channel.name }),
+      })),
+    );
+    return [...chats, ...channels];
+  });
+  const isOpen = (target: TeamsTarget): boolean =>
+    state.target !== null && targetKey(state.target) === targetKey(target);
+  const selected = createMemo(() => {
+    const current = state.target;
+    if (!current) return null;
+    const found = choices().find((choice) => targetKey(choice.target) === targetKey(current));
+    return { title: found?.label ?? "" };
+  });
 
   const when = (iso: string | null): string => {
     if (!iso) return "";
@@ -117,16 +152,16 @@ export function TeamsView(props: TeamsViewProps) {
     return format.date(date, sameDay ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" });
   };
 
-  async function open(chatId: string): Promise<void> {
+  async function open(target: TeamsTarget): Promise<void> {
     const request = ++generation;
     setState((draft) => {
-      draft.chatId = chatId;
+      draft.target = target;
       draft.messages = { phase: "loading", data: [] };
       draft.sendNotice = null;
     });
     let answer: TeamsMessages;
     try {
-      answer = await props.loadMessages(chatId);
+      answer = await props.loadMessages(target);
     } catch {
       answer = { state: "error", reason: "unknown" };
     }
@@ -138,16 +173,16 @@ export function TeamsView(props: TeamsViewProps) {
   }
 
   async function send(): Promise<void> {
-    const chatId = state.chatId;
+    const target = state.target;
     const text = state.text.trim();
-    if (!chatId || text === "" || state.sending) return;
+    if (!target || text === "" || state.sending) return;
     setState((draft) => {
       draft.sending = true;
       draft.sendNotice = null;
     });
     let result: TeamsSendResult;
     try {
-      result = await props.onSend({ chatId, text });
+      result = await props.onSend({ target, text });
     } catch {
       result = { ok: false, reason: "failed", detail: "" };
     }
@@ -160,7 +195,7 @@ export function TeamsView(props: TeamsViewProps) {
         draft.sendNotice = { tone: "error", key: SEND_LABELS[result.reason] };
       }
     });
-    if (result.ok) await open(chatId);
+    if (result.ok) await open(target);
   }
 
   async function signIn(): Promise<void> {
@@ -329,8 +364,8 @@ export function TeamsView(props: TeamsViewProps) {
                             type="button"
                             variant="ghost"
                             class="app-page-chat"
-                            aria-pressed={state.chatId === chat.id ? "true" : "false"}
-                            onClick={() => void open(chat.id)}
+                            aria-pressed={isOpen({ type: "chat", chatId: chat.id }) ? "true" : "false"}
+                            onClick={() => void open({ type: "chat", chatId: chat.id })}
                           >
                             <span class="app-page-chat-top">
                               <span class="app-page-chat-title">
@@ -346,7 +381,66 @@ export function TeamsView(props: TeamsViewProps) {
                     </For>
                   </ul>
                 </Show>
-                <p class="app-page-muted">{t("appPages.teams.chats.channelsNote")}</p>
+                <h3>{t("appPages.teams.channels.title")}</h3>
+                <Show when={data().channels.state === "off"}>
+                  <p class="app-page-muted">{t("appPages.teams.channels.off")}</p>
+                </Show>
+                <Show when={data().channels.state === "blocked"}>
+                  <div class="app-page-code-box" role="note">
+                    <strong>{t("appPages.teams.channels.blockedTitle")}</strong>
+                    <p>{t("appPages.teams.channels.blockedBody")}</p>
+                    <p class="app-page-muted">{t("appPages.teams.channels.adminLink")}</p>
+                    <p class="app-page-muted app-page-link-text">{data().channels.adminConsentUrl}</p>
+                    <div class="app-page-actions">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => props.onCopy(data().channels.adminConsentUrl)}
+                      >
+                        <Copy aria-hidden="true" />
+                        {t("appPages.teams.channels.copyLink")}
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={props.onRetryChannels}>
+                        {t("appPages.teams.channels.retry")}
+                      </Button>
+                    </div>
+                  </div>
+                </Show>
+                <Show when={data().channels.state === "ready"}>
+                  <Show
+                    when={data().channels.teams.some((team) => team.channels.length > 0)}
+                    fallback={<p class="app-page-muted">{t("appPages.teams.channels.empty")}</p>}
+                  >
+                    <ul class="app-page-chat-list">
+                      <For each={data().channels.teams}>
+                        {(team) => (
+                          <For each={team.channels}>
+                            {(channel) => (
+                              <li>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  class="app-page-chat"
+                                  aria-pressed={
+                                    isOpen({ type: "channel", teamId: team.id, channelId: channel.id })
+                                      ? "true"
+                                      : "false"
+                                  }
+                                  onClick={() => void open({ type: "channel", teamId: team.id, channelId: channel.id })}
+                                >
+                                  <span class="app-page-chat-title">
+                                    {t("appPages.teams.channels.name", { team: team.name, channel: channel.name })}
+                                  </span>
+                                </Button>
+                              </li>
+                            )}
+                          </For>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
+                </Show>
               </section>
 
               <section class="app-page-card app-page-thread" aria-label={t("appPages.teams.messages.untrusted")}>
@@ -463,8 +557,17 @@ export function TeamsView(props: TeamsViewProps) {
           )}
         </Show>
 
+        <TeamsAgentsPermissions
+          agents={props.agents}
+          policy={props.policy}
+          choices={choices()}
+          onSave={props.onSavePolicy}
+          onCreateAutomation={props.onCreateAutomation}
+          onStopAutomation={props.onStopAutomation}
+        />
+
         <AppAgentsSection
-          title={t("appPages.teams.agents.title")}
+          title={t("appPages.agents.title")}
           guideTitle={t("appPages.teams.guide.title")}
           guideBody={t("appPages.teams.guide.body")}
           draft={t("appPages.teams.guide.draft")}

@@ -439,6 +439,13 @@ export function MetaAdsView(props: MetaAdsViewProps) {
               <p class="app-page-muted">
                 {t("appPages.updated", { time: format.date(data().fetchedAt, { hour: "2-digit", minute: "2-digit" }) })}
               </p>
+              <Show when={data().failedAccounts.length > 0}>
+                <p class="app-page-status" data-tone="error" role="alert">
+                  {t("appPages.meta.accountsFailed", {
+                    names: format.list(data().failedAccounts.map((account) => account.name)),
+                  })}
+                </p>
+              </Show>
               <Show when={data().truncated}>
                 <p class="app-page-status" role="status">
                   {t("appPages.meta.truncated")}

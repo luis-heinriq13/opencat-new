@@ -24,13 +24,17 @@ import {
   parseMetaAdsChildrenQuery,
   parseMetaAdsQuery,
   parseSendEnabled,
-  parseTeamsChatId,
+  parseTeamsAgentPolicy,
+  parseTeamsAutomation,
+  parseTeamsAutomationId,
   parseTeamsSend,
+  parseTeamsTarget,
 } from "./app-page-inputs";
 import { handler, type IpcGroupHandlers, payloadHandler } from "./define-ipc-group";
 
 export interface AppPageIpcDependencies {
-  service: Pick<AgentService, "listMcpServers"> & {
+  service: Pick<AgentService, "listMcpServers" | "createRoutine"> & {
+    deleteRoutine(input: { agentId: string; routineId: string }): Effect.Effect<unknown, { readonly cause: unknown }>;
     saveMcpServer(input: { config: McpServerConfig }): Effect.Effect<unknown, { readonly cause: unknown }>;
   };
   /** Tests give their own loaders. */
@@ -51,7 +55,25 @@ export function appPageIpcHandlers({
     return server ? Object.fromEntries(server.env.map((pair) => [pair.key, pair.value])) : null;
   };
   const meta = createMetaAdsDashboard({ environment: environmentOf(META_ADS_SERVER_NAME), loadTools: loadMetaTools });
-  const teams = createTeamsPanel({ environment: environmentOf(TEAMS_SERVER_NAME), loadModule: loadTeamsModule });
+  const teams = createTeamsPanel({
+    environment: environmentOf(TEAMS_SERVER_NAME),
+    loadModule: loadTeamsModule,
+    routines: {
+      create: ({ agentId, name, instruction, timezone, anchorAt, minutes }) =>
+        service.createRoutine({
+          agentId,
+          name,
+          instruction,
+          active: true,
+          timezone,
+          schedule: { kind: "interval", amount: minutes, unit: "minutes", anchorAt },
+        }),
+      remove: async (agentId, routineId) => {
+        await runCauseEffect(service.deleteRoutine({ agentId, routineId }));
+      },
+    },
+  });
+  const timezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return {
     appPages: {
@@ -59,15 +81,21 @@ export function appPageIpcHandlers({
       metaChildren: payloadHandler(parseMetaAdsChildrenQuery, (query) => meta.children(query)),
       metaChange: payloadHandler(parseMetaAdsChange, (change) => meta.change(change)),
       teamsOverview: handler(() => teams.overview()),
-      teamsMessages: payloadHandler(parseTeamsChatId, (chatId) => teams.messages(chatId)),
+      teamsMessages: payloadHandler(parseTeamsTarget, (target) => teams.messages(target)),
       teamsSend: payloadHandler(parseTeamsSend, (input) => teams.send(input)),
       teamsSignIn: handler(() => teams.signIn()),
+      teamsRetryChannels: handler(() => teams.retryChannels()),
+      teamsPolicy: handler(() => teams.policy()),
+      teamsSavePolicy: payloadHandler(parseTeamsAgentPolicy, (policy) => teams.savePolicy(policy)),
+      teamsCreateAutomation: payloadHandler(parseTeamsAutomation, (input) => teams.createAutomation(input, timezone())),
+      teamsStopAutomation: payloadHandler(parseTeamsAutomationId, (id) => teams.stopAutomation(id)),
       // Writes only the TEAMS_PERMITIR_ENVIO pair of the saved Teams server and keeps every other field.
       // The new permissions need a new sign-in, so a saved session is reported to the page.
       teamsSetSendEnabled: payloadHandler(parseSendEnabled, async (enabled) => {
+        const signInAgain = await teams.hasSession();
+        // Read after the await: a token edited meanwhile must not be written back from an old snapshot.
         const server = savedServer(TEAMS_SERVER_NAME);
         if (!server) throw new Error("The Teams app is not installed.");
-        const signInAgain = await teams.hasSession();
         const others = server.env.filter((pair) => pair.key !== TEAMS_SEND_VARIABLE);
         const env = enabled ? [...others, { key: TEAMS_SEND_VARIABLE, value: "sim" }] : others;
         await runCauseEffect(service.saveMcpServer({ config: { ...server, env } }));

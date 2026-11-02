@@ -75,12 +75,13 @@ const context = createSimpleContext({
      */
     let previousServer = untrack(activeServerId);
     createEffect(activeServerId, (serverId) => {
-      if (serverId !== previousServer && untrack(() => state.serverId))
-        open(
-          untrack(() => state.view),
-          serverId,
-          null,
-        );
+      if (serverId !== previousServer && untrack(() => state.serverId)) {
+        const view = untrack(() => state.view);
+        // The Meta Ads and Teams pages read this computer's apps and act on them. On another host they must
+        // not stay open, because a Pause or a send there would still act here.
+        if (view === "meta-ads" || view === "teams") clear();
+        else open(view, serverId, null);
+      }
       previousServer = serverId;
     });
 

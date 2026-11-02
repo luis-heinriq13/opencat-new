@@ -46,6 +46,8 @@ export const SendOff: Story = { args: { scenario: "read-only" } };
 export const SigningIn: Story = { args: { scenario: "signing-in" } };
 export const NotConnected: Story = { args: { scenario: "not-connected" } };
 export const SessionExpired: Story = { args: { scenario: "token-expired" } };
+/** The organization has not approved the channel permissions: chats work, and the channel area names the administrator link. */
+export const ChannelsBlocked: Story = { args: { scenario: "channels-blocked" } };
 export const NoChats: Story = { args: { scenario: "empty" } };
 export const Narrow: Story = { args: { narrow: true } };
 export const Light: Story = { globals: { colorScheme: "light" } };

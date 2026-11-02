@@ -3,13 +3,22 @@ import type {
   MetaAdsOverview,
   MetaAdsRow,
   OpenBotDesktopApi,
+  TeamsAutomation,
   TeamsChat,
   TeamsMessage,
   TeamsOverview,
+  TeamsPolicy,
 } from "@openbot/contracts/ipc";
 
 /** What the preview and the stories show. The data is fictional: no real account, person or message. */
-export type MockAppPagesScenario = "ready" | "read-only" | "empty" | "not-connected" | "token-expired" | "signing-in";
+export type MockAppPagesScenario =
+  | "ready"
+  | "read-only"
+  | "empty"
+  | "not-connected"
+  | "token-expired"
+  | "signing-in"
+  | "channels-blocked";
 
 const DAY = 86_400_000;
 
@@ -82,6 +91,7 @@ function metaOverview(scenario: MockAppPagesScenario, now: number): MetaAdsOverv
     daily: empty ? [] : metaDays(now),
     changes: { enabled: scenario === "ready", dailyCap: scenario === "ready" ? 150 : null },
     truncated: false,
+    failedAccounts: scenario === "ready" ? [{ id: "act_1000003", name: "Estúdio Norte (USD)" }] : [],
   };
 }
 
@@ -142,6 +152,25 @@ function teamsMessages(chatId: string, now: number): TeamsMessage[] {
   ];
 }
 
+function mockChannels(scenario: MockAppPagesScenario): TeamsOverview["channels"] {
+  const adminConsentUrl = "https://login.microsoftonline.com/organizations/adminconsent?client_id=00000000-demo";
+  if (scenario === "channels-blocked") return { state: "blocked", adminConsentUrl, teams: [] };
+  return {
+    state: "ready",
+    adminConsentUrl,
+    teams: [
+      {
+        id: "team-1",
+        name: "Operação",
+        channels: [
+          { id: "19:geral@thread.tacv2", name: "Geral" },
+          { id: "19:alertas@thread.tacv2", name: "Alertas" },
+        ],
+      },
+    ],
+  };
+}
+
 function teamsOverview(scenario: MockAppPagesScenario, sendEnabled: boolean, now: number): TeamsOverview {
   const base = {
     sendEnabled,
@@ -151,6 +180,7 @@ function teamsOverview(scenario: MockAppPagesScenario, sendEnabled: boolean, now
     account: null,
     chats: [],
     failure: null,
+    channels: mockChannels(scenario),
   };
   if (scenario === "not-connected") return { ...base, connection: "not-connected" };
   if (scenario === "signing-in") {
@@ -167,6 +197,28 @@ function teamsOverview(scenario: MockAppPagesScenario, sendEnabled: boolean, now
 export function createMockAppPages(scenario: MockAppPagesScenario = "ready"): OpenBotDesktopApi["appPages"] {
   const now = Date.now();
   let sendEnabled = scenario === "ready";
+  let policy: TeamsPolicy = {
+    agents: [
+      {
+        agentId: "agent-1",
+        level: "reply",
+        targets: [{ type: "channel", teamId: "team-1", channelId: "19:alertas@thread.tacv2" }],
+        instruction: "Avise o time quando a fila passar de 20 chamados. Seja breve.",
+      },
+    ],
+    automations: [
+      {
+        id: "a0",
+        agentId: "agent-1",
+        target: { type: "channel", teamId: "team-1", channelId: "19:alertas@thread.tacv2" },
+        label: "Operação / Alertas",
+        instruction: "Resuma o que chegar e avise se a fila passar de 20.",
+        routineId: "demo",
+        frequencyMinutes: 15,
+        createdAt: new Date(now).toISOString(),
+      },
+    ],
+  };
   return {
     metaOverview: async (query) => {
       const overview = metaOverview(scenario, now);
@@ -194,8 +246,31 @@ export function createMockAppPages(scenario: MockAppPagesScenario = "ready"): Op
     },
     metaChange: async () => ({ ok: true }),
     teamsOverview: async () => teamsOverview(scenario, sendEnabled, now),
-    teamsMessages: async (chatId) => ({ state: "ready", messages: teamsMessages(chatId, now) }),
+    teamsMessages: async (target) => ({
+      state: "ready",
+      messages: teamsMessages(target.type === "chat" ? target.chatId : target.channelId, now),
+    }),
     teamsSend: async () => (sendEnabled ? { ok: true } : { ok: false, reason: "disabled", detail: "" }),
+    teamsRetryChannels: async () => teamsOverview(scenario, sendEnabled, now),
+    teamsPolicy: async () => policy,
+    teamsSavePolicy: async (agent) => {
+      policy = { ...policy, agents: [...policy.agents.filter((entry) => entry.agentId !== agent.agentId), agent] };
+      return policy;
+    },
+    teamsCreateAutomation: async (input) => {
+      const automation: TeamsAutomation = {
+        id: `a${policy.automations.length + 1}`,
+        routineId: "demo",
+        createdAt: new Date(now).toISOString(),
+        ...input,
+      };
+      policy = { ...policy, automations: [...policy.automations, automation] };
+      return policy;
+    },
+    teamsStopAutomation: async (id) => {
+      policy = { ...policy, automations: policy.automations.filter((entry) => entry.id !== id) };
+      return policy;
+    },
     teamsSignIn: async () => teamsOverview("signing-in", sendEnabled, now),
     teamsSetSendEnabled: async (enabled) => {
       sendEnabled = enabled;

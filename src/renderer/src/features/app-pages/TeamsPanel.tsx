@@ -1,4 +1,4 @@
-import type { TeamsOverview } from "@openbot/contracts/ipc";
+import type { TeamsOverview, TeamsPolicy } from "@openbot/contracts/ipc";
 import type { AppPageAgent } from "@openbot/ui/features/app-pages/AppAgentsSection";
 import { TeamsView } from "@openbot/ui/features/app-pages/TeamsView";
 import { createEffect, createStore, onSettled } from "solid-js";
@@ -11,6 +11,7 @@ const IDLE_TICKS = 15;
 interface TeamsPanelState {
   overview: TeamsOverview | null;
   refreshing: boolean;
+  policy: TeamsPolicy | null;
 }
 
 /**
@@ -26,7 +27,7 @@ export function TeamsPanel(props: {
   port?: AppPagesPort;
 }) {
   const port = () => props.port ?? appPagesPort();
-  const [state, setState] = createStore<TeamsPanelState>({ overview: null, refreshing: false });
+  const [state, setState] = createStore<TeamsPanelState>({ overview: null, refreshing: false, policy: null });
   let generation = 0;
 
   async function load(): Promise<void> {
@@ -35,14 +36,17 @@ export function TeamsPanel(props: {
       draft.refreshing = true;
     });
     let overview: TeamsOverview | null;
+    let policy: TeamsPolicy | null;
     try {
-      overview = await port().appPages.teamsOverview();
+      [overview, policy] = await Promise.all([port().appPages.teamsOverview(), port().appPages.teamsPolicy()]);
     } catch {
       overview = null;
+      policy = null;
     }
     if (request !== generation) return;
     setState((draft) => {
       if (overview) draft.overview = overview;
+      if (policy) draft.policy = policy;
       draft.refreshing = false;
     });
   }
@@ -79,7 +83,37 @@ export function TeamsPanel(props: {
           draft.overview = overview;
         });
       }}
-      loadMessages={(chatId) => port().appPages.teamsMessages(chatId)}
+      loadMessages={(target) => port().appPages.teamsMessages(target)}
+      policy={state.policy}
+      onSavePolicy={async (policy) => {
+        const saved = await port().appPages.teamsSavePolicy(policy);
+        setState((draft) => {
+          draft.policy = saved;
+        });
+        return true;
+      }}
+      onCreateAutomation={async (input) => {
+        const saved = await port().appPages.teamsCreateAutomation(input);
+        setState((draft) => {
+          draft.policy = saved;
+        });
+        return true;
+      }}
+      onStopAutomation={async (id) => {
+        const saved = await port().appPages.teamsStopAutomation(id);
+        setState((draft) => {
+          draft.policy = saved;
+        });
+      }}
+      onRetryChannels={() => {
+        void port()
+          .appPages.teamsRetryChannels()
+          .then((overview) =>
+            setState((draft) => {
+              draft.overview = overview;
+            }),
+          );
+      }}
       onSend={(input) => port().appPages.teamsSend(input)}
       onSetSend={async (enabled) => {
         try {

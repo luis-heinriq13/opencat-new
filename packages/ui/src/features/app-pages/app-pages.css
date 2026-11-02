@@ -459,3 +459,55 @@ th[aria-sort="descending"] .app-page-sort {
 .app-page-link-text {
   overflow-wrap: anywhere;
 }
+
+/* Permissions and automations */
+.app-page-agent-card {
+  min-width: 0;
+  margin: 0;
+}
+.app-page-legend {
+  padding: 0 var(--openbot-space-1);
+  font-weight: var(--openbot-weight-semibold);
+}
+.app-page-target-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  max-height: 11rem;
+  overflow-y: auto;
+}
+.app-page-target {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  min-width: 0;
+}
+.app-page-target-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-page-automations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.app-page-automation {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--openbot-radius-md);
+}
+.app-page-automation-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -1,5 +1,5 @@
 // OpenCat: the data behind the Meta Ads page. Main reads the Meta Graph API with the token of the
-// "meta-ads" app, through the same module that the app's MCP server runs (`~/.opencat/meta-ads`):
+// "meta-ads" app, through the same module that the app's MCP server runs (the packaged `meta-ads` resource):
 // its request code, time limit, error mapping, daily cap and hourly limit stay in one place. The
 // token is read from the saved server settings, kept in this module and never sent to the renderer.
 // Reads are cached for a short time to save calls. Pause and resume go through the tools of that
@@ -15,6 +15,7 @@ import {
   type MetaAdsChildren,
   type MetaAdsChildrenQuery,
   type MetaAdsDay,
+  type MetaAdsFailedAccount,
   type MetaAdsFailure,
   type MetaAdsOverview,
   type MetaAdsQuery,
@@ -22,9 +23,10 @@ import {
   type MetaAdsStatus,
 } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isDynamicRecord, isOneOf } from "@openbot/contracts/runtime-values";
+import { bundledToolModule } from "./opencat-bundled-tool-path";
 
 export const META_ADS_SERVER_NAME = "meta-ads";
-export const META_ADS_MODULE = join(homedir(), ".opencat", META_ADS_SERVER_NAME, "meta-ads-mcp.mjs");
+export const META_ADS_MODULE_FILE = "meta-ads-mcp.mjs";
 const META_ADS_LIMIT_FILE = join(homedir(), ".opencat", META_ADS_SERVER_NAME, "alteracoes.json");
 
 /** How long a reading is reused, and the least time between two readings that the user forces. */
@@ -81,7 +83,9 @@ export async function loadInstalledMetaAdsTools(
   environment: Readonly<Record<string, string>>,
 ): Promise<MetaAdsModuleTools | null> {
   try {
-    const imported: MetaAdsModuleExports = await import(pathToFileURL(META_ADS_MODULE).href);
+    const imported: MetaAdsModuleExports = await import(
+      pathToFileURL(bundledToolModule(META_ADS_SERVER_NAME, META_ADS_MODULE_FILE)).href
+    );
     if (typeof imported.createMetaAdsTools !== "function") return null;
     const created = imported.createMetaAdsTools({ env: { ...environment }, limitFile: META_ADS_LIMIT_FILE });
     return isModuleTools(created) ? created : null;
@@ -152,6 +156,8 @@ function nextCursor(data: unknown): string | undefined {
 class TimedCache<T> {
   private readonly entries = new Map<string, { at: number; value: T }>();
   private readonly running = new Map<string, Promise<T>>();
+  /** A clear starts a new generation: a load that began before it must not write its old answer. */
+  private generation = 0;
 
   constructor(private readonly now: () => number) {}
 
@@ -160,18 +166,23 @@ class TimedCache<T> {
     if (hit && this.now() - hit.at < (refresh ? META_MIN_REFRESH_MS : META_CACHE_MS)) return hit.value;
     const pending = this.running.get(key);
     if (pending) return pending;
+    const generation = this.generation;
     const work = load()
       .then((value) => {
-        this.entries.set(key, { at: this.now(), value });
+        if (generation === this.generation) this.entries.set(key, { at: this.now(), value });
         return value;
       })
-      .finally(() => this.running.delete(key));
+      .finally(() => {
+        if (generation === this.generation) this.running.delete(key);
+      });
     this.running.set(key, work);
     return work;
   }
 
   clear(): void {
+    this.generation += 1;
     this.entries.clear();
+    this.running.clear();
   }
 }
 
@@ -279,15 +290,27 @@ export function createMetaAdsDashboard({ environment, loadTools, now = Date.now 
     const campaigns: MetaAdsRow[] = [];
     const daily: MetaAdsDay[] = [];
     let truncated = accountPage.truncated || accountPage.list.length > MAX_ACCOUNTS;
+    const failedAccounts: MetaAdsFailedAccount[] = [];
+    let firstError: unknown;
     for (const account of accounts) {
-      const [level, perDay] = await Promise.all([
-        levelRows(active, account.id, account.id, "campaign", range),
-        pages(active, `/${account.id}/insights`, {
-          date_preset: range,
-          time_increment: 1,
-          fields: "spend,actions,action_values",
-        }),
-      ]);
+      let level: Awaited<ReturnType<typeof levelRows>>;
+      let perDay: Awaited<ReturnType<typeof pages>>;
+      try {
+        [level, perDay] = await Promise.all([
+          levelRows(active, account.id, account.id, "campaign", range),
+          pages(active, `/${account.id}/insights`, {
+            date_preset: range,
+            time_increment: 1,
+            fields: "spend,actions,action_values",
+          }),
+        ]);
+      } catch (error) {
+        // An expired token fails every account alike. Any other failure is of this account only.
+        if (failureOf(error).state === "token-expired") throw error;
+        firstError ??= error;
+        failedAccounts.push({ id: account.id, name: account.name });
+        continue;
+      }
       campaigns.push(...level.rows);
       truncated = truncated || level.truncated || perDay.truncated;
       for (const day of perDay.list) {
@@ -302,6 +325,7 @@ export function createMetaAdsDashboard({ environment, loadTools, now = Date.now 
         }
       }
     }
+    if (accounts.length > 0 && failedAccounts.length === accounts.length) throw firstError;
     return {
       state: "ready",
       fetchedAt: now(),
@@ -311,6 +335,7 @@ export function createMetaAdsDashboard({ environment, loadTools, now = Date.now 
       daily,
       changes: { enabled: active.changesAllowed && active.cap !== null, dailyCap: active.cap },
       truncated,
+      failedAccounts,
     };
   }
 

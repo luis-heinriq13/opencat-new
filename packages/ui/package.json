@@ -370,6 +370,7 @@
     "./features/window/page-rail.css": "./src/features/window/page-rail.css",
     "./features/attendance/AttendanceView": "./src/features/attendance/AttendanceView.tsx",
     "./features/app-pages/MetaAdsView": "./src/features/app-pages/MetaAdsView.tsx",
+    "./features/app-pages/TeamsAgentsPermissions": "./src/features/app-pages/TeamsAgentsPermissions.tsx",
     "./features/app-pages/TeamsView": "./src/features/app-pages/TeamsView.tsx",
     "./features/app-pages/AppAgentsSection": "./src/features/app-pages/AppAgentsSection.tsx",
     "./features/attendance/WhatsAppIcon": "./src/features/attendance/WhatsAppIcon.tsx",

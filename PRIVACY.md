@@ -1135,6 +1135,33 @@ Full access also permits that agent to publish, update and delete public hosted 
 another confirmation. Publishing makes the selected site content publicly accessible. At Workspace
 only or Ask first, hosted-site changes require confirmation. Site ownership and source validation still apply.
 
+## Meta Ads, Microsoft Teams and the Antigravity gateway
+
+These three make network calls only after the owner connects them. OpenBot sends nothing to them
+before that, and no part of these calls goes to the OpenBot account service.
+
+- **Meta Ads.** After the owner pastes an access token in the app settings, the Meta Ads server
+  and the Ads page read ad accounts, campaigns, ad sets, ads and results from
+  `graph.facebook.com` with that token. The token is kept in the local server settings and
+  stays in the main process and the MCP server process: the page never receives it. Reads are
+  cached in memory for 90 seconds. Pause and Resume, and any other change, run only when a daily
+  cap is set and the owner confirms or asks an agent. Names of campaigns come from Meta and reach
+  an agent as data.
+- **Microsoft Teams.** After the owner signs in with a work or school account (device code at
+  `microsoft.com/devicelogin`), the app reads chats, teams, channels, members and messages from
+  `graph.microsoft.com` and `login.microsoftonline.com`. The refresh token is in the macOS
+  Keychain. Message text goes to the model of an agent that reads it, as data. Sending, images and
+  @mentions need `TEAMS_PERMITIR_ENVIO=sim`, the allowlist of chats and channels that the owner sets
+  on the Teams page, and the limit of 20 messages an hour. The permissions of each agent, its
+  instruction, its automations and their read position are in `~/.opencat/teams/permissoes.json`
+  (mode 0600). The Teams server cannot tell which agent calls it, so it enforces the union of all
+  allowlists.
+- **Antigravity gateway.** When the owner selects Antigravity, the gateway on this computer refreshes
+  the Google token of the signed-in Antigravity accounts with `accounts.google.com` and sends the
+  conversation of the agent to `daily-cloudcode-pa.googleapis.com`. It reads the token file of the
+  Antigravity server, never writes it, and keeps access tokens in memory only. It is an unofficial
+  route, and Google's terms apply.
+
 ## Exports
 
 The account menu can export a local ZIP containing agent profiles, conversation snapshots, queues,

@@ -62,6 +62,12 @@ export type MetaAdsFailure =
   | { state: "token-expired" }
   | { state: "error"; reason: "permission" | "rate" | "network" | "unknown" };
 
+/** An account that could not be read. The page shows the others. */
+export interface MetaAdsFailedAccount {
+  id: string;
+  name: string;
+}
+
 export interface MetaAdsReady {
   state: "ready";
   /** Epoch ms of the reading. A cached answer keeps its first time. */
@@ -73,6 +79,8 @@ export interface MetaAdsReady {
   changes: MetaAdsChangePolicy;
   /** The page shows a part: more accounts or campaigns exist than the page reads. */
   truncated: boolean;
+  /** Accounts whose reading failed, for example a 403 on one account. */
+  failedAccounts: MetaAdsFailedAccount[];
 }
 export type MetaAdsOverview = MetaAdsFailure | MetaAdsReady;
 
@@ -135,6 +143,67 @@ export interface TeamsSignInCode {
 export const TEAMS_FAILURES = ["permission", "rate", "network", "unknown"] as const;
 export type TeamsFailure = (typeof TEAMS_FAILURES)[number];
 
+/** One chat, or one channel of a team. */
+export type TeamsTarget = { type: "chat"; chatId: string } | { type: "channel"; teamId: string; channelId: string };
+
+export interface TeamsChannelEntry {
+  id: string;
+  name: string;
+}
+export interface TeamsTeamEntry {
+  id: string;
+  name: string;
+  channels: TeamsChannelEntry[];
+}
+
+/**
+ * `ready`: teams and channels read. `blocked`: the organization has not approved the channel permissions
+ * (or Graph answered 403); chats still work. `off`: the owner turned channels off with TEAMS_CANAIS.
+ */
+export interface TeamsChannelsInfo {
+  state: "ready" | "blocked" | "off";
+  /** The page for an administrator to approve the app. */
+  adminConsentUrl: string;
+  teams: TeamsTeamEntry[];
+}
+
+export const TEAMS_AGENT_LEVELS = ["none", "read", "reply"] as const;
+export type TeamsAgentLevel = (typeof TEAMS_AGENT_LEVELS)[number];
+
+/** What one agent may do in Teams, as the owner set it. Only the page changes this. */
+export interface TeamsAgentPolicy {
+  agentId: string;
+  level: TeamsAgentLevel;
+  /** The chats and channels the agent may use. None by default; replying needs at least one. */
+  targets: TeamsTarget[];
+  instruction: string;
+}
+
+export interface TeamsAutomation {
+  id: string;
+  agentId: string;
+  target: TeamsTarget;
+  label: string;
+  instruction: string;
+  /** The routine that runs it. It shows in Schedule. */
+  routineId: string;
+  frequencyMinutes: number;
+  createdAt: string;
+}
+
+export interface TeamsPolicy {
+  agents: TeamsAgentPolicy[];
+  automations: TeamsAutomation[];
+}
+
+export interface TeamsAutomationInput {
+  agentId: string;
+  target: TeamsTarget;
+  label: string;
+  frequencyMinutes: number;
+  instruction: string;
+}
+
 export interface TeamsOverview {
   /** TEAMS_PERMITIR_ENVIO is `sim` in the settings of the Teams server. */
   sendEnabled: boolean;
@@ -147,6 +216,7 @@ export interface TeamsOverview {
   account: string | null;
   chats: TeamsChat[];
   failure: TeamsFailure | null;
+  channels: TeamsChannelsInfo;
 }
 
 export type TeamsMessages =
@@ -154,7 +224,7 @@ export type TeamsMessages =
   | { state: "error"; reason: TeamsFailure | "not-connected" };
 
 export interface TeamsSendInput {
-  chatId: string;
+  target: TeamsTarget;
   text: string;
 }
 export type TeamsSendResult =

@@ -148,14 +148,20 @@ function toMinor(major, currency) {
  */
 export function createFileLimiter({ file = null, limit, now = Date.now, windowMs = 3_600_000 }) {
   let stamps = [];
-  if (file) {
+  /**
+   * Lê o arquivo a cada uso: o OpenCat e o servidor MCP são processos diferentes e dividem o mesmo
+   * limite, então cada um confere o que o outro registrou antes de tomar ou devolver uma vaga.
+   */
+  const reload = () => {
+    if (!file) return;
     try {
       const parsed = JSON.parse(readFileSync(file, "utf8"));
       if (Array.isArray(parsed)) stamps = parsed.filter((value) => Number.isFinite(value));
     } catch {
-      // Sem arquivo ainda, ou ilegível: começa vazio.
+      // Sem arquivo ainda, ou ilegível: segue com o que a memória tem.
     }
-  }
+  };
+  reload();
   const prune = () => {
     const cutoff = now() - windowMs;
     stamps = stamps.filter((stamp) => stamp > cutoff);
@@ -175,6 +181,7 @@ export function createFileLimiter({ file = null, limit, now = Date.now, windowMs
   return {
     /** Devolve o horário registrado, ou null se o limite da hora já foi atingido. */
     take() {
+      reload();
       prune();
       if (stamps.length >= limit) return null;
       const stamp = now();
@@ -184,6 +191,7 @@ export function createFileLimiter({ file = null, limit, now = Date.now, windowMs
     },
     /** Devolve a vaga de um envio que com certeza não aconteceu. */
     give(stamp) {
+      reload();
       const index = stamps.lastIndexOf(stamp);
       if (index >= 0) {
         stamps.splice(index, 1);
@@ -191,6 +199,7 @@ export function createFileLimiter({ file = null, limit, now = Date.now, windowMs
       }
     },
     count() {
+      reload();
       prune();
       return stamps.length;
     },

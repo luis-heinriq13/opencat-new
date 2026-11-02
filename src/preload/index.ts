@@ -194,6 +194,7 @@ import {
   decodeMetaAdsOverview,
   decodeTeamsMessages,
   decodeTeamsOverview,
+  decodeTeamsPolicy,
   decodeTeamsSendResult,
   decodeTeamsSendSetting,
 } from "./app-pages-decoding";
@@ -891,6 +892,11 @@ const openbotApi: OpenBotDesktopApi = {
     teamsMessages: decodeTeamsMessages,
     teamsSend: decodeTeamsSendResult,
     teamsSignIn: decodeTeamsOverview,
+    teamsRetryChannels: decodeTeamsOverview,
+    teamsPolicy: decodeTeamsPolicy,
+    teamsSavePolicy: decodeTeamsPolicy,
+    teamsCreateAutomation: decodeTeamsPolicy,
+    teamsStopAutomation: decodeTeamsPolicy,
     teamsSetSendEnabled: decodeTeamsSendSetting,
   }),
   attendance: bridgeGroup(IPC_ENDPOINTS.attendance, {

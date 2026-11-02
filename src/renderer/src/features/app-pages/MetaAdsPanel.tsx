@@ -66,7 +66,9 @@ export function MetaAdsPanel(props: {
     },
   );
   onSettled(() => {
-    const timer = window.setInterval(() => void load(state.range, false), REFRESH_MS);
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load(state.range, false);
+    }, REFRESH_MS);
     return () => {
       generation++;
       window.clearInterval(timer);
