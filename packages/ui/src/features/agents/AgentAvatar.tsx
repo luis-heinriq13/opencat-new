@@ -19,7 +19,12 @@ import type { AvatarHue } from "@openbot/contracts/ipc";
 import { prefersReducedMotion } from "@openbot/ui/utils";
 import type { JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, createUniqueId, For, onSettled, Show } from "solid-js";
-import { type AvatarMotion, bloubAvatarProfile, type SupportedAvatarSilhouetteId } from "../../bloub-avatar";
+import {
+  type AvatarMotion,
+  avatarHeadColor,
+  bloubAvatarProfile,
+  type SupportedAvatarSilhouetteId,
+} from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
 import { createPointerGaze } from "./avatar-pointer-gaze";
 import { BotCanvasAvatar } from "./BotCanvasAvatar";
@@ -394,7 +399,7 @@ function GeneratedAvatar(props: {
     props.renderCanvas !== false ? (
       <BotCanvasAvatar
         shape={appearance().shape}
-        color={appearance().color}
+        color={avatarHeadColor(props.seed, props.hue)}
         // The canvas states are the engine's own three; the mood folds onto them.
         state={
           props.mood === "asleep"

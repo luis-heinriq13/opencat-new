@@ -1,7 +1,24 @@
 // @ts-nocheck
+const KNOWN_NAMED_COLORS: Record<string, [number, number, number]> = {
+  rose: [225, 82, 176],
+  orange: [240, 138, 36],
+  rouge: [234, 67, 53],
+  ambre: [251, 188, 4],
+  vert: [52, 168, 83],
+  turquoise: [36, 193, 224],
+  bleu: [66, 133, 244],
+  violet: [161, 66, 244],
+  yellow: [251, 188, 4],
+  red: [234, 67, 53],
+  green: [52, 168, 83],
+  blue: [66, 133, 244],
+};
+
 /** Parse #rgb / #rrggbb / rgb() / hsl() into 0–255 channels; null for anything else. */
 export function parseColor(input: string): [number, number, number] | null {
-  const s = input.trim();
+  if (!input || typeof input !== "string") return null;
+  const s = input.trim().toLowerCase();
+  if (KNOWN_NAMED_COLORS[s]) return KNOWN_NAMED_COLORS[s];
   const hsl = s.match(/^hsla?\(\s*([\d.]+)(?:deg)?[,\s]+([\d.]+)%[,\s]+([\d.]+)%/i);
   if (hsl) return hslToRgb([Number(hsl[1]) / 360, Number(hsl[2]) / 100, Number(hsl[3]) / 100]);
   const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
@@ -77,8 +94,7 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
  * rich instead of going grey, the way a painted surface falls into shadow.
  */
 export function shade(color: string, dl: number, ds = 0): string {
-  const c = parseColor(color);
-  if (!c) return color;
+  const c = parseColor(color) ?? [40, 100, 240];
   const [h, s, l] = rgbToHsl(c);
   return hslToCss([h, clamp01(s + ds + (dl < 0 ? -dl * 0.25 : 0)), clamp01(l + dl)]);
 }

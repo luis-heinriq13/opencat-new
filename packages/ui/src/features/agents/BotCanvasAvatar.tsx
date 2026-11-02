@@ -297,15 +297,6 @@ export function BotCanvasAvatar(props: BotCanvasAvatarProps) {
     }
   };
 
-  onSettled(() => {
-    const scheduleEngine = () => {
-      typeof window.requestIdleCallback === "function"
-        ? window.requestIdleCallback(() => loadEngine(), { timeout: 2000 })
-        : window.setTimeout(loadEngine, 400);
-    };
-    scheduleEngine();
-  });
-
   const loadEngine = () => {
     if (engine() || engineFailed()) return;
     ENGINE_MODULE_ID()
@@ -346,6 +337,12 @@ export function BotCanvasAvatar(props: BotCanvasAvatarProps) {
       })
       .catch(() => failEngine());
   };
+
+  if (typeof window !== "undefined") {
+    typeof window.requestIdleCallback === "function"
+      ? window.requestIdleCallback(() => loadEngine(), { timeout: 800 })
+      : window.setTimeout(() => loadEngine(), 50);
+  }
 
   onCleanup(() => {
     stopClock();
