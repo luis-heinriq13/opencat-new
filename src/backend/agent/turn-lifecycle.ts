@@ -962,8 +962,7 @@ export class TurnLifecycle {
       // A routine run's own session closes after this turn, so it is not compacted either. Nor is a
       // turn that a provider error ended before it did work: it can run again on a backup model.
       const routineSession = this.#conversation.isRoutineSession(threadId);
-      const mayRunAgain =
-        failover !== undefined && !limited && status === "failed" && running !== undefined && !running.acted;
+      const mayRunAgain = failover !== undefined && !limited && status === "failed" && running !== undefined;
       const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
       // Fork: a provider error in a channel or task thread can continue on a backup model, also after work started.
       const channelProviderError =
@@ -1151,7 +1150,38 @@ export class TurnLifecycle {
           const failed = this.#failoverRetries.get(delivery.id) ?? new Set<string>();
           this.#failoverRetries.set(delivery.id, failed.add(failedKey));
         }
-        yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries);
+        let continuation: UsageLimitContinuation | undefined;
+        if (running?.acted) {
+          const workSteps = yield* readCapturedSteps(running.client, threadId, turnId).pipe(
+            Effect.timeout("2 seconds"),
+            Effect.map((steps) => steps.get(turnId) ?? ""),
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                logger.warn("Could not read the interrupted turn's work steps.", { error });
+                return "";
+              }),
+            ),
+          );
+          if (trace) this.#attachTrace(snapshot.messages, agentId, turnId, trace);
+          const traceSteps = trace
+            ? trace.steps
+                .filter((step) => step.kind === "tool")
+                .map(
+                  (step) =>
+                    `${step.command ?? step.text ?? "tool"} (${step.endedAt === null ? "interrupted" : step.failed ? "failed" : "completed"})`,
+                )
+                .join("\n")
+            : "";
+          continuation = {
+            turnId,
+            previousTurnIds: [turnId],
+            workSteps: this.#hooks.redactMcp(
+              workSteps ||
+                (traceSteps ? `Full tool results are unavailable. Verify the saved work.\n${traceSteps}` : ""),
+            ),
+          };
+        }
+        yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries, continuation);
         this.#usageLimits.failed(agentId, model);
         this.#hooks.scheduleDrain(agentId);
         return;
