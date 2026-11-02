@@ -120,7 +120,7 @@ export function AgentAvatar(props: AgentAvatarProps) {
           animationOffset={props.animationOffset}
           shape={props.shape}
           followPointer={props.followPointer === true}
-          renderCanvas={props.renderCanvas === true}
+          renderCanvas={props.renderCanvas !== false}
           breathe={breathe()}
           class={className()}
           style={style()}
@@ -404,9 +404,8 @@ function GeneratedAvatar(props: {
               : "default"
         }
         motion={animated() ? "full" : "subtle"}
-        // Resting sidebar rows draw their finished canvas face but do not keep
-        // a clock. Busy/hovered/focused faces are the only ones that animate.
-        playing={animated()}
+        // Subtle motion for resting avatars; full motion when busy/hovered/focused.
+        playing={!reducedMotion()}
         interactive={props.followPointer}
         seed={props.seed}
         class="bloub-avatar-svg"

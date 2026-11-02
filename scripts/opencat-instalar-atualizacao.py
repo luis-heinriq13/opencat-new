@@ -123,6 +123,20 @@ def limpar_conteudo_app(app):
     return True
 
 
+def limpar_copias_antigas(manter=1):
+    copias_dir = UPDATES / "copias"
+    if not copias_dir.exists():
+        return
+    pastas = sorted([p for p in copias_dir.iterdir() if p.is_dir()])
+    while len(pastas) > manter:
+        antiga = pastas.pop(0)
+        try:
+            shutil.rmtree(antiga)
+            log(f"copia antiga removida para liberar espaco: {antiga.name}")
+        except Exception as e:
+            log(f"falha ao remover copia antiga {antiga.name}: {e}")
+
+
 def instalar_no_mesmo_bundle(origem, destino):
     """Atualiza o conteúdo no bundle canônico sem mover sua pasta raiz para uma cópia."""
     if not limpar_conteudo_app(destino):
@@ -431,6 +445,7 @@ def instalar(args):
         shutil.rmtree(PREPARADO, ignore_errors=True)
         return 1
 
+    limpar_copias_antigas(manter=1)
     COPIA = UPDATES / "copias" / time.strftime("%Y%m%d-%H%M%S")
     COPIA.mkdir(parents=True, mode=0o700)
     # Uma cópia com sufixo .app é registrada pelo macOS. Quando o instalador movia o
@@ -502,6 +517,7 @@ def instalar(args):
     # atalho continua utilizável sem promover a cópia a destino de atualizações.
     espelhar_atalho_antigo(args.source_bundle)
     escrever_json(INSTALLED, dados_instalado(manifest, veredito == "ok", False))
+    limpar_copias_antigas(manter=1)
     try:
         EM_ANDAMENTO.unlink(missing_ok=True)
     except OSError:

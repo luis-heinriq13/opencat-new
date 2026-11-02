@@ -54,7 +54,7 @@ const TURN_START_GRACE_MS = 90_000;
  * large number of Gemini/Antigravity turns together, causing account-level 429s and making a
  * healthy fallback chain look stuck. Hosted deployments keep their configured global capacity.
  */
-const DESKTOP_PROVIDER_TURN_LIMITS: Partial<Record<AgentProvider, number>> = { antigravity: 2 };
+const DESKTOP_PROVIDER_TURN_LIMITS: Partial<Record<AgentProvider, number>> = { antigravity: 10 };
 
 export interface DrainHooks {
   emitError(code: string, error: unknown, agentId?: string): void;
