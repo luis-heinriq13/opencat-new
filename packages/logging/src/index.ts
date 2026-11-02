@@ -525,10 +525,45 @@ function writeTees(prefix: string, line: string): void {
   }
 }
 
+interface HasErrorCode {
+  code?: unknown;
+}
+
+function isPipeError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate: HasErrorCode = error;
+  return candidate.code === "EPIPE" || candidate.code === "EIO";
+}
+
+interface StreamWriter {
+  write(chunk: string, callback?: (error?: Error | null) => void): boolean;
+  on?(event: string, listener: (error: unknown) => void): unknown;
+}
+
+const guardedStreams = new WeakSet<object>();
+
+function safeStreamWriter(stream: StreamWriter): (line: string) => void {
+  if (typeof stream?.on === "function" && !guardedStreams.has(stream)) {
+    guardedStreams.add(stream);
+    stream.on("error", (error: unknown) => {
+      if (isPipeError(error)) return;
+    });
+  }
+  return (line: string) => {
+    try {
+      stream.write(`${line}\n`, (error?: Error | null) => {
+        if (isPipeError(error)) return;
+      });
+    } catch {
+      // ignore write error on closed streams
+    }
+  };
+}
+
 export function createOpenBotLogger(prefix: string, sink?: (line: string) => void, level?: LogLevel): Logger {
   const threshold = LEVEL_RANK[level ?? resolveLogLevel(process.env.OPENBOT_LOG_LEVEL)];
-  const out = sink ?? ((line: string) => process.stdout.write(`${line}\n`));
-  const err = sink ?? ((line: string) => process.stderr.write(`${line}\n`));
+  const out = sink ?? safeStreamWriter(process.stdout);
+  const err = sink ?? safeStreamWriter(process.stderr);
   const write = (
     logLevel: LogLevel,
     label: string,

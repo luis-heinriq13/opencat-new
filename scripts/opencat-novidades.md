@@ -1,3 +1,3 @@
-Avatares 3D dos mascotes OpenCat com física e animação suave
-Otimização de desempenho com pausa automática fora da tela
-Modo de acabamento plástico nos avatares e economia de CPU na barra lateral
+Restaurado avatar vetorial leve BloubBot eliminando congelamento no boot
+Proteção contra erro EPIPE de log no processo principal
+Correção de travamento no failover de modelos após chamadas de ferramentas

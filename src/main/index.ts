@@ -1,3 +1,4 @@
+import { appendFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseInviteUrl, selfHostedApiOrigin } from "@openbot/contracts/invite-links";
 import {
@@ -140,6 +141,19 @@ import { setIpcCallObserver } from "./trusted-ipc";
 import { UPDATE_INSTALL_TIMEOUT_MS } from "./update-service";
 import { setWindowAppearance } from "./window-appearance";
 
+interface WithCode {
+  code?: unknown;
+}
+
+const suppressEarlyPipeError = (error: unknown) => {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const errorWithCode: WithCode = error;
+    if (errorWithCode.code === "EPIPE" || errorWithCode.code === "EIO") return;
+  }
+};
+process.stdout?.on("error", suppressEarlyPipeError);
+process.stderr?.on("error", suppressEarlyPipeError);
+
 const logger = createOpenBotLogger("main");
 
 // Electron keeps running after both events: an unhandled rejection only prints a warning, and a
@@ -183,6 +197,15 @@ function recordExit(reason: ExitReason): void {
 }
 
 function reportMainProcessFailure(origin: "uncaughtException" | "unhandledRejection", error: unknown): void {
+  try {
+    const logsDir = join(app.getPath("userData"), "logs", "main");
+    mkdirSync(logsDir, { recursive: true });
+    const logPath = join(logsDir, "main.log");
+    const stack = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    appendFileSync(logPath, `${new Date().toISOString()} ERROR [main] Main process ${origin}: ${stack}\n`);
+  } catch {
+    // A log file must not become the failure it would have recorded.
+  }
   logger.error(`Main process ${origin}:`, toLogValue(error));
   if (!crashTrace) return;
   crashTrace.record({ kind: "crash", name: origin, durationMs: 0, outcome: "reported" });
@@ -271,7 +294,15 @@ configureLinuxGpu({
   server: hostedServer !== null || serverMode !== null,
 });
 const appVariant = readAppVariant(process.env.OPENBOT_APP_VARIANT, app.isPackaged);
-if (!app.isPackaged) guardDevelopmentOutput([process.stdout, process.stderr], () => app.quit());
+if (!app.isPackaged) {
+  guardDevelopmentOutput([process.stdout, process.stderr], () => app.quit());
+} else {
+  const ignorePipeError = (error: NodeJS.ErrnoException) => {
+    if (error.code === "EIO" || error.code === "EPIPE") return;
+  };
+  process.stdout?.on("error", ignorePipeError);
+  process.stderr?.on("error", ignorePipeError);
+}
 const appIconPath = resolveAppIconPath({
   variant: appVariant,
   platform: process.platform,
