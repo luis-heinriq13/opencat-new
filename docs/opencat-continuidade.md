@@ -80,3 +80,21 @@ Veja `TASKS.md` para o estado atual. A ordem combinada com o Luis:
 6. Rodar `tools/whatscat/ataques-reais.md` com modelo real, e isolar o atendente antes de clientes reais.
 
 Ao terminar uma entrega, diga o que foi feito, o que foi visto no app e o que não foi verificado. Não diga que funciona sem ter visto.
+
+## Próximo item: Gmail e Drive
+
+Hoje só existe a linha no plano. Siga o mesmo modelo de `tools/teams/` e `tools/meta-ads/`. Leia esses dois e `src/main/opencat-bundled-apps.ts` antes de começar. Confirme os fatos do Google na documentação oficial, porque estes pontos vêm de memória.
+
+**Decisão a confirmar primeiro:** verifique em `marketplace/plugin-catalog/plugins/` se já há conector do Google. Se houver um conector oficial que aceite o cliente OAuth do OpenCat, teste a conexão com o Luis antes de construir. A Meta recusou o OpenCat assim, então não presuma que vai funcionar.
+
+**Se for conector próprio:** `tools/google/google-mcp.mjs`, empacotado como o Teams, com `electron-builder.yml`, a cópia em `opencat-bundled-apps.ts` e testes com `fetch` falso.
+
+- **Login:** OAuth do Google com PKCE e redirecionamento para `127.0.0.1`, escutando só durante o login. O cliente é do tipo "app para computador", e o Luis cria uma vez no Google Cloud. Explique os passos em português.
+- **Token:** refresh token no Keychain do macOS, nunca em argumento de comando, log, URL ou JSON.
+- **Limite do Google:** Gmail usa escopo restrito. Sem verificação, o app fica em modo de teste, e o acesso pode expirar em 7 dias. Avise isso na descrição e não prometa uso por clientes antes da verificação.
+- **Escopos:** peça só o necessário. Comece com `gmail.readonly` e `drive.readonly`. Só peça `gmail.send` e escopo de escrita do Drive quando o Luis ligar as ações.
+- **Ferramentas de leitura:** buscar e ler e-mails; listar, buscar e ler arquivos do Drive. Todo texto recebido volta marcado como dado não confiável.
+- **Ferramentas de ação, desligadas por padrão:** criar rascunho, enviar e-mail e enviar arquivo ao Drive. Cada uma precisa de permissão explícita, limite por hora salvo em arquivo 0600 e chave contra repetição, e mostra destinatário e conteúdo no resultado. Não crie ferramenta para apagar.
+- **Loja:** dois apps ou um com as duas funções, o que ficar mais simples para o Luis, com logo real em `MarketplaceParts.tsx` e `PageRail.tsx`, e `panel: "connect"` no começo. Rode `bun run marketplace:build:plugins`. Nunca edite os catálogos gerados à mão.
+- **Teste real:** só o Luis faz o primeiro login. Não envie nenhum e-mail real sem o pedido dele.
+- **Fim:** atualize `PRIVACY.md`, `changelog.d/fork-atualizado.md` e `TASKS.md`. Depois siga "Como fazer o botão Atualizar aparecer".
