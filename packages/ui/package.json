@@ -421,6 +421,7 @@
     "./features/custom-providers/custom-providers.css": "./src/features/custom-providers/custom-providers.css",
     "./styles/reference-chip.css": "./src/styles/reference-chip.css",
     "./styles/chart.css": "./src/styles/chart.css",
+    "./styles/opencat-light.css": "./src/styles/opencat-light.css",
     "./features/channels/channel-avatar.css": "./src/features/channels/channel-avatar.css",
     "./features/channels/channel-activity.css": "./src/features/channels/channel-activity.css",
     "./features/tasks/tasks.css": "./src/features/tasks/tasks.css",

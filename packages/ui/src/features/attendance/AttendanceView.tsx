@@ -6,11 +6,28 @@ import {
   appConnectionState,
 } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
-import { ArrowLeft, Button, CircleAlert, Hand, IconButton, Input, Pause, Play, TriangleAlert } from "@openbot/ui";
+import {
+  Activity,
+  ArrowLeft,
+  Button,
+  ChartArea,
+  ChartNoAxesColumnIncreasing,
+  CircleAlert,
+  Clock3,
+  Flame,
+  Funnel,
+  Hand,
+  IconButton,
+  Input,
+  MessageCircle,
+  Pause,
+  Play,
+  TriangleAlert,
+} from "@openbot/ui";
 import { Area, AreaChart, ChartContainer, ChartTooltip, ChartTooltipContent, XAxis, YAxis } from "@openbot/ui/chart";
 import { useText } from "@openbot/ui/text";
 import { Dynamic } from "@solidjs/web";
-import { createMemo, For, onSettled, Show } from "solid-js";
+import { type Component, createMemo, For, onSettled, Show } from "solid-js";
 import { attendanceTrend, heatLevel, peakCell, savedMinutes, shareOf, sparklineSeries } from "./attendance-format";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 
@@ -64,6 +81,15 @@ const FAILURE_LABELS = {
 } as const satisfies Record<AttendanceReport["failures"][number]["category"], AppTextKey>;
 
 const SPARK = { width: 160, height: 44 };
+
+/** The pale tile before a card title. It is decoration, and only the light theme shows it. */
+function AttendanceTile(props: { icon: Component }) {
+  return (
+    <span class="attendance-tile" aria-hidden="true">
+      <Dynamic component={props.icon} />
+    </span>
+  );
+}
 
 /** A small line of the replies over the period. The main series, so it wears the accent. */
 function Sparkline(props: { values: readonly number[]; label: string }) {
@@ -304,6 +330,20 @@ function AttendanceReportBody(props: {
   return (
     <>
       <section class="attendance-hero" aria-label={t("attendance.hero.label")}>
+        {/* Decoration of the light theme: the dark theme does not show it. */}
+        <div class="attendance-hero-art" aria-hidden="true">
+          <span class="attendance-hero-dots" data-place="left" />
+          <span class="attendance-hero-dots" data-place="right" />
+          <span class="attendance-hero-tile" data-place="a">
+            <MessageCircle />
+          </span>
+          <span class="attendance-hero-tile" data-place="b">
+            <Clock3 />
+          </span>
+          <span class="attendance-hero-tile" data-place="c">
+            <Activity />
+          </span>
+        </div>
         <div class="attendance-hero-main">
           <p class="attendance-kicker">{t("attendance.hero.label")}</p>
           <p class="attendance-hero-number">{format.number(totals().answered)}</p>
@@ -379,6 +419,7 @@ function AttendanceReportBody(props: {
         <section class="attendance-panel" aria-labelledby="attendance-chart-title">
           <header class="agent-usage-section-header">
             <h3 id="attendance-chart-title">
+              <AttendanceTile icon={ChartArea} />
               {props.report.bucketHours === 1 ? t("attendance.chart.titleHour") : t("attendance.chart.titleSix")}
             </h3>
             <span class="attendance-legend">
@@ -452,7 +493,10 @@ function AttendanceReportBody(props: {
 
         <section class="attendance-panel" aria-labelledby="attendance-funnel-title">
           <header class="agent-usage-section-header">
-            <h3 id="attendance-funnel-title">{t("attendance.funnel.title")}</h3>
+            <h3 id="attendance-funnel-title">
+              <AttendanceTile icon={Funnel} />
+              {t("attendance.funnel.title")}
+            </h3>
           </header>
           <ol class="attendance-funnel" aria-label={t("attendance.funnel.label")}>
             <For each={funnelRows()} keyed={(row) => row.key}>
@@ -494,7 +538,10 @@ function AttendanceReportBody(props: {
       <div class="attendance-grid attendance-grid-hours">
         <section class="attendance-panel" aria-labelledby="attendance-heatmap-title">
           <header class="agent-usage-section-header">
-            <h3 id="attendance-heatmap-title">{t("attendance.heatmap.title")}</h3>
+            <h3 id="attendance-heatmap-title">
+              <AttendanceTile icon={Flame} />
+              {t("attendance.heatmap.title")}
+            </h3>
             <span class="attendance-legend" aria-hidden="true">
               {t("attendance.heatmap.less")}
               <For each={[0, 1, 2, 3, 4]}>{(level) => <span class="attendance-heat-key" data-level={level} />}</For>
@@ -553,7 +600,10 @@ function AttendanceReportBody(props: {
 
         <section class="attendance-panel" aria-labelledby="attendance-latency-title">
           <header class="agent-usage-section-header">
-            <h3 id="attendance-latency-title">{t("attendance.latency.title")}</h3>
+            <h3 id="attendance-latency-title">
+              <AttendanceTile icon={ChartNoAxesColumnIncreasing} />
+              {t("attendance.latency.title")}
+            </h3>
             <span class="attendance-legend" aria-hidden="true">
               <span>
                 <span class="attendance-swatch" data-kind="median" />
@@ -632,7 +682,10 @@ function AttendanceReportBody(props: {
       <div class="attendance-grid attendance-grid-attention">
         <section class="attendance-panel" aria-labelledby="attendance-attention-title">
           <header class="agent-usage-section-header">
-            <h3 id="attendance-attention-title">{t("attendance.attention.title")}</h3>
+            <h3 id="attendance-attention-title">
+              <AttendanceTile icon={Hand} />
+              {t("attendance.attention.title")}
+            </h3>
           </header>
           <Show
             when={props.report.attention.length > 0}
@@ -680,7 +733,10 @@ function AttendanceReportBody(props: {
 
         <section class="attendance-panel" aria-labelledby="attendance-failures-title">
           <header class="agent-usage-section-header">
-            <h3 id="attendance-failures-title">{t("attendance.failures.title")}</h3>
+            <h3 id="attendance-failures-title">
+              <AttendanceTile icon={TriangleAlert} />
+              {t("attendance.failures.title")}
+            </h3>
           </header>
           <Show
             when={props.report.failures.length > 0}

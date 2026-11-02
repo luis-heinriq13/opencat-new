@@ -81,6 +81,7 @@
 @import "@openbot/ui/skill-preview.css";
 /* After the page styles: the transparent window replaces their backgrounds. */
 @import "./styles/window-glass.css";
+@import "@openbot/ui/styles/opencat-light.css";
 
 @source "../../../packages/ui/src";
 

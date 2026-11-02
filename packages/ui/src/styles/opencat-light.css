@@ -1,0 +1,392 @@
+/*
+ * OpenCat's light design for the desktop workspace: the shell, the agent conversation and its
+ * settings, the channel and the routine diagram. Canvas near-white, plain rounded panels with a
+ * hairline and a soft shadow, and a red-orange accent on selected items and primary actions. Never
+ * a tinted page.
+ *
+ * Every rule is under the light root selector, so the dark theme does not change. This file loads
+ * after the feature styles, and it changes presentation only. The Attendance and Usage pages keep
+ * their light rules in their own stylesheets.
+ */
+:root[data-openbot-color-scheme="light"] {
+  /* The chart library measures this wrapper. Storybook shows it at height 0, so the chart draws
+     nothing. The light design needs the charts. */
+  .ui-chart > div {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* The frame */
+  .app-window {
+    --window-frame: var(--openbot-cat-canvas);
+  }
+  .app-window > .app-frame-edge {
+    --agent-avatar-outline: var(--openbot-cat-surface);
+  }
+  .app-window > .app-frame-edge::before {
+    border-color: var(--openbot-cat-hairline);
+    background: linear-gradient(
+      to right,
+      var(--openbot-cat-surface) var(--left-panel-width, 280px),
+      var(--openbot-cat-canvas) 0
+    );
+  }
+  .app-window > .app-frame-edge.app-frame-with-server-rail::before {
+    background: linear-gradient(
+      to right,
+      var(--openbot-cat-surface) var(--left-panel-width, 280px),
+      var(--openbot-cat-canvas) 0
+    );
+  }
+  .app-window > .app-frame-edge > .sidebar {
+    --agent-avatar-outline: var(--openbot-cat-surface);
+  }
+
+  /* The rail: outline icons, and a pale accent tile on the active one. */
+  .window-rail-button {
+    color: var(--openbot-text-muted);
+  }
+  .window-rail-button[aria-current="page"],
+  .window-rail-button[aria-current="page"]:hover:not(:disabled):not([data-disabled]) {
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent);
+  }
+
+  /* The agent list */
+  .sidebar-search-trigger {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .sidebar-search-trigger:hover:not(:disabled) {
+    background: var(--openbot-cat-surface);
+    border-color: var(--openbot-border-strong);
+  }
+  .sidebar-section-name {
+    color: var(--openbot-text-primary);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .agent-row {
+    border-radius: var(--openbot-radius-lg);
+  }
+  .agent-row-active,
+  .agent-row-active:hover {
+    --agent-avatar-outline: var(--openbot-cat-surface);
+
+    background: var(--openbot-cat-accent-soft);
+    box-shadow: inset 3px 0 0 var(--openbot-cat-accent);
+  }
+  .agent-row-name {
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .agent-row-time,
+  .agent-row-preview {
+    color: var(--openbot-text-muted);
+  }
+  .agent-row.sidebar-pinned-row {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .agent-row.sidebar-pinned-row.agent-row-active {
+    border-color: var(--openbot-cat-accent-strong);
+    background: var(--openbot-cat-accent-soft);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .sidebar-mobile-app {
+    border-color: var(--openbot-cat-hairline);
+    border-radius: var(--openbot-cat-radius);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+
+  /* The tabs and the model pill in the top row */
+  .side-panel-tab[data-selected],
+  .agent-threads-tab[data-selected],
+  .agent-threads-tab[aria-selected="true"] {
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+  }
+  .side-panel-tab {
+    border-radius: var(--openbot-radius-pill);
+  }
+  .conversation-header .conversation-title {
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+  }
+  .conversation-header .conversation-title :is(h1, span) {
+    color: var(--openbot-cat-accent-text);
+  }
+  .agent-threads-tabs [data-slot="sliding-tabs-indicator"] {
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-accent-soft);
+    box-shadow: none;
+  }
+  .agent-threads-tabs .ui-sliding-tabs-trigger[aria-selected="true"] {
+    color: var(--openbot-cat-accent-text);
+  }
+  .side-panel-tab[data-selected] .side-panel-tab-close {
+    color: var(--openbot-cat-accent);
+  }
+  .provider-model-trigger {
+    border-color: var(--openbot-cat-hairline);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+
+  /* The chat and the settings are two plain rounded panels on the canvas. They are drawn by
+     pseudo-elements, so the layout of the panes and their widths do not change. */
+  .app-window > .app-frame-edge .conversation-panel {
+    isolation: isolate;
+  }
+  .app-window > .app-frame-edge .conversation-panel::before {
+    position: absolute;
+    z-index: -1;
+    top: calc(var(--left-header-height) + var(--openbot-space-2));
+    right: var(--openbot-space-2);
+    bottom: var(--openbot-space-2);
+    left: var(--openbot-space-2);
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+    content: "";
+    pointer-events: none;
+  }
+  .app-window > .app-frame-edge .conversation-panel.side-panel-docked:not(.side-panel-maximized)::before {
+    right: calc(var(--side-panel-width, 380px) + var(--openbot-space-2));
+  }
+  .app-window > .app-frame-edge .side-panel-docked > :is(.browser-panel, .settings-panel) {
+    isolation: isolate;
+    padding: var(--openbot-space-2) var(--openbot-space-2) var(--openbot-space-2) 0;
+    border: 0;
+  }
+  .app-window > .app-frame-edge .side-panel-docked > :is(.browser-panel, .settings-panel)::before {
+    content: none;
+  }
+  .app-window > .app-frame-edge .side-panel-docked > :is(.browser-panel, .settings-panel)::after {
+    position: absolute;
+    z-index: -1;
+    inset: var(--openbot-space-2) var(--openbot-space-2) var(--openbot-space-2) 0;
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+    content: "";
+    pointer-events: none;
+  }
+  .side-panel-header::before,
+  .app-window
+    > .app-frame-edge
+    :is(.settings-panel, .browser-panel)
+    > :is(.settings-panel-header, .file-preview-header, .browser-preview-header)::before {
+    display: none;
+  }
+  .conversation-panel > .composer-wrap {
+    margin-bottom: var(--openbot-space-3);
+  }
+  .conversation-panel > .conversation-scroll {
+    margin-top: var(--openbot-space-2);
+  }
+
+  /* The messages */
+  .message-entry-agent .ui-bubble:not(:has(.choice-card)) {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .message-entry-user .ui-bubble {
+    border: 1px solid var(--openbot-cat-accent-soft);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-text-primary);
+  }
+  .message-entry-user .ui-bubble > .ui-bubble-content {
+    color: var(--openbot-text-primary);
+  }
+  .message-entry-user:not(.message-entry-with-author) .message-shell {
+    position: relative;
+    margin-right: var(--openbot-space-8);
+  }
+  /* A accent outline person after the user's bubble. A mask draws it, so the row keeps its markup. */
+  .message-entry-user:not(.message-entry-with-author) .message-shell::after {
+    position: absolute;
+    top: var(--openbot-space-2);
+    right: calc(var(--openbot-space-6) * -1);
+    width: var(--openbot-icon-md);
+    height: var(--openbot-icon-md);
+    background: var(--openbot-cat-accent);
+    content: "";
+    mask:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='5'/%3E%3Cpath d='M20 21a8 8 0 0 0-16 0'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
+  .message-author-name {
+    color: var(--openbot-cat-accent-text);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .message-entry-user .message-author-name {
+    color: var(--openbot-text-primary);
+  }
+  .time-marker > span {
+    padding: var(--openbot-space-0-5) var(--openbot-space-3);
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-surface);
+  }
+  .task-list {
+    border-color: var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+
+  /* The composer: a plain pill with a accent round send button. */
+  .composer {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-bubble);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .composer[data-compact] {
+    border-radius: var(--openbot-radius-pill);
+  }
+  .voice-morph-bar,
+  .voice-morph-send-blob,
+  .voice-morph-finish-blob {
+    background: var(--openbot-cat-accent);
+  }
+  .voice-morph .voice-button,
+  .voice-morph .voice-button:hover:not(:disabled):not([data-disabled]) {
+    background: var(--openbot-cat-accent);
+    color: var(--openbot-text-on-light);
+  }
+
+  /* The settings panels */
+  .settings-panel-header {
+    border-bottom-color: transparent;
+  }
+  .settings-panel-header h2 {
+    font-size: var(--openbot-text-lg);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .settings-link-group-inset {
+    border-color: var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .settings-link-group-inset > * + * {
+    border-top-color: var(--openbot-cat-hairline);
+  }
+  .settings-link-icon {
+    color: var(--openbot-text-muted);
+  }
+  /* The big avatar stands on a faint warm wave. */
+  .agent-settings-avatar-picker {
+    width: 100%;
+    height: calc(var(--openbot-space-8) * 3);
+    margin-top: 0;
+    border-radius: var(--openbot-cat-radius);
+    background: radial-gradient(60% 80% at 50% 100%, var(--openbot-cat-glow), transparent 100%);
+  }
+  .agent-settings-avatar,
+  .agent-settings-avatar .agent-avatar {
+    --agent-avatar-optical-offset: calc(var(--openbot-space-8) * 2.5 * -0.14);
+
+    width: calc(var(--openbot-space-8) * 2.5);
+    height: calc(var(--openbot-space-8) * 2.5);
+  }
+  .agent-settings-backup-models {
+    border-color: var(--openbot-cat-accent-strong);
+    background: var(--openbot-cat-accent-soft);
+    box-shadow: none;
+  }
+  .agent-settings-backup-models :is(.settings-link-label, .settings-link-icon) {
+    color: var(--openbot-cat-accent-text);
+  }
+  .channel-members-title {
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .channel-member-list:is(.ui-item-group) {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .channel-member-list > :not(:first-child) {
+    border-top-color: var(--openbot-cat-hairline);
+  }
+  .channel-member-add {
+    color: var(--openbot-cat-accent-text);
+  }
+
+  /* The routine diagram */
+  .diagram-view-canvas {
+    margin: var(--openbot-space-2);
+    overflow: hidden;
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background:
+      radial-gradient(40% 50% at 100% 0%, var(--openbot-cat-glow), transparent 100%),
+      radial-gradient(var(--openbot-cat-dot-neutral) 1px, transparent 1.5px) 0 0 / var(--openbot-space-4)
+      var(--openbot-space-4),
+      var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .diagram-node {
+    border-color: var(--openbot-cat-hairline);
+    border-radius: var(--openbot-cat-radius);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .diagram-node[data-selected] {
+    border-color: var(--openbot-cat-accent);
+  }
+  .diagram-node-icon {
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent);
+  }
+  .diagram-edge:not([data-routine-color]) .diagram-edge-line {
+    stroke: var(--openbot-cat-accent);
+  }
+  .diagram-edge:not([data-routine-color]) .diagram-edge-arrow {
+    fill: var(--openbot-cat-accent);
+  }
+  .diagram-view-actions .ui-button-variant-default,
+  .diagram-node .ui-button-variant-default {
+    border: 0;
+    background: var(--openbot-cat-gradient);
+    color: var(--openbot-text-on-light);
+    box-shadow: var(--openbot-cat-shadow-accent);
+  }
+  .diagram-board-zoom {
+    gap: var(--openbot-space-1);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .diagram-board-zoom .ui-button {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-md);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .diagram-inspector {
+    margin: var(--openbot-space-2) var(--openbot-space-2) var(--openbot-space-2) 0;
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .diagram-chat-launcher {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+}

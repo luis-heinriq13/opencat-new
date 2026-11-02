@@ -1,17 +1,20 @@
 import { type AnalyticsTotals, analyticsTokens, type HostAnalytics } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
-import { Button, SlidingTabs } from "@openbot/ui";
-import { createMemo, createStore, For, onSettled, Show } from "solid-js";
+import { Bot, Button, Coins, Download, Layers, SlidingTabs, Sparkles, Upload, UserRound, Zap } from "@openbot/ui";
+import { Dynamic } from "@solidjs/web";
+import { type Component, createMemo, createStore, For, onSettled, Show } from "solid-js";
 import { useText } from "../../text";
 import { UsageChart } from "./UsageChart";
 import { UsageProviderMark } from "./UsageProviderMark";
 import {
   type UsageAgentLabel,
   type UsageMetric,
+  type UsagePeriod,
   usageCompact,
   usageCost,
   usageExactCost,
   usageNumber,
+  usagePeriodLabels,
   usageProviderName,
   usageProviders,
   usageSeriesColor,
@@ -27,14 +30,23 @@ type UsageTotalField =
   | "assistantMessages";
 
 const TOTAL_ROWS = [
-  { field: "processedTokens", label: "usage.totals.processedTokens" },
-  { field: "cachedInput", label: "usage.totals.cachedInput" },
-  { field: "uncachedInput", label: "usage.totals.uncachedInput" },
-  { field: "cacheCreation", label: "usage.totals.cacheCreation" },
-  { field: "output", label: "usage.totals.output" },
-  { field: "userMessages", label: "usage.totals.userMessages" },
-  { field: "assistantMessages", label: "usage.totals.assistantMessages" },
-] as const satisfies ReadonlyArray<{ field: UsageTotalField; label: AppTextKey }>;
+  { field: "processedTokens", label: "usage.totals.processedTokens", icon: Zap },
+  { field: "cachedInput", label: "usage.totals.cachedInput", icon: Layers },
+  { field: "uncachedInput", label: "usage.totals.uncachedInput", icon: Download },
+  { field: "cacheCreation", label: "usage.totals.cacheCreation", icon: Sparkles },
+  { field: "output", label: "usage.totals.output", icon: Upload },
+  { field: "userMessages", label: "usage.totals.userMessages", icon: UserRound },
+  { field: "assistantMessages", label: "usage.totals.assistantMessages", icon: Bot },
+] as const satisfies ReadonlyArray<{ field: UsageTotalField; label: AppTextKey; icon: Component }>;
+
+/** The colored tile of a total. It is decoration, and only the light theme shows it. */
+function TotalTile(props: { icon: Component }) {
+  return (
+    <span class="agent-usage-total-tile" aria-hidden="true">
+      <Dynamic component={props.icon} />
+    </span>
+  );
+}
 
 // The fields that `Date.prototype.toLocaleString()` shows when it gets no options.
 const UPDATED_AT_FORMAT: Intl.DateTimeFormatOptions = {
@@ -86,6 +98,8 @@ function BreakdownCells(props: { row: AnalyticsTotals; cost: boolean; share: (am
 export function AgentUsageReport(props: {
   result: HostAnalytics;
   metric: UsageMetric;
+  /** Named in the label above the total, which only the light theme shows. */
+  period?: UsagePeriod | undefined;
   agentLabel: (agentId: string) => UsageAgentLabel;
   onReady: () => void;
 }) {
@@ -145,7 +159,14 @@ export function AgentUsageReport(props: {
       </Show>
       <div class="agent-usage-overview">
         <section class="agent-usage-summary" aria-label={t("usage.summary")}>
-          <div>
+          <div class="agent-usage-hero-card">
+            <span class="agent-usage-hero-tile" aria-hidden="true">
+              <Coins />
+            </span>
+            <p class="agent-usage-hero-label">
+              {cost() ? t("usage.metric.cost") : t("usage.metric.tokens")}
+              <Show when={props.period}>{(period) => <> · {t(usagePeriodLabels[period()])}</>}</Show>
+            </p>
             <p class="agent-usage-hero">
               <Amount value={cost() ? totals().estimatedCostUsd : analyticsTokens(totals())} cost={cost()} />
             </p>
@@ -202,11 +223,14 @@ export function AgentUsageReport(props: {
           <UsageChart result={props.result} metric={props.metric} />
         </section>
       </div>
-      <section aria-label={t("usage.totals.title")}>
+      <section class="agent-usage-totals-section" aria-label={t("usage.totals.title")}>
         <h3>{t("usage.totals.title")}</h3>
         <dl class="agent-usage-totals">
           <div>
-            <dt>{t("usage.totals.tokens")}</dt>
+            <dt>
+              <TotalTile icon={Coins} />
+              {t("usage.totals.tokens")}
+            </dt>
             <dd>
               <Amount value={analyticsTokens(totals())} />
             </dd>
@@ -214,7 +238,10 @@ export function AgentUsageReport(props: {
           <For each={TOTAL_ROWS}>
             {(item) => (
               <div>
-                <dt>{t(item.label)}</dt>
+                <dt>
+                  <TotalTile icon={item.icon} />
+                  {t(item.label)}
+                </dt>
                 <dd>
                   <Amount value={totals()[item.field]} />
                 </dd>

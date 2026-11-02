@@ -1316,7 +1316,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                 </Select>
               </SettingsLinkGroup>
               <Show when={props.backupModelsEditable}>
-                <SettingsLinkGroup inset>
+                <SettingsLinkGroup inset class="agent-settings-backup-models">
                   <SettingsLinkRow
                     ref={pageRowRef("backup-models")}
                     icon={<ArrowLeftRight aria-hidden="true" />}

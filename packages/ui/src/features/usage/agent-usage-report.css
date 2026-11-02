@@ -148,3 +148,298 @@
   max-width: 72ch;
   line-height: 1.6;
 }
+
+/* The decoration of the light design. The dark theme does not show it. */
+.agent-usage-hero-tile,
+.agent-usage-hero-label,
+.agent-usage-total-tile {
+  display: none;
+}
+
+/* The light design: plain cards on a near-white canvas, a very large dark total and one warm wave.
+ * The page is never tinted. */
+:root[data-openbot-color-scheme="light"] {
+  .agent-usage {
+    background: var(--openbot-cat-canvas);
+  }
+  .agent-usage-header {
+    border-bottom-color: var(--openbot-cat-hairline);
+  }
+  .agent-usage-controls .ui-select-trigger {
+    border-color: var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-pill);
+  }
+  .agent-usage-body {
+    gap: var(--openbot-space-6);
+  }
+  .agent-usage h3 {
+    font-size: var(--openbot-text-xl);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  p.agent-usage-notice {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--openbot-space-3);
+    border-radius: var(--openbot-cat-radius);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-text-secondary);
+  }
+  p.agent-usage-notice::before {
+    flex: none;
+    width: var(--openbot-icon-lg);
+    height: var(--openbot-icon-lg);
+    border: 2px solid var(--openbot-cat-accent);
+    border-radius: var(--openbot-radius-pill);
+    box-shadow: inset 0 0 0 3px var(--openbot-cat-surface);
+    background: var(--openbot-cat-accent);
+    content: "";
+  }
+
+  /* The total at the left, and at the right the daily card, which holds the chart and the provider
+   rows. The summary is contents, so its two parts are items of the same grid. */
+  .agent-usage-overview {
+    flex: none;
+    gap: var(--openbot-space-4);
+    grid-template-rows: auto auto;
+  }
+  .agent-usage-summary {
+    display: contents;
+  }
+  .agent-usage-hero-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--openbot-space-2);
+    min-height: calc(var(--openbot-space-8) * 10);
+    overflow: hidden;
+    padding: var(--openbot-space-8);
+    padding-bottom: calc(var(--openbot-space-8) * 3);
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  /* The warm wave at the bottom of the total. A mask gives the shape, and the gradient is a token. */
+  .agent-usage-hero-card::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: calc(var(--openbot-space-8) * 3);
+    background: var(--openbot-cat-gradient);
+    content: "";
+    mask:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 100' preserveAspectRatio='none'%3E%3Cpath d='M0 62C60 22 118 18 176 48S300 92 400 18V100H0Z'/%3E%3C/svg%3E")
+      center / 100% 100% no-repeat;
+    opacity: 0.92;
+  }
+  .agent-usage-hero-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(var(--openbot-space-8) + var(--openbot-space-4));
+    height: calc(var(--openbot-space-8) + var(--openbot-space-4));
+    margin-bottom: var(--openbot-space-3);
+    border-radius: var(--openbot-radius-card);
+    background: linear-gradient(145deg, var(--openbot-cat-surface), var(--openbot-cat-canvas));
+    box-shadow: var(--openbot-cat-shadow-raised);
+    color: var(--openbot-cat-accent);
+  }
+  .agent-usage-hero-tile svg {
+    width: var(--openbot-icon-lg);
+    height: var(--openbot-icon-lg);
+  }
+  .agent-usage-hero-label {
+    display: block;
+    color: var(--openbot-text-muted);
+    font-size: var(--openbot-text-lg);
+    font-weight: var(--openbot-weight-medium);
+  }
+  .agent-usage-hero {
+    margin-bottom: var(--openbot-space-1);
+    color: var(--openbot-text-primary);
+    font-size: var(--openbot-text-usage-hero);
+    font-weight: var(--openbot-weight-bold);
+    overflow-wrap: break-word;
+  }
+  .agent-usage-trend,
+  .agent-usage-providers {
+    border: 1px solid var(--openbot-cat-hairline);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .agent-usage-trend {
+    padding: var(--openbot-space-6) var(--openbot-space-6) var(--openbot-space-3);
+    border-radius: var(--openbot-radius-xl);
+  }
+  .agent-usage-providers {
+    gap: 0;
+    padding: var(--openbot-space-2) var(--openbot-space-6);
+    border-radius: var(--openbot-radius-xl);
+  }
+  .agent-usage-section-header > .ui-button {
+    color: var(--openbot-cat-accent-text);
+    font-weight: var(--openbot-weight-medium);
+  }
+  .agent-usage-trend .ui-chart {
+    height: calc(var(--openbot-space-8) * 7);
+  }
+  .agent-usage-provider {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--openbot-space-3);
+    padding: var(--openbot-space-3) 0;
+  }
+  .agent-usage-provider + .agent-usage-provider {
+    border-top: 1px solid var(--openbot-cat-hairline);
+  }
+  .agent-usage-provider-heading {
+    display: contents;
+  }
+  .agent-usage-provider-heading > span {
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .agent-usage-provider-heading strong {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    padding: var(--openbot-space-1) var(--openbot-space-3);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-bg-control-hover);
+    color: var(--openbot-text-secondary);
+    font-size: var(--openbot-text-md);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .agent-usage-provider:nth-child(-n + 2) strong {
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+  }
+  .agent-usage-provider p {
+    grid-column: 1;
+    margin-top: var(--openbot-space-0-5);
+  }
+
+  /* The totals: small plain cards with colored tiles */
+  .agent-usage-totals-section {
+    flex: none;
+  }
+  .agent-usage-totals,
+  .app-frame:not(.web-app-frame) .agent-usage-totals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--openbot-space-8) * 5), 1fr));
+    gap: var(--openbot-space-3);
+    overflow: visible;
+    padding-bottom: 0;
+  }
+  .agent-usage-totals > div:nth-child(n),
+  .app-frame:not(.web-app-frame) .agent-usage-totals > div:nth-child(n) {
+    display: block;
+    min-width: 0;
+    padding: var(--openbot-space-4);
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .agent-usage-totals dt {
+    display: flex;
+    align-items: center;
+    gap: var(--openbot-space-2);
+    margin-bottom: var(--openbot-space-2);
+    white-space: normal;
+  }
+  .agent-usage-totals dd {
+    font-size: var(--openbot-text-2xl);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .agent-usage-total-tile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--openbot-control-sm);
+    height: var(--openbot-control-sm);
+    border-radius: var(--openbot-radius-md);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent);
+  }
+  .agent-usage-total-tile svg {
+    width: var(--openbot-icon-sm);
+    height: var(--openbot-icon-sm);
+  }
+  .agent-usage-totals > div:nth-child(3n + 2) .agent-usage-total-tile {
+    background: var(--openbot-warning-soft);
+    color: var(--openbot-warning);
+  }
+  .agent-usage-totals > div:nth-child(3n + 3) .agent-usage-total-tile {
+    background: var(--openbot-file-yellow-soft);
+    color: var(--openbot-file-yellow);
+  }
+
+  /* The breakdown */
+  .ui-sliding-tabs:has(.ui-sliding-tabs-trigger) {
+    background: var(--openbot-bg-control-hover);
+    box-shadow: none;
+  }
+  .agent-usage-body .ui-sliding-tabs-trigger[aria-selected="true"] {
+    color: var(--openbot-cat-accent-text);
+  }
+  .agent-usage-table {
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+    padding: var(--openbot-space-2) var(--openbot-space-4);
+  }
+  .agent-usage-table :is(th, td) {
+    padding: var(--openbot-space-3);
+    border-bottom-color: var(--openbot-cat-hairline);
+    font-size: var(--openbot-text-md);
+  }
+  .agent-usage-table th:first-child {
+    padding-left: var(--openbot-space-3);
+    font-weight: var(--openbot-weight-medium);
+  }
+  .agent-usage-table td:last-child {
+    padding-right: var(--openbot-space-3);
+  }
+  .agent-usage-table tbody tr:last-child :is(th, td) {
+    border-bottom: 0;
+  }
+  .agent-usage-table tbody tr:first-child :is(th, td) {
+    background: var(--openbot-cat-accent-wash);
+  }
+  .agent-usage-table tbody tr:first-child th {
+    border-radius: var(--openbot-radius-md) 0 0 var(--openbot-radius-md);
+    box-shadow: inset 3px 0 0 var(--openbot-cat-accent);
+  }
+  .agent-usage-table tbody tr:first-child td:last-child {
+    border-radius: 0 var(--openbot-radius-md) var(--openbot-radius-md) 0;
+  }
+  .agent-usage-table tbody tr:first-child td > span[aria-hidden="true"] {
+    padding: var(--openbot-space-0-5) var(--openbot-space-2);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+    font-weight: var(--openbot-weight-semibold);
+  }
+
+  @container (min-width: 850px) {
+    .agent-usage-overview {
+      grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.5fr);
+    }
+    .agent-usage-hero-card {
+      grid-row: 1 / span 2;
+    }
+    .agent-usage-trend {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .agent-usage-providers {
+      grid-column: 2;
+      grid-row: 2;
+    }
+  }
+}

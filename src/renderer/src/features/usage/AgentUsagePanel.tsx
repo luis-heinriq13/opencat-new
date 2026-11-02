@@ -302,6 +302,7 @@ export function AgentUsagePanel(props: AgentUsagePanelProps) {
             <AgentUsageReport
               result={result()}
               metric={state.metric}
+              period={state.period}
               agentLabel={agentLabel}
               onReady={() => {
                 // Start each loaded report at its total, after the tabs settle their initial selection.

@@ -41,8 +41,9 @@
     cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* The warm desktop palette stays inside OpenCat's workspace. Other brand consumers retain
- * their own palette, and the dark desktop theme is unchanged. */
+/* OpenCat's accent stays inside its workspace. Other brand consumers retain their own accent,
+ * and the dark desktop theme is unchanged. The backgrounds stay near-white: the accent is
+ * never a page color. */
 :root[data-openbot-color-scheme="light"] .app-frame:not(.web-app-frame) {
   --openbot-accent: var(--openbot-cat-accent);
   --openbot-accent-hover: var(--openbot-cat-accent-hover);
@@ -50,8 +51,8 @@
   --openbot-accent-soft: var(--openbot-cat-accent-soft);
   --openbot-accent-strong: var(--openbot-cat-accent-strong);
   --openbot-bg-canvas: var(--openbot-cat-canvas);
-  --openbot-bg-sidebar: var(--openbot-cat-sidebar);
-  --openbot-bg-native-sidebar: var(--openbot-cat-sidebar);
+  --openbot-bg-sidebar: var(--openbot-cat-surface);
+  --openbot-bg-native-sidebar: var(--openbot-cat-surface);
 }
 
 /* Keep long agent instructions and channel data inside their own pane. The chat column

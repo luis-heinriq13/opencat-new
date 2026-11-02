@@ -483,3 +483,341 @@ time.attendance-attention-meta {
     transition: width var(--openbot-duration-fast) ease-out;
   }
 }
+
+/* The decoration of the light design. The dark theme does not show it. */
+.attendance-tile,
+.attendance-hero-art {
+  display: none;
+}
+
+/* The light design: plain cards on a near-white canvas. The accent is on the key number, the main
+ * series, the selected period and the icon tiles. The page is never tinted. */
+:root[data-openbot-color-scheme="light"] {
+  .attendance {
+    background: var(--openbot-cat-canvas);
+  }
+  .attendance .agent-usage-header {
+    border-bottom-color: var(--openbot-cat-hairline);
+  }
+  .attendance h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--openbot-space-3);
+    font-size: var(--openbot-text-xl);
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .attendance .attendance-body {
+    gap: var(--openbot-space-4);
+  }
+  .attendance-grid {
+    gap: var(--openbot-space-4);
+  }
+
+  .attendance-tile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--openbot-control-lg);
+    height: var(--openbot-control-lg);
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent);
+  }
+  .attendance-tile svg {
+    width: var(--openbot-icon-md);
+    height: var(--openbot-icon-md);
+  }
+
+  .attendance-periods {
+    padding: var(--openbot-space-0-5);
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-bg-control-hover);
+  }
+  .attendance-period {
+    border-radius: var(--openbot-radius-md);
+  }
+  .attendance-period[aria-pressed="true"] {
+    border-radius: var(--openbot-radius-md);
+    background: var(--openbot-cat-surface);
+    box-shadow: 0 0 0 1px var(--openbot-cat-accent);
+    color: var(--openbot-cat-accent-text);
+  }
+
+  .attendance-kicker {
+    font-size: var(--openbot-text-lg);
+    font-weight: var(--openbot-weight-medium);
+    color: var(--openbot-text-secondary);
+  }
+  .attendance-tag {
+    border: 0;
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+    font-weight: var(--openbot-weight-medium);
+  }
+
+  .attendance-hero {
+    position: relative;
+    flex: none;
+    overflow: hidden;
+    padding: calc(var(--openbot-space-6) + var(--openbot-space-2));
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-radius-xl);
+    background:
+      radial-gradient(38% 90% at 0% 0%, var(--openbot-cat-glow), transparent 100%),
+      radial-gradient(34% 80% at 100% 100%, var(--openbot-cat-glow), transparent 100%), var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+  .attendance-hero-main,
+  .attendance-ledger {
+    position: relative;
+    z-index: 1;
+  }
+  .attendance-hero-number {
+    width: fit-content;
+    max-width: 100%;
+    padding-right: 0.05em;
+    background: var(--openbot-cat-gradient);
+    background-clip: text;
+    color: transparent;
+    font-weight: var(--openbot-weight-bold);
+  }
+  .attendance-hero-summary {
+    font-size: var(--openbot-text-lg);
+    color: var(--openbot-text-muted);
+  }
+  .attendance-trend-text {
+    padding: var(--openbot-space-1) var(--openbot-space-3);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+    font-size: var(--openbot-text-sm);
+    font-weight: var(--openbot-weight-medium);
+  }
+  .attendance-ledger dd {
+    font-size: var(--openbot-text-display);
+    font-weight: var(--openbot-weight-semibold);
+    letter-spacing: -0.02em;
+  }
+  .attendance-ledger .attendance-note,
+  .attendance-ledger .attendance-minutes {
+    letter-spacing: 0;
+    font-weight: var(--openbot-weight-regular);
+  }
+  .attendance-ledger dd .attendance-note {
+    font-size: var(--openbot-text-sm);
+  }
+  .attendance-ledger > div {
+    border-top-color: var(--openbot-cat-hairline);
+  }
+  .attendance-ledger .attendance-minutes {
+    font-size: var(--openbot-text-sm);
+  }
+
+  .attendance-panel {
+    gap: var(--openbot-space-4);
+    padding: var(--openbot-space-6);
+    border: 1px solid var(--openbot-cat-hairline);
+    border-radius: var(--openbot-cat-radius);
+    background: var(--openbot-cat-surface);
+    box-shadow: var(--openbot-cat-shadow);
+  }
+
+  .attendance-funnel strong {
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .attendance-funnel-track {
+    height: var(--openbot-space-3);
+    background: var(--openbot-bg-control-hover);
+  }
+  .attendance-bar,
+  .attendance-bar[data-tone="strong"] {
+    background: var(--openbot-cat-gradient);
+  }
+  .attendance-funnel li[data-step="received"] .attendance-bar {
+    background: var(--openbot-text-dim);
+  }
+  .attendance-bar[data-tone="danger"] {
+    background: var(--openbot-cat-gradient);
+  }
+  .attendance-funnel-aside {
+    gap: var(--openbot-space-3);
+    border-top-color: var(--openbot-cat-hairline);
+  }
+  .attendance-funnel-aside > div {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--openbot-space-2);
+    padding: var(--openbot-space-2) var(--openbot-space-3);
+    border-radius: var(--openbot-radius-lg);
+    background: var(--openbot-cat-accent-wash);
+  }
+  .attendance-funnel-aside dd {
+    min-width: var(--openbot-space-6);
+    padding: 0 var(--openbot-space-2);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent-text);
+    font-size: var(--openbot-text-md);
+    font-weight: var(--openbot-weight-semibold);
+    text-align: center;
+  }
+  .attendance-funnel-aside [data-step="failed"]:not([data-empty]) dd,
+  .attendance-funnel-aside [data-step="blocked"]:not([data-empty]) dd {
+    color: var(--openbot-cat-accent-text);
+  }
+
+  .attendance-heatmap,
+  .attendance-heat-hours,
+  .attendance-heat-cells,
+  .attendance-heat-row {
+    gap: var(--openbot-space-1);
+  }
+  .attendance-heat-cell,
+  .attendance-heat-key {
+    height: var(--openbot-space-6);
+    border-radius: var(--openbot-radius-sm);
+    background: var(--openbot-bg-control-hover);
+  }
+  .attendance-heat-key {
+    width: var(--openbot-space-3);
+    height: var(--openbot-space-3);
+    border-radius: var(--openbot-radius-xs);
+  }
+  :is(.attendance-heat-cell, .attendance-heat-key)[data-level="1"] {
+    background: var(--openbot-cat-accent-soft);
+  }
+  :is(.attendance-heat-cell, .attendance-heat-key)[data-level="2"] {
+    background: var(--openbot-cat-accent-strong);
+  }
+  :is(.attendance-heat-cell, .attendance-heat-key)[data-level="3"] {
+    background: color-mix(in srgb, var(--openbot-cat-accent) 58%, transparent);
+  }
+  :is(.attendance-heat-cell, .attendance-heat-key)[data-level="4"] {
+    background: var(--openbot-cat-accent);
+  }
+
+  .attendance-latency {
+    border-bottom-color: var(--openbot-cat-hairline);
+  }
+  .attendance-bar-slow {
+    fill: var(--openbot-cat-accent);
+    opacity: 0.16;
+  }
+  .attendance-bar-median {
+    fill: var(--openbot-cat-accent);
+  }
+  .attendance-bar-failure {
+    fill: var(--openbot-text-primary);
+  }
+  .attendance-swatch[data-kind="median"] {
+    background: var(--openbot-cat-accent);
+  }
+  .attendance-swatch[data-kind="slow"] {
+    background: var(--openbot-cat-accent-strong);
+    opacity: 1;
+  }
+  .attendance-swatch[data-kind="failure"] {
+    background: var(--openbot-text-primary);
+  }
+
+  .attendance-attention li {
+    border-top-color: var(--openbot-cat-hairline);
+  }
+  .attendance-attention-icon {
+    align-items: center;
+    justify-content: center;
+    width: var(--openbot-control-lg);
+    height: var(--openbot-control-lg);
+    border-radius: var(--openbot-radius-pill);
+    background: var(--openbot-bg-control-hover);
+  }
+  .attendance-attention li[data-event="falhou"] .attendance-attention-icon {
+    background: var(--openbot-cat-accent-soft);
+    color: var(--openbot-cat-accent);
+  }
+  .attendance-attention li[data-event="bloqueada"] .attendance-attention-icon {
+    background: var(--openbot-warning-soft);
+  }
+  .attendance-attention-text strong {
+    font-weight: var(--openbot-weight-semibold);
+  }
+  .attendance-failures li {
+    padding: var(--openbot-space-3) 0;
+  }
+  .attendance-failures strong {
+    color: var(--openbot-cat-accent-text);
+    font-weight: var(--openbot-weight-semibold);
+  }
+
+  .attendance-empty-icon {
+    width: var(--openbot-space-8);
+    height: var(--openbot-space-8);
+    color: var(--openbot-cat-accent);
+  }
+
+  /* The soft plain tiles and dotted circles in the corners of the hero. They stay behind the text,
+   * and a narrow page does not have the room for them. */
+  @container (min-width: 760px) {
+    .attendance-hero-art {
+      position: absolute;
+      inset: 0;
+      display: block;
+      pointer-events: none;
+    }
+    .attendance-hero-dots {
+      position: absolute;
+      width: calc(var(--openbot-space-8) * 5);
+      height: calc(var(--openbot-space-8) * 5);
+      border-radius: var(--openbot-radius-pill);
+      background-image: radial-gradient(var(--openbot-cat-dot) 1px, transparent 1.5px);
+      background-size: var(--openbot-space-3) var(--openbot-space-3);
+      mask-image: radial-gradient(closest-side, var(--openbot-text-on-light) 45%, transparent 100%);
+    }
+    .attendance-hero-dots[data-place="left"] {
+      top: calc(var(--openbot-space-8) * -1);
+      left: 34%;
+    }
+    .attendance-hero-dots[data-place="right"] {
+      right: calc(var(--openbot-space-8) * -1);
+      bottom: calc(var(--openbot-space-8) * -1);
+    }
+    .attendance-hero-tile {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(var(--openbot-space-8) + var(--openbot-space-6));
+      height: calc(var(--openbot-space-8) + var(--openbot-space-6));
+      border-radius: var(--openbot-radius-xl);
+      background: linear-gradient(145deg, var(--openbot-cat-surface), var(--openbot-cat-canvas));
+      box-shadow: var(--openbot-cat-shadow-raised);
+      color: var(--openbot-cat-accent);
+    }
+    .attendance-hero-tile svg {
+      width: var(--openbot-space-6);
+      height: var(--openbot-space-6);
+    }
+    .attendance-hero-tile[data-place="a"] {
+      top: var(--openbot-space-8);
+      left: 46%;
+      transform: rotate(-8deg);
+    }
+    .attendance-hero-tile[data-place="b"] {
+      top: calc(var(--openbot-space-8) * 3);
+      left: 53%;
+      transform: rotate(7deg) scale(0.8);
+    }
+    .attendance-hero-tile[data-place="c"] {
+      top: var(--openbot-space-6);
+      right: var(--openbot-space-6);
+      transform: rotate(6deg) scale(0.86);
+    }
+    .attendance-ledger {
+      padding-left: calc(var(--openbot-space-6) + var(--openbot-space-2));
+      border-left-color: var(--openbot-cat-hairline);
+    }
+  }
+}
