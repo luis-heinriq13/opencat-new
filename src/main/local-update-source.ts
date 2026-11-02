@@ -371,7 +371,18 @@ export async function spawnLocalInstaller(input: {
   const targetBundlePath = process.platform === "darwin" ? "/Applications/OpenCat.app" : input.bundlePath;
   const child = spawn(
     "/usr/bin/python3",
-    ["-I", script, "--commit", input.commit, "--atual", targetBundlePath, "--wait-pid", String(process.pid)],
+    [
+      "-I",
+      script,
+      "--commit",
+      input.commit,
+      "--atual",
+      targetBundlePath,
+      "--source-bundle",
+      input.bundlePath,
+      "--wait-pid",
+      String(process.pid),
+    ],
     { detached: true, stdio: "ignore", env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: homedir() } },
   );
   child.unref();

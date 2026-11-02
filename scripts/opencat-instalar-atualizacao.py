@@ -130,6 +130,32 @@ def instalar_no_mesmo_bundle(origem, destino):
     return copiar_app(origem, destino) and assinatura_ok(destino)
 
 
+def espelhar_atalho_antigo(origem):
+    """Atualiza somente o bundle de recuperação que o Dock antigo ainda pode estar apontando."""
+    if not origem:
+        return
+    try:
+        atalho = pathlib.Path(origem)
+        copias = (UPDATES / "copias").resolve()
+        resolvido = atalho.resolve()
+        if (
+            atalho.suffix != ".app"
+            or atalho.is_symlink()
+            or resolvido == ATUAL.resolve()
+            or not str(resolvido).startswith(str(copias) + os.sep)
+            or not atalho.is_dir()
+        ):
+            log("atalho antigo invalido; nao sera espelhado")
+            return
+    except OSError as error:
+        log(f"nao consegui validar o atalho antigo: {error}")
+        return
+    if instalar_no_mesmo_bundle(ATUAL, atalho):
+        log(f"atalho antigo atualizado no mesmo bundle: {atalho}")
+    else:
+        log(f"nao consegui atualizar o atalho antigo: {atalho}")
+
+
 def pid_vivo(pid):
     try:
         os.kill(pid, 0)
@@ -320,6 +346,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--commit", required=True)
     parser.add_argument("--atual", default=str(ATUAL))
+    parser.add_argument("--source-bundle", default="")
     parser.add_argument("--wait-pid", type=int, default=0)
     args = parser.parse_args()
 
@@ -470,6 +497,10 @@ def instalar(args):
     else:
         log("OK: app novo abriu com os agentes")
 
+    # Uma instalação antiga pode ter movido o bundle que o Dock guardou em sua
+    # referência. Depois da saúde do canônico, ele recebe os mesmos arquivos: o
+    # atalho continua utilizável sem promover a cópia a destino de atualizações.
+    espelhar_atalho_antigo(args.source_bundle)
     escrever_json(INSTALLED, dados_instalado(manifest, veredito == "ok", False))
     try:
         EM_ANDAMENTO.unlink(missing_ok=True)
