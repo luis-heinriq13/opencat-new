@@ -43,8 +43,12 @@ export const REMOVED_ENDPOINT_MESSAGE = sourceText("error.agent.endpointRemoved"
 
 const logger = createOpenBotLogger("drain-scheduler");
 const CHANNEL_START_FAILED = "O provedor não conseguiu iniciar esta tarefa. Retome para tentar de novo.";
-/** How long messages wait for their turn after the provider did not confirm `turn/start` in time. */
-const TURN_START_GRACE_MS = 5 * 60_000;
+/**
+ * How long we wait after a provider did not confirm `turn/start`. This is deliberately long enough
+ * to avoid replaying a late turn, but short enough that a delegated task cannot hold its channel
+ * hostage for several minutes when a CLI/provider has already disappeared.
+ */
+const TURN_START_GRACE_MS = 90_000;
 /**
  * Desktop has no server-wide memory limiter. A burst from many teammates can otherwise begin a
  * large number of Gemini/Antigravity turns together, causing account-level 429s and making a

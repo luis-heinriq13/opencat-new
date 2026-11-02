@@ -95,10 +95,11 @@ interface UpdateServiceOptions {
   autoDownload: boolean;
   beforeInstall: () => Promise<void>;
   /**
-   * Installs a local build: asks the user, starts the installer and quits. It resolves to false when
-   * the user declined. Only the main process may show the question, so the renderer cannot skip it.
+   * Installs a locally built and verified application bundle. Automatic installs are only requested
+   * by the main process after it proved that the application is idle; interactive installs retain
+   * the confirmation dialog. The renderer can never bypass either path.
    */
-  installLocalUpdate?: ((update: LocalUpdateOffer) => Promise<boolean>) | undefined;
+  installLocalUpdate?: ((update: LocalUpdateOffer, options: { automatic: boolean }) => Promise<boolean>) | undefined;
   checkSiblingInstances?: (() => Effect.Effect<readonly OpenBotSiblingInstance[], SiblingScanFailed>) | undefined;
   /** The uid of this process. It tells a refusal in this account apart from another account. */
   currentUid?: number | undefined;
@@ -386,13 +387,13 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
     });
   }
 
-  /** The click on "Update" for a local build. It asks first; a "no" leaves everything as it was. */
-  #installLocal(update: LocalUpdateOffer): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
+  /** Installs a local offer. Interactive requests ask first; automatic ones are gated by the main process. */
+  #installLocal(update: LocalUpdateOffer, automatic = false): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
     return Effect.gen({ self: this }, function* () {
       const install = this.#options.installLocalUpdate;
       if (!install || this.#installStarted) return this.getStatus();
       this.#installStarted = true;
-      const started = yield* Effect.result(updateIO(() => install(update)));
+      const started = yield* Effect.result(updateIO(() => install(update, { automatic })));
       if (Result.isFailure(started)) {
         this.#installStarted = false;
         logUpdateFailure("OpenBot local update install failed.", started.failure.cause);
@@ -407,6 +408,18 @@ export class UpdateService extends EventEmitter<UpdateServiceEvents> {
       this.#operation = "install";
       this.#setStatus({ phase: "installing", progress: 100, message: null, errorCode: null });
       return this.getStatus();
+    });
+  }
+
+  /**
+   * Starts the trusted local installer without a renderer action. The composition root calls this
+   * only after checking that no agent, routine, transfer, browser control or startup work is active.
+   */
+  installLocalUpdateAutomatically(): Effect.Effect<UpdateStatus, UpdateOperationFailure> {
+    return Effect.gen({ self: this }, function* () {
+      if (!this.#localUpdate || this.#options.enabled || this.#teardownCommitted || this.#status.phase !== "available")
+        return this.getStatus();
+      return yield* this.#installLocal(this.#localUpdate, true);
     });
   }
 

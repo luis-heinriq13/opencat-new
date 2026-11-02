@@ -65,8 +65,12 @@ export function AccountUpdateIsland(props: AccountUpdateIslandProps) {
   // to read at a glance. A failed check found no update, which leaves it nothing to offer beyond a
   // sentence it would cut in half - that belongs in the Updates settings, where the text wraps. A failed
   // download or install keeps the island: an update is in play and the action that retries it is here.
+  // Local builds are installed by the main process as soon as the workspace is idle. Do not flash a
+  // redundant "Update" button while that safe handover is waiting; failures still remain visible.
   const open = createMemo(
-    () => isUpdateActivePhase(phase()) || (failed() && props.updateStatus.errorCode !== "check_failed"),
+    () =>
+      (isUpdateActivePhase(phase()) && !(props.updateStatus.localUpdate !== undefined && phase() === "available")) ||
+      (failed() && props.updateStatus.errorCode !== "check_failed"),
   );
   const downloading = createMemo(() => phase() === "downloading");
   const busy = createMemo(() => actionPending() || isUpdateBusyPhase(phase()));

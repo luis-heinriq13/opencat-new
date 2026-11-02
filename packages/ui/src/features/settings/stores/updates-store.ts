@@ -24,6 +24,9 @@ export function createSettingsUpdatesStore(props: UpdatesStoreProps) {
   const [error, setError] = createSignal<string | null>(null);
 
   const presentation = createMemo(() => presentUpdateStatus(props.updateStatus));
+  /** A signed local build is applied by the desktop main process as soon as work is idle. */
+  const automaticLocalUpdate = () =>
+    props.updateStatus.localUpdate !== undefined && props.updateStatus.phase === "available";
   const installedVersion = () =>
     props.updateStatus.currentVersion || props.appInfo?.version || currentText().t("settings.updates.versionUnknown");
   const targetUpdate = () =>
@@ -94,7 +97,7 @@ export function createSettingsUpdatesStore(props: UpdatesStoreProps) {
   };
 
   async function runAction(): Promise<void> {
-    if (presentation().busy || !presentation().supported) return;
+    if (automaticLocalUpdate() || presentation().busy || !presentation().supported) return;
     setError(null);
     try {
       await props.onUpdateAction();
@@ -149,6 +152,7 @@ export function createSettingsUpdatesStore(props: UpdatesStoreProps) {
     message,
     messageClass,
     presentation,
+    automaticLocalUpdate,
     runAction,
     scheduledRestart,
     cancelling,
