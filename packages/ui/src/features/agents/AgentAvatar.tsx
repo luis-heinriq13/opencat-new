@@ -215,8 +215,8 @@ function OrbitRings(props: { children: JSX.Element }) {
   return (
     <>
       <AvatarArcs arcs={arcs()} half="back" ref={(element) => (anchor = element)} />
-      {props.children}
       <AvatarArcs arcs={arcs()} half="front" />
+      {props.children}
     </>
   );
 }

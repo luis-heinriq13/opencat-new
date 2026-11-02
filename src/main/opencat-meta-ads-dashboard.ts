@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   META_ADS_RANGES,
+  type MetaAdsAccount,
   type MetaAdsChange,
   type MetaAdsChangeResult,
   type MetaAdsChildren,
@@ -32,7 +33,7 @@ const META_ADS_LIMIT_FILE = join(homedir(), ".opencat", META_ADS_SERVER_NAME, "a
 /** How long a reading is reused, and the least time between two readings that the user forces. */
 export const META_CACHE_MS = 90_000;
 export const META_MIN_REFRESH_MS = 10_000;
-const MAX_ACCOUNTS = 10;
+const MAX_ACCOUNTS = 50;
 const MAX_PAGES = 5;
 const PAGE_SIZE = 100;
 const PURCHASE_TYPES = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"] as const;
@@ -273,23 +274,84 @@ export function createMetaAdsDashboard({ environment, loadTools, now = Date.now 
   }
 
   async function readOverview(active: MetaAdsModuleTools, range: MetaAdsQuery["range"]): Promise<MetaAdsOverview> {
-    const accountPage = await pages(active, "/me/adaccounts", { fields: "id,name,account_status,currency" });
-    const accounts = accountPage.list.slice(0, MAX_ACCOUNTS).flatMap((account) => {
-      const id = textOf(account.id);
-      return id
-        ? [
-            {
+    const accountMap = new Map<string, MetaAdsAccount>();
+    let accountsTruncated = false;
+
+    // 1. Direct ad accounts on user
+    try {
+      const accountPage = await pages(active, "/me/adaccounts", { fields: "id,name,account_status,currency,business" });
+      if (accountPage.truncated) accountsTruncated = true;
+      for (const raw of accountPage.list) {
+        const id = textOf(raw.id);
+        if (!id) continue;
+        const bizName = isDynamicRecord(raw.business) ? textOf(raw.business.name) : "";
+        const rawName = textOf(raw.name);
+        const name = bizName && !rawName.includes(bizName) ? `[${bizName}] ${rawName}` : rawName;
+        accountMap.set(id, {
+          id,
+          name,
+          currency: textOf(raw.currency, "?"),
+          active: raw.account_status === 1,
+        });
+      }
+    } catch (error) {
+      if (failureOf(error).state === "token-expired") throw error;
+    }
+
+    // 2. Business Manager (BM) accounts
+    try {
+      const bizPage = await pages(active, "/me/businesses", { fields: "id,name" });
+      for (const biz of bizPage.list) {
+        const bizId = textOf(biz.id);
+        const bizName = textOf(biz.name);
+        if (!bizId) continue;
+
+        // Owned accounts
+        try {
+          const owned = await pages(active, `/${bizId}/owned_ad_accounts`, {
+            fields: "id,name,account_status,currency",
+          });
+          for (const raw of owned.list) {
+            const id = textOf(raw.id);
+            if (!id || accountMap.has(id)) continue;
+            const rawName = textOf(raw.name);
+            const name = bizName && !rawName.includes(bizName) ? `[${bizName}] ${rawName}` : rawName;
+            accountMap.set(id, {
               id,
-              name: textOf(account.name),
-              currency: textOf(account.currency, "?"),
-              active: account.account_status === 1,
-            },
-          ]
-        : [];
-    });
+              name,
+              currency: textOf(raw.currency, "?"),
+              active: raw.account_status === 1,
+            });
+          }
+        } catch {}
+
+        // Client accounts
+        try {
+          const client = await pages(active, `/${bizId}/client_ad_accounts`, {
+            fields: "id,name,account_status,currency",
+          });
+          for (const raw of client.list) {
+            const id = textOf(raw.id);
+            if (!id || accountMap.has(id)) continue;
+            const rawName = textOf(raw.name);
+            const name = bizName && !rawName.includes(bizName) ? `[${bizName}] ${rawName}` : rawName;
+            accountMap.set(id, {
+              id,
+              name,
+              currency: textOf(raw.currency, "?"),
+              active: raw.account_status === 1,
+            });
+          }
+        } catch {}
+      }
+    } catch {}
+
+    const accounts = Array.from(accountMap.values()).slice(0, MAX_ACCOUNTS);
+    if (accountMap.size > MAX_ACCOUNTS) accountsTruncated = true;
+
     const campaigns: MetaAdsRow[] = [];
     const daily: MetaAdsDay[] = [];
-    let truncated = accountPage.truncated || accountPage.list.length > MAX_ACCOUNTS;
+    let truncated = accountsTruncated;
     const failedAccounts: MetaAdsFailedAccount[] = [];
     let firstError: unknown;
     for (const account of accounts) {

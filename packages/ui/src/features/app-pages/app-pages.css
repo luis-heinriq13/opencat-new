@@ -153,6 +153,17 @@
 .app-page-kpi:first-child .app-page-kpi-value {
   color: var(--app-page-accent);
 }
+.app-page-kpi[data-tone="revenue"] .app-page-kpi-value,
+.app-page-kpi[data-tone="profit-positive"] .app-page-kpi-value {
+  color: var(--openbot-success);
+}
+.app-page-kpi[data-tone="spend"] .app-page-kpi-value,
+.app-page-kpi[data-tone="profit-negative"] .app-page-kpi-value {
+  color: var(--openbot-danger);
+}
+.app-page-kpi[data-tone="roas"] .app-page-kpi-value {
+  color: var(--app-page-accent);
+}
 
 /* Spend per day: one bar for each day, in the accent. */
 .app-page-chart {

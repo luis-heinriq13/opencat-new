@@ -437,6 +437,37 @@ export function createMetaAdsTools({
         },
       });
       const accounts = data.data ?? [];
+      if (accounts.length === 0 && !args.cursor) {
+        try {
+          const biz = await graph("/me/businesses", { query: { fields: "id,name", limit: 10 } });
+          for (const b of biz.data ?? []) {
+            try {
+              const owned = await graph(`/${b.id}/owned_ad_accounts`, {
+                query: {
+                  fields: "id,name,account_status,currency,amount_spent,balance",
+                  limit: clampLimit(args.limite),
+                },
+              });
+              for (const acc of owned.data ?? []) {
+                if (!accounts.some((a) => a.id === acc.id))
+                  accounts.push({ ...acc, name: `[${b.name}] ${acc.name ?? ""}` });
+              }
+            } catch {}
+            try {
+              const client = await graph(`/${b.id}/client_ad_accounts`, {
+                query: {
+                  fields: "id,name,account_status,currency,amount_spent,balance",
+                  limit: clampLimit(args.limite),
+                },
+              });
+              for (const acc of client.data ?? []) {
+                if (!accounts.some((a) => a.id === acc.id))
+                  accounts.push({ ...acc, name: `[${b.name}] ${acc.name ?? ""}` });
+              }
+            } catch {}
+          }
+        } catch {}
+      }
       if (accounts.length === 0) return text("Nenhuma conta de anúncios encontrada para este token.");
       const blocks = accounts.map((account) =>
         [

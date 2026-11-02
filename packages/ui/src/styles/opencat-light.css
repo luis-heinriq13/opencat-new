@@ -91,7 +91,6 @@
     --agent-avatar-outline: var(--openbot-cat-surface);
 
     background: var(--openbot-cat-accent-soft);
-    box-shadow: inset 3px 0 0 var(--openbot-cat-accent);
   }
   .agent-row-name {
     font-weight: var(--openbot-weight-semibold);

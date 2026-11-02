@@ -290,25 +290,68 @@ export function MetaAdsView(props: MetaAdsViewProps) {
     const rate = rates();
     const none = t("appPages.meta.kpi.none");
     const revenue = current.revenue ?? dayRevenue();
+    const profit = revenue === null ? null : revenue - current.spend;
     return [
-      { id: "spend", label: t("appPages.meta.kpi.spend"), value: money(current.spend, code) },
-      { id: "revenue", label: t("appPages.meta.kpi.revenue"), value: revenue === null ? none : money(revenue, code) },
+      {
+        id: "revenue",
+        label: t("appPages.meta.kpi.revenue"),
+        value: revenue === null ? none : money(revenue, code),
+        highlight: true,
+        tone: "revenue",
+      },
+      {
+        id: "spend",
+        label: t("appPages.meta.kpi.spend"),
+        value: money(current.spend, code),
+        highlight: true,
+        tone: "spend",
+      },
+      {
+        id: "profit",
+        label: "Lucro",
+        value: profit === null ? none : money(profit, code),
+        highlight: true,
+        tone: profit !== null && profit >= 0 ? "profit-positive" : profit !== null ? "profit-negative" : "neutral",
+      },
       {
         id: "roas",
         label: t("appPages.meta.kpi.roas"),
         value: rate.roas === null ? none : `${format.number(rate.roas, { maximumFractionDigits: 2 })}x`,
+        highlight: true,
+        tone: "roas",
       },
-      { id: "purchases", label: t("appPages.meta.kpi.purchases"), value: count(current.purchases) },
-      { id: "cpa", label: t("appPages.meta.kpi.cpa"), value: rate.cpa === null ? none : money(rate.cpa, code) },
+      { id: "purchases", label: t("appPages.meta.kpi.purchases"), value: count(current.purchases), tone: "neutral" },
+      {
+        id: "cpa",
+        label: t("appPages.meta.kpi.cpa"),
+        value: rate.cpa === null ? none : money(rate.cpa, code),
+        tone: "neutral",
+      },
+      { id: "clicks", label: t("appPages.meta.kpi.clicks"), value: count(current.clicks), tone: "neutral" },
       {
         id: "ctr",
         label: t("appPages.meta.kpi.ctr"),
         value: rate.ctr === null ? none : format.percent(rate.ctr, { maximumFractionDigits: 2 }),
+        tone: "neutral",
       },
-      { id: "cpc", label: t("appPages.meta.kpi.cpc"), value: rate.cpc === null ? none : money(rate.cpc, code) },
-      { id: "cpm", label: t("appPages.meta.kpi.cpm"), value: rate.cpm === null ? none : money(rate.cpm, code) },
-      { id: "impressions", label: t("appPages.meta.kpi.impressions"), value: count(current.impressions) },
-      { id: "clicks", label: t("appPages.meta.kpi.clicks"), value: count(current.clicks) },
+      {
+        id: "cpc",
+        label: t("appPages.meta.kpi.cpc"),
+        value: rate.cpc === null ? none : money(rate.cpc, code),
+        tone: "neutral",
+      },
+      {
+        id: "cpm",
+        label: t("appPages.meta.kpi.cpm"),
+        value: rate.cpm === null ? none : money(rate.cpm, code),
+        tone: "neutral",
+      },
+      {
+        id: "impressions",
+        label: t("appPages.meta.kpi.impressions"),
+        value: count(current.impressions),
+        tone: "neutral",
+      },
     ];
   });
 
@@ -558,7 +601,7 @@ export function MetaAdsView(props: MetaAdsViewProps) {
                 <div class="app-page-kpis">
                   <For each={kpis()}>
                     {(kpi) => (
-                      <div class="app-page-kpi">
+                      <div class="app-page-kpi" data-tone={kpi.tone} data-highlight={kpi.highlight ? "" : undefined}>
                         <span class="app-page-kpi-label">{kpi.label}</span>
                         <strong class="app-page-kpi-value">{kpi.value}</strong>
                       </div>
