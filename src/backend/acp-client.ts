@@ -37,7 +37,6 @@ import {
   sessionSettingsSnapshot,
 } from "./acp-configuration";
 import { AcpConnection, type AcpConnectionOptions } from "./acp-connection";
-import { hasLiveChildProcesses } from "./windows-process-tree";
 import type { AcpCustomEndpoint, AcpFlavor } from "./acp-flavor";
 import { acpPlanSteps, PLAN_UPDATED_METHOD } from "./agent/plan-updates";
 import { elicitationOptions, elicitationValue, secretElicitationField } from "./agent/prompts";
@@ -90,6 +89,7 @@ import type {
   ProviderHistoryRequest,
   ReadProviderHistory,
 } from "./provider-history";
+import { hasLiveChildProcesses } from "./windows-process-tree";
 import { TimeoutError } from "./with-timeout";
 
 const logger = createOpenBotLogger("acp-client");

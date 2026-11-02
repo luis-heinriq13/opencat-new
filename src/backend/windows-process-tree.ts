@@ -88,11 +88,16 @@ export function hasLiveChildProcesses(pid: number): Promise<boolean> {
   return new Promise((resolve) => {
     if (!pid || !isProcessAlive(pid)) return resolve(false);
     if (process.platform === "win32") {
-      execFile("wmic", ["process", "where", `(ParentProcessId=${pid})`, "get", "ProcessId"], { windowsHide: true }, (err, stdout) => {
-        if (err) return resolve(false);
-        const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
-        resolve(lines.length > 1);
-      });
+      execFile(
+        "wmic",
+        ["process", "where", `(ParentProcessId=${pid})`, "get", "ProcessId"],
+        { windowsHide: true },
+        (err, stdout) => {
+          if (err) return resolve(false);
+          const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+          resolve(lines.length > 1);
+        },
+      );
     } else {
       execFile("pgrep", ["-P", String(pid)], (err, stdout) => {
         if (err) return resolve(false);

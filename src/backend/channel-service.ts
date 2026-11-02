@@ -2334,8 +2334,15 @@ export class ChannelService {
         this.store.update(this.store.get(channelId), { assignments: [{ ...assignment, state }], tasks: updated }),
       );
       if (state === "failed") {
-        const errorText = assignment.deliveryId ? this.mailbox.getDelivery(assignment.deliveryId)?.delivery.error : null;
-        if (errorText && (errorText.includes("parou de responder") || errorText.toLowerCase().includes("stall") || errorText.toLowerCase().includes("timeout"))) {
+        const errorText = assignment.deliveryId
+          ? this.mailbox.getDelivery(assignment.deliveryId)?.delivery.error
+          : null;
+        if (
+          errorText &&
+          (errorText.includes("parou de responder") ||
+            errorText.toLowerCase().includes("stall") ||
+            errorText.toLowerCase().includes("timeout"))
+        ) {
           const memberAgent = this.hooks.agents().find((item) => item.id === assignment.agentId);
           const memberName = memberAgent?.name ?? "Membro";
           const channel = this.store.get(channelId);

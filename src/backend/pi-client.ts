@@ -32,7 +32,6 @@ import { createPiKeyExtension } from "./pi-key-providers";
 import { createPiMcpExtension, type PiMcpExtension } from "./pi-mcp";
 import { piMessageItems, piPrompt, piText } from "./pi-messages";
 import { PiRpc } from "./pi-rpc";
-import { hasLiveChildProcesses } from "./windows-process-tree";
 import type { SpawnTarget } from "./process-confinement";
 import {
   type AppServerNotification,
@@ -61,6 +60,7 @@ import type {
   ProviderHistoryRequest,
   ReadProviderHistory,
 } from "./provider-history";
+import { hasLiveChildProcesses } from "./windows-process-tree";
 
 /**
  * How long a turn may send nothing, with no tool call or compaction open and no question to the
