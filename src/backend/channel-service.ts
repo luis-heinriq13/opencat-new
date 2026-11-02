@@ -2333,6 +2333,25 @@ export class ChannelService {
       yield* channelSync(() =>
         this.store.update(this.store.get(channelId), { assignments: [{ ...assignment, state }], tasks: updated }),
       );
+      if (state === "failed") {
+        const errorText = assignment.deliveryId ? this.mailbox.getDelivery(assignment.deliveryId)?.delivery.error : null;
+        if (errorText && (errorText.includes("parou de responder") || errorText.toLowerCase().includes("stall") || errorText.toLowerCase().includes("timeout"))) {
+          const memberAgent = this.hooks.agents().find((item) => item.id === assignment.agentId);
+          const memberName = memberAgent?.name ?? "Membro";
+          const channel = this.store.get(channelId);
+          const leaderId = channel.leadAgentId ?? channel.members[0]?.agentId;
+          const leader = this.hooks.agents().find((item) => item.id === leaderId);
+          if (leaderId && leader) {
+            const leaderNotice = this.message(
+              channelId,
+              task.id,
+              { kind: "agent", id: leader.id, name: leader.name },
+              `[Aviso do Líder] O membro ${memberName} parou de responder (silêncio sem erro). O turno travado foi encerrado para recuperação.`,
+            );
+            yield* channelSync(() => this.store.update(this.store.get(channelId), { messages: [leaderNotice] }));
+          }
+        }
+      }
       this.resolveAssignmentTerminal(assignment.id);
       this.publish(channelId);
       yield* this.#releaseHeldAgents([assignment.agentId]);

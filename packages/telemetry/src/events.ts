@@ -270,7 +270,7 @@ export function classifyFailure(error: unknown): CauseCode {
     return "billing";
   if (/\b(?:usage limit|hit your (?:weekly |session )?limit)\b/iu.test(message)) return "usage_limit";
   if (
-    /\b(?:timed? out|ETIMEDOUT|gateway time-?out|deadline exceeded|DEADLINE_EXCEEDED|stopped responding)\b/iu.test(
+    /\b(?:timed? out|ETIMEDOUT|gateway time-?out|deadline exceeded|DEADLINE_EXCEEDED|stopped responding|parou de responder)\b/iu.test(
       message,
     )
   )

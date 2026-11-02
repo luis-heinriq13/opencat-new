@@ -32,6 +32,7 @@ import { createPiKeyExtension } from "./pi-key-providers";
 import { createPiMcpExtension, type PiMcpExtension } from "./pi-mcp";
 import { piMessageItems, piPrompt, piText } from "./pi-messages";
 import { PiRpc } from "./pi-rpc";
+import { hasLiveChildProcesses } from "./windows-process-tree";
 import type { SpawnTarget } from "./process-confinement";
 import {
   type AppServerNotification,
@@ -674,11 +675,20 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
     // A stopped turn ends by its stop, as interrupted, and not as a stall.
     while (thread.turn === turn && !turn.finishing && !turn.stopped) {
       const silentFor = Date.now() - turn.lastActivityAt;
-      if (silentFor < PI_TURN_STALL_MS || turn.openTools.size > 0 || turn.waitingOnUser > 0 || turn.compacting) {
-        yield* Effect.sleep(silentFor < PI_TURN_STALL_MS ? PI_TURN_STALL_MS - silentFor : PI_TURN_STALL_MS);
+      const pid = thread.rpc.pid;
+      const processAlive = thread.rpc.running;
+      const hasChildren = pid ? yield* Effect.promise(() => hasLiveChildProcesses(pid)) : false;
+      const toolActive = turn.openTools.size > 0 && hasChildren;
+
+      if (silentFor < PI_TURN_STALL_MS || toolActive || turn.waitingOnUser > 0 || turn.compacting) {
+        yield* Effect.sleep(Math.min(PI_TURN_STALL_MS - silentFor, 5_000));
         continue;
       }
-      this.emit("diagnostic", `Pi sent nothing for ${silentFor} ms; ending turn ${turn.id}.`);
+
+      this.emit(
+        "diagnostic",
+        `Pi sent nothing for ${silentFor} ms (openTools: ${turn.openTools.size}, processAlive: ${processAlive}); ending turn ${turn.id}.`,
+      );
       const failure = sourceText("error.agent.turnStalled", { provider: agentProviderName(this.provider) });
       turn.stalled = failure;
       // Stop Pi before the turn ends, so that the stop cannot reach the next turn. Pi answers

@@ -60,6 +60,12 @@ export class AcpConnection {
   get running(): boolean {
     return this.#process !== null && this.#process.exitCode === null && !this.#stopping;
   }
+  get pid(): number | null {
+    return this.#process?.pid ?? null;
+  }
+  get process(): ChildProcessWithoutNullStreams | null {
+    return this.#process;
+  }
   get ended(): Deferred.Deferred<ProcessEnd> | null {
     return this.#ended;
   }

@@ -30,6 +30,14 @@ export class PiRpc extends EventEmitter<{ record: [DynamicRecord]; diagnostic: [
     super();
   }
 
+  get running(): boolean {
+    return this.#child !== null && this.#child.exitCode === null && !this.#stopping;
+  }
+
+  get pid(): number | null {
+    return this.#child?.pid ?? null;
+  }
+
   start(target: SpawnTarget, cwd: string, env: NodeJS.ProcessEnv): void {
     if (this.#child) throw new Error("Pi process is already running.");
     const child = spawn(target.command, target.args, {

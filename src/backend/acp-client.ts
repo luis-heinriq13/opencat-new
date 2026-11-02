@@ -37,6 +37,7 @@ import {
   sessionSettingsSnapshot,
 } from "./acp-configuration";
 import { AcpConnection, type AcpConnectionOptions } from "./acp-connection";
+import { hasLiveChildProcesses } from "./windows-process-tree";
 import type { AcpCustomEndpoint, AcpFlavor } from "./acp-flavor";
 import { acpPlanSteps, PLAN_UPDATED_METHOD } from "./agent/plan-updates";
 import { elicitationOptions, elicitationValue, secretElicitationField } from "./agent/prompts";
@@ -116,7 +117,7 @@ const ACP_PROMPT_AUDIO_BASE64_BYTES = 19 * 1024 * 1024;
  * How long a turn may send nothing, with no tool call open and no question to the user, before
  * OpenBot ends it. An OpenCode prompt can stay open for an hour with no update (#2858).
  */
-const ACP_TURN_STALL_MS = 5 * 60_000;
+const ACP_TURN_STALL_MS = 10 * 60_000;
 
 /** How long a stopped turn may take to end before OpenBot ends it itself. */
 const ACP_STOP_GRACE_MS = 10_000;
@@ -2507,22 +2508,64 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     let answeredAt = 0;
     // A stopped turn ends by its stop, as interrupted, and not as a stall.
     while (thread.activeTurn === turn && !turn.completing && !turn.stopped) {
+      const pid = thread.transport?.pid ?? this.#transport.pid;
+      const processAlive = thread.transport?.running ?? this.#transport.running;
+      const hasChildren = pid ? yield* Effect.promise(() => hasLiveChildProcesses(pid)) : false;
+
       if (this.#flavor.promptOpenForBackgroundTasks) {
         const silentFor = Date.now() - Math.max(turn.lastActivityAt, answeredAt);
         if (silentFor < limit) {
-          yield* Effect.sleep(limit - silentFor);
+          yield* Effect.sleep(Math.min(limit - silentFor, 5_000));
           continue;
         }
+
+        this.emit(
+          "diagnostic",
+          `[AcpAgentClient.watchStall] provider=${this.options.customEndpoint?.(thread.currentModelId)?.name ?? this.#label}, silentForMs=${silentFor}, openTools=${turn.toolItems.size}, processAlive=${processAlive}, liveChildProcesses=${hasChildren}`,
+        );
+
+        if (hasChildren) {
+          answeredAt = Date.now();
+          continue;
+        }
+
+        // Antigravity: check session updatedAt to verify if there is progress
+        const currentUpdatedAt = yield* this.#sessionUpdatedAt(thread).pipe(Effect.orElseSucceed(() => null));
+        if (currentUpdatedAt !== null && currentUpdatedAt !== thread.backgroundUpdatedAt) {
+          thread.backgroundUpdatedAt = currentUpdatedAt;
+          answeredAt = Date.now();
+          continue;
+        }
+
         if (yield* this.#endIfUnresponsive(thread)) return;
-        answeredAt = Date.now();
-        continue;
+
+        this.emit(
+          "diagnostic",
+          `${this.#label} sent nothing and session had no progress for ${silentFor} ms (openTools: ${turn.toolItems.size}, processAlive: ${processAlive}); ending turn ${turn.id}.`,
+        );
+        yield* providerCall(() => this.#sessionConnection(thread).cancel({ sessionId: thread.id })).pipe(Effect.ignore);
+        yield* this.#abandonTurn(
+          thread,
+          turn,
+          "failed",
+          sourceText("error.agent.turnStalled", {
+            provider: this.options.customEndpoint?.(thread.currentModelId)?.name ?? this.#label,
+          }),
+        );
+        return;
       }
+
       const silentFor = Date.now() - turn.lastActivityAt;
-      if (silentFor < limit || turn.toolItems.size > 0 || turn.waitingOnUser > 0) {
-        yield* Effect.sleep(silentFor < limit ? limit - silentFor : limit);
+      const toolActive = turn.toolItems.size > 0 && hasChildren;
+      if (silentFor < limit || toolActive || turn.waitingOnUser > 0) {
+        yield* Effect.sleep(Math.min(limit - silentFor, 5_000));
         continue;
       }
-      this.emit("diagnostic", `${this.#label} sent nothing for ${silentFor} ms; ending turn ${turn.id}.`);
+
+      this.emit(
+        "diagnostic",
+        `${this.#label} sent nothing for ${silentFor} ms (openTools: ${turn.toolItems.size}, processAlive: ${processAlive}); ending turn ${turn.id}.`,
+      );
       yield* providerCall(() => this.#sessionConnection(thread).cancel({ sessionId: thread.id })).pipe(Effect.ignore);
       yield* this.#abandonTurn(
         thread,

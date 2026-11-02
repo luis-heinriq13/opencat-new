@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import {
   type AgentEvent,
   type AgentSummary,
   agentProviderDescriptor,
+  agentProviderName,
   type BrowserControlState,
   type BrowserTab,
   CONVERSATION_PLAN_ITEM_TYPE,
@@ -35,12 +37,14 @@ import {
   type DynamicToolCallParams,
   type DynamicToolResult,
   decodeAccountLoginCompletedResult,
+  decodeRecordResponse,
   getArray,
   getRecord,
   getString,
   isRecord,
   type ThreadItem,
 } from "../protocol";
+import { hasLiveChildProcesses } from "../windows-process-tree";
 import type { AgentMemories } from "./agent-memories";
 import { answerFilePaths } from "./answer-file-paths";
 import type { AttentionBrowserHost, AttentionRegistry } from "./attention-registry";
@@ -81,6 +85,56 @@ import {
 import { TurnTraces, traceMessage } from "./turn-traces";
 import { collectProviderUsage } from "./usage-collection";
 import { USAGE_LIMIT_METHOD, type UsageLimitGate } from "./usage-limit-gate";
+
+export function isExternalActionItem(item: ThreadItem | null | undefined): boolean {
+  if (!item) return false;
+  const toolName = (getString(item, "name") ?? getString(item, "tool") ?? "").toLowerCase();
+  const command = (getString(item, "command") ?? "").toLowerCase();
+
+  // 1. Messaging / External communication:
+  if (
+    toolName.includes("send_message") ||
+    toolName.includes("teams_enviar_mensagem") ||
+    toolName.includes("send_text") ||
+    toolName.includes("send_attachment") ||
+    toolName.includes("messaging_post") ||
+    toolName.includes("post_message") ||
+    toolName.includes("send_mail")
+  ) {
+    return true;
+  }
+
+  // 2. Deploy / publishing / push:
+  if (
+    toolName.includes("publish_site") ||
+    toolName.includes("deploy") ||
+    command.includes("git push") ||
+    command.includes("npm publish") ||
+    command.includes("cargo publish") ||
+    command.includes("docker push")
+  ) {
+    return true;
+  }
+
+  // 3. Financial / Purchases:
+  if (
+    toolName.includes("fill_card") ||
+    toolName.includes("pay") ||
+    toolName.includes("checkout") ||
+    toolName.includes("stripe")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function formatInactivityDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes} min`;
+}
 
 const logger = createOpenBotLogger("turn-lifecycle");
 const ENDED_TURN_LIMIT = 256;
@@ -262,8 +316,14 @@ export class TurnLifecycle {
       firstOutputAt: number | null;
       produced: boolean;
       acted: boolean;
+      lastActivityAt: number;
+      lastProgressAt: number;
+      openTools: Map<string, { name: string; startedAt: number }>;
+      inactivityWarningShown: boolean;
+      hasExternalAction: boolean;
     }
   >();
+  readonly #stallRetries = new Map<string, number>();
   /** Running turns a provider plan refused, with the reset in epoch seconds when the provider gave it. */
   readonly #limitedTurns = new Map<string, number | null>();
   /**
@@ -551,7 +611,13 @@ export class TurnLifecycle {
           firstOutputAt: null,
           produced: false,
           acted: false,
+          lastActivityAt: Date.now(),
+          lastProgressAt: Date.now(),
+          openTools: new Map(),
+          inactivityWarningShown: false,
+          hasExternalAction: false,
         });
+        Effect.runFork(this.#watchRunningTurn(agentId, threadId, turnId).pipe(Effect.forkIn(this.#scope)));
         this.#traces.begin(turnId, new Date().toISOString());
         const publicThreadId = this.#conversation.publicThreadId(agentId, threadId);
         const snapshot = this.#conversation.ensureSnapshot(agentId, publicThreadId);
@@ -587,6 +653,21 @@ export class TurnLifecycle {
         const itemId = getString(item, "id");
         if (itemId) this.#itemTurns.set(itemId, turnId);
         this.#markProduced(turnId, isRepeatedWork(item));
+        const runningItem = this.#runningTurns.get(turnId);
+        const parsedThreadItem = toThreadItem(item);
+        if (runningItem) {
+          runningItem.lastActivityAt = Date.now();
+          runningItem.lastProgressAt = Date.now();
+          if (itemId && parsedThreadItem && isToolItem(parsedThreadItem)) {
+            if (notification.method === "item/started") {
+              const toolName = getString(parsedThreadItem, "name") ?? getString(parsedThreadItem, "tool") ?? "tool";
+              runningItem.openTools.set(itemId, { name: toolName, startedAt: Date.now() });
+              if (isExternalActionItem(parsedThreadItem)) runningItem.hasExternalAction = true;
+            } else {
+              runningItem.openTools.delete(itemId);
+            }
+          }
+        }
         if (item.type === "contextCompaction") {
           if (this.#conversation.loadedClientFor(threadId) !== source) return;
           if (notification.method === "item/started") this.#observedCompactions.set(threadId, turnId);
@@ -633,6 +714,11 @@ export class TurnLifecycle {
           notification.method === "item/agentMessage/delta" && delta.trim() !== "" && message.itemType !== "commentary",
           delta.trim() !== "",
         );
+        const runningDelta = this.#runningTurns.get(turnId);
+        if (runningDelta) {
+          runningDelta.lastActivityAt = Date.now();
+          runningDelta.lastProgressAt = Date.now();
+        }
         // A delta can come before its `item/started`, so it can start the step.
         this.#traces.observe(
           turnId,
@@ -1017,6 +1103,51 @@ export class TurnLifecycle {
         yield* this.#retryRefusedTurn(agentId, threadId, turnId, snapshot, deliveries);
         return;
       }
+      const isStallFailure =
+        status === "failed" &&
+        running !== undefined &&
+        (classifyFailure(reportedError ?? reportedFailure) === "timeout" ||
+          (Boolean(reportedError) && String(reportedError).includes("parou de responder")));
+
+      if (isStallFailure && running) {
+        if (running.hasExternalAction) {
+          const safetyNotice = newAssistantMessage(randomUUID(), turnId);
+          safetyNotice.text =
+            "O agente parou de responder após executar uma ação externa. Para sua segurança, a tarefa não foi continuada automaticamente. Deseja continuar de onde parou?";
+          safetyNotice.status = "completed";
+          snapshot.messages.push(safetyNotice);
+          this.#conversation.emitConversation(snapshot);
+          failover = undefined;
+        } else {
+          const stallDelivery = deliveries[0]?.delivery.id;
+          const retryCount = stallDelivery ? (this.#stallRetries.get(stallDelivery) ?? 0) : 0;
+
+          if (retryCount === 0 && deliveries.length > 0) {
+            if (stallDelivery) this.#stallRetries.set(stallDelivery, 1);
+            const retryNotice = newAssistantMessage(randomUUID(), turnId);
+            retryNotice.text = "Sem resposta do provedor. Continuando de onde parou na mesma sessão…";
+            retryNotice.status = "completed";
+            snapshot.messages.push(retryNotice);
+            this.#conversation.emitConversation(snapshot);
+
+            yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries, {
+              turnId,
+              previousTurnIds: [turnId],
+              workSteps: "Continue de onde parou.",
+            });
+            this.#hooks.scheduleDrain(agentId);
+            return;
+          } else if (retryCount >= 1 && deliveries.length > 0) {
+            if (stallDelivery) this.#stallRetries.delete(stallDelivery);
+            const failoverNotice = newAssistantMessage(randomUUID(), turnId);
+            failoverNotice.text = "O provedor parou de responder novamente. Alternando para o modelo reserva…";
+            failoverNotice.status = "completed";
+            snapshot.messages.push(failoverNotice);
+            this.#conversation.emitConversation(snapshot);
+          }
+        }
+      }
+
       const channelTurn = !taskTurn && this.#conversation.isExecutionThread(snapshot.threadId);
       // After work started, only a ready automatic backup continues it. A turn refused before
       // work still waits for the reset when no backup is ready. A continuation that a backup refused
@@ -1798,6 +1929,131 @@ export class TurnLifecycle {
     }
     message.trace = usage ? { ...trace, tokens: usage.tokens, costUsd: usage.costUsd } : trace;
     return message;
+  }
+
+  readonly #watchRunningTurn = Effect.fn("TurnLifecycle.watchRunningTurn")(function* (
+    this: TurnLifecycle,
+    agentId: string,
+    threadId: string,
+    turnId: string,
+  ) {
+    const WARNING_LIMIT_MS = 3 * 60_000;
+    const STALL_LIMIT_MS = 10 * 60_000;
+    const publicThreadId = this.#conversation.publicThreadId(agentId, threadId);
+
+    while (this.#runningTurns.has(turnId)) {
+      yield* Effect.sleep(2_000);
+      const running = this.#runningTurns.get(turnId);
+      if (!running) break;
+
+      // Check if waiting on user (e.g. ask_user, approval, takeover)
+      if (this.#attention.isWaitingOnUser(threadId, turnId)) {
+        running.lastActivityAt = Date.now();
+        running.lastProgressAt = Date.now();
+        continue;
+      }
+
+      // Check if open tools have live child processes (e.g. long build command)
+      if (running.openTools.size > 0) {
+        const pid = running.client.pid ?? null;
+        const hasChildren = pid ? yield* Effect.promise(() => hasLiveChildProcesses(pid)) : false;
+        if (hasChildren) {
+          running.lastProgressAt = Date.now();
+        }
+      }
+
+      const now = Date.now();
+      const silentFor = now - running.lastActivityAt;
+      const noProgressFor = now - running.lastProgressAt;
+
+      // Status update visible in UI
+      if (silentFor >= 10_000) {
+        this.#emitTurnProgress(
+          agentId,
+          publicThreadId,
+          turnId,
+          `Sem atividade há ${formatInactivityDuration(silentFor)}`,
+        );
+      } else if (running.openTools.size > 0) {
+        const lastTool = [...running.openTools.values()].at(-1);
+        const elapsed = now - (lastTool?.startedAt ?? now);
+        this.#emitTurnProgress(
+          agentId,
+          publicThreadId,
+          turnId,
+          `Usando ferramenta ${lastTool?.name ?? "ferramenta"} há ${formatInactivityDuration(elapsed)}`,
+        );
+      } else if (!running.firstOutputAt) {
+        this.#emitTurnProgress(agentId, publicThreadId, turnId, "Pensando no assunto…");
+      }
+
+      // 3 min warning: show prompt in conversation with Continuar and Parar
+      if (silentFor >= WARNING_LIMIT_MS && !running.inactivityWarningShown) {
+        running.inactivityWarningShown = true;
+        logger.warn("Turn has no activity for 3 min.", { agentId, turnId, silentFor });
+        this.#surfaceInactivityPrompt(agentId, threadId, turnId, silentFor);
+      }
+
+      // 10 min cutoff: end turn as stalled
+      if (noProgressFor >= STALL_LIMIT_MS) {
+        logger.warn("Turn stalled with no progress for 10 min. Ending turn.", { agentId, turnId, noProgressFor });
+        this.#turnErrors.set(
+          turnId,
+          sourceText("error.agent.turnStalled", { provider: agentProviderName(running.client.provider) }),
+        );
+        yield* running.client.releaseThread?.(threadId).pipe(Effect.ignore) ?? Effect.void;
+        yield* this.#completeTurn(agentId, threadId, turnId, "failed");
+        break;
+      }
+    }
+  });
+
+  #surfaceInactivityPrompt(agentId: string, threadId: string, turnId: string, silentFor: number): void {
+    const running = this.#runningTurns.get(turnId);
+    if (!running) return;
+    const self = this;
+    const promptClient: AgentClient = Object.assign(Object.create(running.client), {
+      respond: (_id: unknown, response: unknown) => {
+        const record = isRecord(response) ? response : null;
+        const answersObj = getRecord(record, "answers");
+        const actionObj = getRecord(answersObj, "action");
+        const answers = getArray(actionObj, "answers");
+        if (answers?.includes("Parar")) {
+          Effect.runFork(
+            Effect.gen(function* () {
+              yield* running.client
+                .request("turn/interrupt", { threadId, turnId }, decodeRecordResponse)
+                .pipe(Effect.ignore);
+              yield* self.#completeTurn(agentId, threadId, turnId, "interrupted");
+            }).pipe(Effect.forkIn(self.#scope)),
+          );
+        } else {
+          const current = self.#runningTurns.get(turnId);
+          if (current) {
+            current.lastActivityAt = Date.now();
+            current.lastProgressAt = Date.now();
+            current.inactivityWarningShown = false;
+          }
+        }
+      },
+    });
+
+    this.#attention.surfacePrompt(promptClient, {
+      id: `inactivity:${turnId}`,
+      method: "item/tool/requestUserInput",
+      params: {
+        threadId,
+        turnId,
+        questions: [
+          {
+            id: "action",
+            header: "Inatividade",
+            question: `Sem atividade há ${formatInactivityDuration(silentFor)}`,
+            options: [{ label: "Continuar" }, { label: "Parar" }],
+          },
+        ],
+      },
+    });
   }
 
   #emitTurnProgress(agentId: string, threadId: string, turnId: string, text: string): void {
