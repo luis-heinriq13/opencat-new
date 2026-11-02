@@ -74,10 +74,10 @@ interface AgentAvatarProps {
    */
   followPointer?: boolean;
   /**
-   * The Canvas mascot is intentionally opt-in. Rendering it for every sidebar,
-   * channel and conversation row can schedule a material engine per agent while
-   * the workspace is still booting. Keep the SVG as the safe default; editors
-   * can request the canvas for their single focused preview.
+   * Canvas is the normal mascot after the first paint. Passing `false` is an
+   * explicit emergency/static opt-out for a surface that cannot host a canvas.
+   * The canvas stays lazy, viewport-aware and keeps the SVG as an immediate
+   * fallback, so a failed engine never removes an avatar.
    */
   renderCanvas?: boolean;
   class?: string;
@@ -391,7 +391,7 @@ function GeneratedAvatar(props: {
   );
 
   const avatar = () =>
-    props.renderCanvas ? (
+    props.renderCanvas !== false ? (
       <BotCanvasAvatar
         shape={appearance().shape}
         color={appearance().color}
@@ -404,6 +404,9 @@ function GeneratedAvatar(props: {
               : "default"
         }
         motion={animated() ? "full" : "subtle"}
+        // Resting sidebar rows draw their finished canvas face but do not keep
+        // a clock. Busy/hovered/focused faces are the only ones that animate.
+        playing={animated()}
         interactive={props.followPointer}
         seed={props.seed}
         class="bloub-avatar-svg"

@@ -430,6 +430,14 @@ export function BotCanvasAvatar(props: BotCanvasAvatarProps) {
     }
     return {
       display: "block",
+      // Callers size the wrapping `.agent-avatar`. Keep the canvas' visual
+      // overscan inside it, rather than relying on page-specific `> svg` CSS.
+      width: "150%",
+      height: "150%",
+      "margin-left": "-25%",
+      "margin-right": "-25%",
+      "margin-top": "calc(-35% + var(--agent-avatar-optical-offset, 0px))",
+      "margin-bottom": "-15%",
       "flex-shrink": 0,
       ...(typeof props.style === "object" ? props.style : {}),
     };
@@ -440,8 +448,12 @@ export function BotCanvasAvatar(props: BotCanvasAvatarProps) {
       <canvas
         ref={(element) => {
           canvasRef = element;
-          if (element.getBoundingClientRect().width > 0 && props.size === undefined) {
-            setMeasuredSize(Math.round(element.getBoundingClientRect().width / 1.5));
+          // The canvas deliberately overscans the face. Measuring the canvas
+          // itself feeds 150% back into the next draw; measure its fixed host.
+          const host = element.parentElement;
+          const hostSize = host ? Math.min(host.getBoundingClientRect().width, host.getBoundingClientRect().height) : 0;
+          if (hostSize > 0 && props.size === undefined) {
+            setMeasuredSize(Math.round(hostSize));
           }
           hookCanvas();
           installDebug();

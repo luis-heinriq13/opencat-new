@@ -45,6 +45,12 @@ const logger = createOpenBotLogger("drain-scheduler");
 const CHANNEL_START_FAILED = "O provedor não conseguiu iniciar esta tarefa. Retome para tentar de novo.";
 /** How long messages wait for their turn after the provider did not confirm `turn/start` in time. */
 const TURN_START_GRACE_MS = 5 * 60_000;
+/**
+ * Desktop has no server-wide memory limiter. A burst from many teammates can otherwise begin a
+ * large number of Gemini/Antigravity turns together, causing account-level 429s and making a
+ * healthy fallback chain look stuck. Hosted deployments keep their configured global capacity.
+ */
+const DESKTOP_PROVIDER_TURN_LIMITS: Partial<Record<AgentProvider, number>> = { antigravity: 2 };
 
 export interface DrainHooks {
   emitError(code: string, error: unknown, agentId?: string): void;
@@ -168,6 +174,8 @@ export class DrainScheduler {
   readonly #planContinuation: PlanContinuation;
   readonly #tasks: TaskLanes;
   readonly #slots: TurnSlots;
+  /** Provider-local limits protect a shared desktop account from teammate bursts. */
+  readonly #providerSlots = new Map<AgentProvider, TurnSlots>();
   /** Lanes that a full set of turn slots held back. A drain that may free a slot tries them again. */
   readonly #slotWaiters = new Set<string>();
   #wakingSlotWaiters = false;
@@ -243,6 +251,33 @@ export class DrainScheduler {
         return this.#mailbox.nextQueued(lane.agentId, lane.taskId)?.delivery ?? null;
       },
     });
+    for (const provider of AGENT_PROVIDERS) {
+      this.#providerSlots.set(
+        provider,
+        new TurnSlots({
+          // The server's global memory limit remains its sole capacity policy.
+          limit: () => (this.#memory.turnLimit() === null ? (DESKTOP_PROVIDER_TURN_LIMITS[provider] ?? null) : null),
+          lanes: () =>
+            this.#store
+              .list()
+              .flatMap((agent) => (providerForAgent(agent) === provider ? this.#lanesOf(agent.id) : []))
+              .map(laneKey),
+          isRunning: (key) => this.#laneRunning(laneOf(key)),
+          isWaiting: (key) => {
+            const lane = laneOf(key);
+            return (
+              this.#mayStartNow(lane) &&
+              this.#memory.mayDrain(lane.agentId) &&
+              this.#mailbox.nextQueued(lane.agentId, lane.taskId) !== null
+            );
+          },
+          head: (key) => {
+            const lane = laneOf(key);
+            return this.#mailbox.nextQueued(lane.agentId, lane.taskId)?.delivery ?? null;
+          },
+        }),
+      );
+    }
   }
 
   /** The clauses of this agent's own state. `#heldByMachine` adds the memory and the turn slots. */
@@ -470,7 +505,13 @@ export class DrainScheduler {
       return true;
     }
     const key = laneKey(lane);
-    if (this.#slots.mayStart(key)) return false;
+    if (!this.#slots.mayStart(key)) {
+      this.#slotWaiters.add(key);
+      return true;
+    }
+    const agent = this.#store.list().find((candidate) => candidate.id === lane.agentId);
+    const providerSlots = agent ? this.#providerSlots.get(providerForAgent(agent)) : undefined;
+    if (!providerSlots || providerSlots.mayStart(key)) return false;
     this.#slotWaiters.add(key);
     return true;
   }
