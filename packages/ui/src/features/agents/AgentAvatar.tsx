@@ -73,6 +73,13 @@ interface AgentAvatarProps {
    * so use it only where few avatars show. A photo avatar and reduced motion ignore it.
    */
   followPointer?: boolean;
+  /**
+   * The Canvas mascot is intentionally opt-in. Rendering it for every sidebar,
+   * channel and conversation row can schedule a material engine per agent while
+   * the workspace is still booting. Keep the SVG as the safe default; editors
+   * can request the canvas for their single focused preview.
+   */
+  renderCanvas?: boolean;
   class?: string;
   style?: Record<string, string>;
 }
@@ -113,6 +120,7 @@ export function AgentAvatar(props: AgentAvatarProps) {
           animationOffset={props.animationOffset}
           shape={props.shape}
           followPointer={props.followPointer === true}
+          renderCanvas={props.renderCanvas === true}
           breathe={breathe()}
           class={className()}
           style={style()}
@@ -269,6 +277,7 @@ function GeneratedAvatar(props: {
   animationOffset?: number | undefined;
   shape?: SupportedAvatarSilhouetteId | undefined;
   followPointer: boolean;
+  renderCanvas: boolean;
   breathe?: string | undefined;
   class: string;
   style?: Record<string, string>;
@@ -344,26 +353,6 @@ function GeneratedAvatar(props: {
     },
   );
 
-  const avatar = () => (
-    <BotCanvasAvatar
-      shape={appearance().shape}
-      color={appearance().color}
-      // The canvas states are the engine's own three; the mood folds onto them.
-      state={
-        props.mood === "asleep"
-          ? "sleeping"
-          : props.mood === "working" || props.mood === "connecting"
-            ? "working"
-            : "default"
-      }
-      motion={animated() ? "full" : "subtle"}
-      interactive={props.followPointer}
-      seed={props.seed}
-      class="bloub-avatar-svg"
-      fallback={fallbackForNow()}
-    />
-  );
-
   const FallbackFrozen = () => (
     <Show when={appearance()} keyed>
       {(frozen) => (
@@ -400,6 +389,29 @@ function GeneratedAvatar(props: {
       />
     </Show>
   );
+
+  const avatar = () =>
+    props.renderCanvas ? (
+      <BotCanvasAvatar
+        shape={appearance().shape}
+        color={appearance().color}
+        // The canvas states are the engine's own three; the mood folds onto them.
+        state={
+          props.mood === "asleep"
+            ? "sleeping"
+            : props.mood === "working" || props.mood === "connecting"
+              ? "working"
+              : "default"
+        }
+        motion={animated() ? "full" : "subtle"}
+        interactive={props.followPointer}
+        seed={props.seed}
+        class="bloub-avatar-svg"
+        fallback={fallbackForNow()}
+      />
+    ) : (
+      fallbackForNow()
+    );
 
   return (
     <span
