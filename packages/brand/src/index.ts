@@ -1,4 +1,5 @@
 export { AppLogo, type AppLogoAnimation, type AppLogoProps, type AppLogoVariant } from "./AppLogo";
+export * from "./bot-avatar-shapes";
 export {
   type MobilePlatformLogoVariant,
   PlatformLogo,
@@ -6,3 +7,5 @@ export {
   type PlatformLogoVariant,
 } from "./PlatformLogo";
 export { ProviderLogo, type ProviderLogoProps, type ProviderLogoVariant } from "./ProviderLogo";
+export * from "./vendor/bot-avatars";
+export * as BotAvatars from "./vendor/bot-avatars";

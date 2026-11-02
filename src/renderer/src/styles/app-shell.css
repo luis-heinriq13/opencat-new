@@ -2446,7 +2446,10 @@ textarea {
   overflow: visible;
 }
 
-.agent-avatar > svg {
+.agent-avatar > svg,
+.agent-avatar > canvas,
+.agent-avatar .bloub-avatar-svg,
+.agent-avatar .bot-canvas-avatar {
   display: block;
   width: 128%;
   height: 128%;
