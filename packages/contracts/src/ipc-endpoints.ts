@@ -168,6 +168,19 @@ import type {
 import type { AppBehaviorPreference, AppBehaviorPreferenceChange } from "./ipc-app-behavior";
 import type { AppConnectionApp, AppConnectionChange, AppConnectionStatus } from "./ipc-app-connections";
 import type {
+  MetaAdsChange,
+  MetaAdsChangeResult,
+  MetaAdsChildren,
+  MetaAdsChildrenQuery,
+  MetaAdsOverview,
+  MetaAdsQuery,
+  TeamsMessages,
+  TeamsOverview,
+  TeamsSendInput,
+  TeamsSendResult,
+  TeamsSendSetting,
+} from "./ipc-app-pages";
+import type {
   ApprovalAutomationPreference,
   RespondToApprovalInput,
   RespondToBrowserTakeoverInput,
@@ -1179,6 +1192,19 @@ export const IPC_ENDPOINTS = {
     status: request<AppConnectionApp, AppConnectionStatus>()("app-connections:status"),
     change: request<AppConnectionChange, AppConnectionStatus>()("app-connections:change"),
   },
+  // The pages of the Meta Ads and Microsoft Teams apps. Main reads each service with the credential that the
+  // app keeps; the renderer sends ids and choices, and never gets a token. Pause, resume and send run
+  // only on an explicit user action, and by the same cap and limit rules as the app's server.
+  appPages: {
+    metaOverview: request<MetaAdsQuery, MetaAdsOverview>()("app-pages:meta-overview"),
+    metaChildren: request<MetaAdsChildrenQuery, MetaAdsChildren>()("app-pages:meta-children"),
+    metaChange: request<MetaAdsChange, MetaAdsChangeResult>()("app-pages:meta-change"),
+    teamsOverview: request<undefined, TeamsOverview>()("app-pages:teams-overview"),
+    teamsMessages: request<string, TeamsMessages>()("app-pages:teams-messages"),
+    teamsSend: request<TeamsSendInput, TeamsSendResult>()("app-pages:teams-send"),
+    teamsSignIn: request<undefined, TeamsOverview>()("app-pages:teams-sign-in"),
+    teamsSetSendEnabled: request<boolean, TeamsSendSetting>()("app-pages:teams-set-send-enabled"),
+  },
   // The attendance report of the WhatsApp (not official) connection: counts, times and hash labels,
   // read from the local metrics file, with the contact's name. No message or full phone number crosses.
   attendance: {
@@ -1919,6 +1945,7 @@ export const IPC_GROUP_PATHS = {
   githubConnector: "githubConnector",
   onePasswordConnector: "onePasswordConnector",
   appConnections: "appConnections",
+  appPages: "appPages",
   attendance: "attendance",
   bitwardenConnector: "bitwardenConnector",
   vault: "vault",

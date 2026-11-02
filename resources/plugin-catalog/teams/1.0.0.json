@@ -24,5 +24,6 @@
   "websiteUrl": "https://learn.microsoft.com/en-us/graph/api/chat-post",
   "privacyPolicyUrl": "https://privacy.microsoft.com/privacystatement",
   "termsUrl": "https://www.microsoft.com/servicesagreement",
+  "panel": "interactive",
   "skills": []
 }

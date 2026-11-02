@@ -21,6 +21,8 @@ export const messages = defineMessages("agent", {
   "agent.setup.create": "Create agent",
   "agent.setup.suggestions": "Suggestions",
   // Suggested agents. Selecting one copies its name and purpose into the new agent.
+  "agent.setup.suggestions.all": "See all",
+  "agent.setup.suggestions.fewer": "See fewer",
   "agent.setup.suggestion.label": "{name}. {description}",
   "agent.setup.suggestion.inboxHelper.name": "Inbox Helper",
   "agent.setup.suggestion.inboxHelper.description": "Drafts replies and keeps follow-ups from slipping.",

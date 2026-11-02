@@ -41,15 +41,29 @@
     cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* OpenCat's accent stays inside its workspace. Other brand consumers retain their own accent,
- * and the dark desktop theme is unchanged. The backgrounds stay near-white: the accent is
- * never a page color. */
-:root[data-openbot-color-scheme="light"] .app-frame:not(.web-app-frame) {
+/* OpenCat's accent, on the desktop workspace and its menus and dialogs in both themes. This file does
+ * not load on the public site, and the web client keeps its own accent. The accent is never a page color. */
+:root:not(:has(.web-app-frame)),
+.app-frame:not(.web-app-frame) {
   --openbot-accent: var(--openbot-cat-accent);
   --openbot-accent-hover: var(--openbot-cat-accent-hover);
   --openbot-accent-text: var(--openbot-cat-accent-text);
   --openbot-accent-soft: var(--openbot-cat-accent-soft);
   --openbot-accent-strong: var(--openbot-cat-accent-strong);
+}
+
+/* In dark, text on the fill must be dark to meet AA, and focus follows the accent. */
+:root:not([data-openbot-color-scheme="light"]):not(:has(.web-app-frame)) {
+  --openbot-text-on-accent: var(--openbot-cat-on-accent);
+  --openbot-border-focus: var(--openbot-cat-accent-text);
+  --openbot-file-default: var(--openbot-cat-accent-text);
+  --openbot-file-default-soft: var(--openbot-cat-accent-soft);
+  --openbot-message-badge-text: var(--openbot-cat-accent-text);
+  --openbot-message-badge-soft: var(--openbot-cat-accent-soft);
+}
+
+/* The light frame is near-white. The dark frame keeps its own greys. */
+:root[data-openbot-color-scheme="light"] .app-frame:not(.web-app-frame) {
   --openbot-bg-canvas: var(--openbot-cat-canvas);
   --openbot-bg-sidebar: var(--openbot-cat-surface);
   --openbot-bg-native-sidebar: var(--openbot-cat-surface);

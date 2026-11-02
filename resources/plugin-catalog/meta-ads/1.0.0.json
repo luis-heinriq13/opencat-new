@@ -58,5 +58,6 @@
   "websiteUrl": "https://developers.facebook.com/docs/marketing-apis",
   "privacyPolicyUrl": "https://www.facebook.com/privacy/policy/",
   "termsUrl": "https://www.facebook.com/terms/",
+  "panel": "interactive",
   "skills": []
 }

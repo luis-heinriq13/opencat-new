@@ -12,7 +12,20 @@ import type {
   ProviderRuntimeStatus,
 } from "@openbot/contracts/ipc";
 import type { AppTextKey, AppTranslate } from "@openbot/i18n";
-import { Button, Field, Input, Textarea } from "@openbot/ui";
+import {
+  ArrowLeft,
+  Button,
+  ChartNoAxesColumnIncreasing,
+  ChevronRight,
+  Field,
+  FileText,
+  IconButton,
+  Input,
+  MessageCircle,
+  Settings,
+  Sparkles,
+  Textarea,
+} from "@openbot/ui";
 import { createSignal, For, onSettled, Show } from "solid-js";
 import { AVATAR_HUE_CHOICES, avatarCandidateSeeds, avatarHeadColor, avatarHueSwatch } from "../../bloub-avatar";
 import { ProviderModelPicker } from "../../components/ProviderModelPicker";
@@ -185,6 +198,7 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
   const [canScrollSuggestionsBack, setCanScrollSuggestionsBack] = createSignal(false);
   const [canScrollSuggestionsForward, setCanScrollSuggestionsForward] = createSignal(false);
   const [draggingSuggestions, setDraggingSuggestions] = createSignal(false);
+  const [showAllSuggestions, setShowAllSuggestions] = createSignal(false);
   const canSubmit = () =>
     Boolean(props.value.name.trim()) && !instructionsTooLong(props.value.purpose) && !props.submitting;
   const displayName = () => props.value.name.trim() || t("agent.setup.nameFallback");
@@ -343,13 +357,25 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
           data-avatar-seed={props.value.avatarSeed}
           data-avatar-hue={props.value.avatarHue ?? "automatic"}
         >
-          <AgentAvatar seed={props.value.avatarSeed} hue={props.value.avatarHue} motion="idle" />
+          <Show when={props.mode === "additional" && props.onCancel}>
+            <IconButton
+              variant="ghost"
+              class="no-drag"
+              label={t("common.back")}
+              disabled={props.submitting}
+              onClick={() => props.onCancel?.()}
+            >
+              <ArrowLeft />
+            </IconButton>
+          </Show>
+          <span class="first-agent-breadcrumb-root">{t("app.rail.agents")}</span>
+          <ChevronRight class="first-agent-breadcrumb-mark" aria-hidden="true" />
           <h1 aria-live="polite">{displayName()}</h1>
         </div>
         <Show when={props.mode === "additional" && props.onCancel}>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             class="first-agent-cancel no-drag"
             disabled={props.submitting}
@@ -361,6 +387,23 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
       </header>
 
       <div class="first-agent-setup-content">
+        {/* Decoration: the orbit rings and the tiles that drift around the avatar. */}
+        <div class="first-agent-art" aria-hidden="true">
+          <span class="first-agent-orbit" data-orbit="outer" />
+          <span class="first-agent-orbit" data-orbit="inner" />
+          <span class="first-agent-float" data-place="top-left">
+            <ChartNoAxesColumnIncreasing />
+          </span>
+          <span class="first-agent-float" data-place="bottom-left">
+            <MessageCircle />
+          </span>
+          <span class="first-agent-float" data-place="top-right">
+            <Settings />
+          </span>
+          <span class="first-agent-float" data-place="bottom-right">
+            <FileText />
+          </span>
+        </div>
         <form
           class="first-agent-editor"
           onSubmit={(event) => {
@@ -449,88 +492,106 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
             </div>
           </fieldset>
 
-          <div class="first-agent-fields">
-            <Field label={t("agent.setup.name")} required>
-              <Input
-                value={props.value.name}
-                maxlength={INPUT_LIMITS.agentName}
-                autocomplete="off"
-                disabled={props.submitting}
-                onValueChange={(name) => updateDraft({ name })}
-              />
-            </Field>
-            <Field label={t("agent.setup.purpose")}>
-              <Textarea
-                value={props.value.purpose}
-                rows={2}
-                invalid={instructionsTooLong(props.value.purpose)}
-                placeholder={t("agent.setup.purposePlaceholder")}
-                disabled={props.submitting}
-                onValueChange={(purpose) => updateDraft({ purpose })}
-              />
-              <InstructionsLimit text={props.value.purpose} />
-            </Field>
-            <Show when={props.modelOptions}>
-              {(options) => (
-                <Show when={props.agentStatus}>
-                  {(status) => (
-                    <ProviderModelPicker
-                      variant="field"
-                      ariaLabel={t("agent.setup.model")}
-                      provider={props.value.provider}
-                      value={props.value.model}
-                      modelOptions={options()}
-                      agentStatus={status()}
-                      runtimeStatuses={props.runtimeStatuses}
-                      customProviders={props.customProviders}
-                      customAgents={props.customAgents}
-                      onDownloadProvider={props.onDownloadProvider}
-                      onCancelProviderDownload={props.onCancelProviderDownload}
-                      onConnectProvider={props.onConnectProvider}
-                      onAddCustomProvider={props.onAddCustomProvider}
-                      onManageProviders={props.onManageProviders}
-                      disabled={props.submitting}
-                      reasoningEffort={reasoningEffort()}
-                      onReasoningEffortChange={(effort) => updateDraft({ reasoningEffort: effort })}
-                      onChange={selectModel}
-                    />
-                  )}
-                </Show>
+          <div class="first-agent-form-card">
+            <div class="first-agent-fields">
+              <Field label={t("agent.setup.name")} required>
+                <Input
+                  value={props.value.name}
+                  maxlength={INPUT_LIMITS.agentName}
+                  autocomplete="off"
+                  disabled={props.submitting}
+                  onValueChange={(name) => updateDraft({ name })}
+                />
+              </Field>
+              <Field label={t("agent.setup.purpose")}>
+                <Textarea
+                  value={props.value.purpose}
+                  rows={2}
+                  invalid={instructionsTooLong(props.value.purpose)}
+                  placeholder={t("agent.setup.purposePlaceholder")}
+                  disabled={props.submitting}
+                  onValueChange={(purpose) => updateDraft({ purpose })}
+                />
+                <InstructionsLimit text={props.value.purpose} />
+              </Field>
+              <Show when={props.modelOptions}>
+                {(options) => (
+                  <Show when={props.agentStatus}>
+                    {(status) => (
+                      <ProviderModelPicker
+                        variant="field"
+                        ariaLabel={t("agent.setup.model")}
+                        provider={props.value.provider}
+                        value={props.value.model}
+                        modelOptions={options()}
+                        agentStatus={status()}
+                        runtimeStatuses={props.runtimeStatuses}
+                        customProviders={props.customProviders}
+                        customAgents={props.customAgents}
+                        onDownloadProvider={props.onDownloadProvider}
+                        onCancelProviderDownload={props.onCancelProviderDownload}
+                        onConnectProvider={props.onConnectProvider}
+                        onAddCustomProvider={props.onAddCustomProvider}
+                        onManageProviders={props.onManageProviders}
+                        disabled={props.submitting}
+                        reasoningEffort={reasoningEffort()}
+                        onReasoningEffortChange={(effort) => updateDraft({ reasoningEffort: effort })}
+                        onChange={selectModel}
+                      />
+                    )}
+                  </Show>
+                )}
+              </Show>
+            </div>
+
+            <Show when={props.error}>
+              {(error) => (
+                <p class="first-agent-error" role="alert">
+                  {sourceText(error())}
+                </p>
               )}
             </Show>
-          </div>
 
-          <Show when={props.error}>
-            {(error) => (
-              <p class="first-agent-error" role="alert">
-                {sourceText(error())}
-              </p>
-            )}
-          </Show>
-
-          <div class="first-agent-submit-actions">
-            <Button
-              type="submit"
-              variant="default"
-              size="default"
-              class="first-agent-submit"
-              disabled={!canSubmit()}
-              loading={props.submitting}
-              loadingLabel={t("agent.setup.creating")}
-            >
-              {t("agent.setup.create")}
-            </Button>
+            <div class="first-agent-submit-actions">
+              <Button
+                type="submit"
+                variant="default"
+                size="default"
+                class="first-agent-submit"
+                disabled={!canSubmit()}
+                loading={props.submitting}
+                loadingLabel={t("agent.setup.creating")}
+              >
+                <Sparkles class="first-agent-submit-icon" aria-hidden="true" />
+                {t("agent.setup.create")}
+              </Button>
+            </div>
           </div>
         </form>
 
         <section class="first-agent-suggestions" aria-labelledby="first-agent-suggestions-title">
-          <h2 id="first-agent-suggestions-title">{t("agent.setup.suggestions")}</h2>
+          <div class="first-agent-suggestions-header">
+            <h2 id="first-agent-suggestions-title">{t("agent.setup.suggestions")}</h2>
+            <Show when={props.suggestions.length > 4}>
+              <Button
+                variant="ghost"
+                size="xs"
+                type="button"
+                class="first-agent-suggestions-all"
+                aria-expanded={showAllSuggestions() ? "true" : "false"}
+                onClick={() => setShowAllSuggestions((all) => !all)}
+              >
+                {showAllSuggestions() ? t("agent.setup.suggestions.fewer") : t("agent.setup.suggestions.all")}
+              </Button>
+            </Show>
+          </div>
           <div
             class={`first-agent-suggestion-viewport${canScrollSuggestionsBack() ? " can-scroll-back" : ""}${canScrollSuggestionsForward() ? " can-scroll-forward" : ""}${draggingSuggestions() ? " is-dragging" : ""}`}
           >
             <ul
               ref={suggestionList}
               class="first-agent-suggestion-list"
+              data-all={showAllSuggestions() ? "" : undefined}
               onScroll={updateSuggestionFades}
               onPointerDown={startSuggestionDrag}
               onPointerMove={moveSuggestionDrag}

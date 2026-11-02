@@ -28,6 +28,7 @@ export * from "./ipc-agents";
 export * from "./ipc-app-auth";
 export * from "./ipc-app-behavior";
 export * from "./ipc-app-connections";
+export * from "./ipc-app-pages";
 export * from "./ipc-approvals";
 export * from "./ipc-attachments";
 export * from "./ipc-attendance";

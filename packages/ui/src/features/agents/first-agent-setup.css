@@ -10,7 +10,7 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--openbot-border);
+  border-bottom: 0;
   padding: 0 var(--openbot-space-3);
 }
 
@@ -21,55 +21,211 @@
   gap: var(--openbot-space-1-5);
 }
 
-.first-agent-header-identity .agent-avatar {
-  --agent-avatar-optical-offset: -2px;
+.first-agent-breadcrumb-root {
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-lg);
+  white-space: nowrap;
+}
 
-  width: 18px;
-  height: 18px;
+.first-agent-breadcrumb-mark {
+  width: var(--openbot-icon-sm);
+  height: var(--openbot-icon-sm);
+  flex: none;
+  color: var(--openbot-text-muted);
 }
 
 .first-agent-header-identity h1 {
   overflow: hidden;
   margin: 0;
   color: var(--openbot-text-primary);
-  font-size: var(--openbot-text-md);
-  font-weight: var(--openbot-weight-regular);
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-semibold);
   line-height: var(--openbot-leading-md);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The page is one card with a soft glow at both sides of the form. */
 .first-agent-setup-content {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
   display: grid;
   min-width: 0;
   min-height: 0;
   flex: 1;
   grid-template-rows: minmax(min-content, 1fr) auto;
   overflow-y: auto;
+  margin: 0 var(--openbot-space-2) var(--openbot-space-2);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background:
+    radial-gradient(30% 46% at 16% 44%, var(--openbot-cat-glow-strong), transparent 100%),
+    radial-gradient(30% 46% at 84% 44%, var(--openbot-cat-glow-strong), transparent 100%), var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
+}
+
+/* The decoration. It stays behind the form and leaves when the page has no room at the sides. */
+.first-agent-art {
+  display: none;
+}
+
+@container (min-width: 900px) {
+  .first-agent-art {
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    right: 0;
+    left: 0;
+    display: block;
+    height: calc(var(--openbot-space-8) * 22);
+    overflow: hidden;
+    pointer-events: none;
+  }
+}
+
+.first-agent-orbit {
+  position: absolute;
+  top: calc(var(--openbot-space-8) * 3);
+  left: 50%;
+  border: 1.5px dotted var(--openbot-cat-dot);
+  border-radius: var(--openbot-radius-pill);
+  aspect-ratio: 1;
+  translate: -50% 0;
+}
+
+.first-agent-orbit[data-orbit="outer"] {
+  top: var(--openbot-space-6);
+  width: calc(var(--openbot-space-8) * 25);
+}
+
+.first-agent-orbit[data-orbit="inner"] {
+  top: var(--openbot-space-8);
+  width: calc(var(--openbot-space-8) * 14);
+  opacity: 0.6;
+}
+
+.first-agent-float {
+  --first-agent-float-tilt: 0deg;
+
+  position: absolute;
+  display: flex;
+  width: calc(var(--openbot-space-8) * 2 + var(--openbot-space-2));
+  height: calc(var(--openbot-space-8) * 2 + var(--openbot-space-2));
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--openbot-cat-radius-tile);
+  background: var(--openbot-cat-tile);
+  box-shadow: var(--openbot-cat-shadow-tile);
+  color: var(--openbot-cat-accent);
+  rotate: var(--first-agent-float-tilt);
+}
+
+.first-agent-float svg {
+  width: var(--openbot-space-8);
+  height: var(--openbot-space-8);
+  fill: currentcolor;
+}
+
+.first-agent-float svg circle {
+  fill: var(--openbot-cat-surface);
+}
+
+.first-agent-float[data-place="top-left"] {
+  --first-agent-float-tilt: 9deg;
+
+  top: calc(var(--openbot-space-8) * 5);
+  left: calc(50% - var(--openbot-space-8) * 14);
+}
+
+.first-agent-float[data-place="top-left"] svg {
+  fill: none;
+  stroke-width: 3.25;
+}
+
+.first-agent-float[data-place="bottom-left"] {
+  --first-agent-float-tilt: -10deg;
+
+  top: calc(var(--openbot-space-8) * 10 + var(--openbot-space-4));
+  left: calc(50% - var(--openbot-space-8) * 15 - var(--openbot-space-2));
+  width: calc(var(--openbot-space-8) * 3);
+  height: calc(var(--openbot-space-8) * 3);
+  border-radius: var(--openbot-cat-radius-tile-large);
+}
+
+.first-agent-float[data-place="top-right"] {
+  --first-agent-float-tilt: 10deg;
+
+  top: calc(var(--openbot-space-8) * 4 + var(--openbot-space-2));
+  left: calc(50% + var(--openbot-space-8) * 12);
+}
+
+.first-agent-float[data-place="bottom-right"] {
+  --first-agent-float-tilt: 12deg;
+
+  top: calc(var(--openbot-space-8) * 10 + var(--openbot-space-4));
+  left: calc(50% + var(--openbot-space-8) * 12);
+}
+
+.first-agent-float[data-place="bottom-right"] svg path {
+  stroke: var(--openbot-cat-surface);
+}
+
+@keyframes first-agent-drift {
+  from {
+    translate: 0 calc(var(--openbot-space-2) * -1);
+  }
+
+  to {
+    translate: 0 var(--openbot-space-2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .first-agent-float {
+    animation: first-agent-drift 5s ease-in-out infinite alternate;
+  }
+
+  .first-agent-float[data-place="bottom-left"] {
+    animation-duration: 6.5s;
+    animation-delay: -2s;
+  }
+
+  .first-agent-float[data-place="top-right"] {
+    animation-duration: 5.75s;
+    animation-delay: -3.5s;
+  }
+
+  .first-agent-float[data-place="bottom-right"] {
+    animation-duration: 7s;
+    animation-delay: -1s;
+  }
 }
 
 .first-agent-editor {
   display: grid;
-  width: min(420px, calc(100% - 48px));
-  align-content: center;
+  width: min(600px, calc(100% - 32px));
+  align-content: start;
   justify-self: center;
   gap: var(--openbot-space-3);
-  padding: var(--openbot-space-6) 0;
+  padding: var(--openbot-space-6) 0 var(--openbot-space-3);
 }
 
 .first-agent-live-avatar {
   display: grid;
-  width: 72px;
-  height: 72px;
+  width: calc(var(--openbot-space-8) * 3);
+  height: calc(var(--openbot-space-8) * 3);
   place-items: center;
   justify-self: center;
-  margin-bottom: var(--openbot-space-1);
-  translate: 0 calc(0px - var(--openbot-space-2));
+  border-radius: var(--openbot-radius-pill);
+  background: radial-gradient(closest-side, var(--openbot-cat-glow-strong), transparent 100%);
 }
 
 .first-agent-live-avatar .agent-avatar {
-  width: 72px;
-  height: 72px;
+  --agent-avatar-optical-offset: calc(var(--openbot-space-8) * 2.5 * -0.14);
+
+  width: calc(var(--openbot-space-8) * 2.5);
+  height: calc(var(--openbot-space-8) * 2.5);
 }
 
 .first-agent-avatar-fieldset {
@@ -84,68 +240,93 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--openbot-space-1);
+  gap: var(--openbot-space-2);
 }
 
+/* The shapes are tiles in one strip. */
 .first-agent-face-options {
-  gap: var(--openbot-space-0-5);
+  gap: var(--openbot-space-1);
+  width: fit-content;
+  margin-inline: auto;
+  padding: var(--openbot-space-2);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background: var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
 }
 
 .ui-button.first-agent-color-choice,
 .ui-button.first-agent-face-choice {
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
   border-color: transparent;
-  background: transparent;
-  padding: 0;
-  border-radius: var(--openbot-radius-md);
-}
-
-.ui-button.first-agent-face-choice {
-  display: grid;
-  width: 33px;
-  height: 33px;
-  flex-basis: 33px;
-  place-items: center;
   padding: 0;
 }
 
 .ui-button.first-agent-color-choice {
+  width: var(--openbot-control-lg);
+  height: var(--openbot-control-lg);
+  flex: 0 0 var(--openbot-control-lg);
   border-radius: var(--openbot-radius-pill);
+  background: transparent;
 }
 
-.ui-button.first-agent-color-choice:hover:not(:disabled),
-.ui-button.first-agent-face-choice:hover:not(:disabled) {
+.ui-button.first-agent-face-choice {
+  display: grid;
+  width: calc(var(--openbot-space-8) + var(--openbot-space-3));
+  height: calc(var(--openbot-space-8) + var(--openbot-space-3));
+  flex: 0 0 calc(var(--openbot-space-8) + var(--openbot-space-3));
+  place-items: center;
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-control-hover);
+}
+
+.ui-button.first-agent-color-choice:hover:not(:disabled) {
   background: var(--openbot-hover);
 }
 
-.first-agent-color-choice[aria-pressed="true"],
-.first-agent-face-choice[aria-pressed="true"] {
-  border-color: var(--openbot-accent-text);
-  box-shadow: 0 0 0 2px var(--openbot-accent-soft);
+.ui-button.first-agent-face-choice:hover:not(:disabled) {
+  background: var(--openbot-bg-control-active);
+}
+
+.first-agent-color-choice[aria-pressed="true"] {
+  border-color: var(--openbot-cat-accent);
+  box-shadow: 0 0 0 2px var(--openbot-cat-accent-soft);
+}
+
+.ui-button.first-agent-face-choice[aria-pressed="true"],
+.ui-button.first-agent-face-choice[aria-pressed="true"]:hover:not(:disabled) {
+  border-color: var(--openbot-cat-accent);
+  background: var(--openbot-cat-accent-soft);
 }
 
 .first-agent-color-swatch {
   display: block;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--openbot-border-strong);
+  width: var(--openbot-space-6);
+  height: var(--openbot-space-6);
   border-radius: var(--openbot-radius-pill);
 }
 
 .first-agent-face-choice .agent-avatar {
-  --agent-avatar-optical-offset: -3.25px;
+  --agent-avatar-optical-offset: calc(var(--openbot-space-8) * -0.14);
 
-  width: 24px;
-  height: 24px;
+  width: var(--openbot-space-8);
+  height: var(--openbot-space-8);
+}
+
+/* The form is one card, and the primary action has its full width. */
+.first-agent-form-card {
+  display: grid;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-4) var(--openbot-space-6);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background: var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
 }
 
 .first-agent-fields {
   display: grid;
   gap: var(--openbot-space-3);
-  margin-top: var(--openbot-space-1);
 }
 
 .first-agent-fields .ui-textarea {
@@ -156,7 +337,28 @@
 }
 
 .ui-button.first-agent-submit {
-  min-width: 132px;
+  width: 100%;
+  height: calc(var(--openbot-space-8) + var(--openbot-space-3));
+  border: 0;
+  border-radius: var(--openbot-radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--openbot-cat-accent-end),
+    var(--openbot-cat-accent) 55%,
+    var(--openbot-cat-accent-deep)
+  );
+  box-shadow: var(--openbot-cat-shadow-accent);
+  color: var(--openbot-cat-on-accent);
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+.ui-button.first-agent-submit:hover:not(:disabled) {
+  background: linear-gradient(90deg, var(--openbot-cat-accent), var(--openbot-cat-accent-deep));
+}
+
+.first-agent-submit-icon {
+  fill: currentcolor;
 }
 
 /*
@@ -166,7 +368,7 @@
 .first-agent-fields .provider-model-trigger-field {
   border: 1px solid var(--openbot-border-strong);
   border-radius: var(--openbot-radius-md);
-  background: var(--openbot-bg-control);
+  background: transparent;
   box-shadow: none;
 }
 
@@ -187,8 +389,6 @@
 
 .first-agent-submit-actions {
   display: flex;
-  justify-content: center;
-  margin-top: var(--openbot-space-1);
 }
 
 .first-agent-error {
@@ -201,85 +401,69 @@
 
 .first-agent-suggestions {
   min-width: 0;
-  padding: 0 var(--openbot-space-6) var(--openbot-space-4);
+  padding: 0 var(--openbot-space-4) var(--openbot-space-4);
 }
 
-.first-agent-suggestions > h2 {
-  margin: 0 0 var(--openbot-space-2);
-  color: var(--openbot-text-muted);
-  font-size: var(--openbot-text-sm);
+.first-agent-suggestions-header {
+  display: flex;
+  min-height: var(--openbot-control-sm);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--openbot-space-1);
+}
+
+.first-agent-suggestions-header h2 {
+  margin: 0;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-lg);
   font-weight: var(--openbot-weight-medium);
-  line-height: var(--openbot-leading-sm);
+}
+
+.ui-button.first-agent-suggestions-all {
+  color: var(--openbot-cat-accent-text);
 }
 
 .first-agent-suggestion-viewport {
-  position: relative;
   min-width: 0;
 }
 
-.first-agent-suggestion-viewport::before,
-.first-agent-suggestion-viewport::after {
-  position: absolute;
-  z-index: 2;
-  top: 0;
-  bottom: var(--openbot-space-1);
-  width: 48px;
-  opacity: 0;
-  pointer-events: none;
-  content: "";
-  transition: opacity var(--openbot-duration-normal) var(--openbot-ease-out);
-}
-
-.first-agent-suggestion-viewport::before {
-  left: 0;
-  background: linear-gradient(to right, var(--openbot-bg-canvas), transparent);
-}
-
-.first-agent-suggestion-viewport::after {
-  right: 0;
-  background: linear-gradient(to left, var(--openbot-bg-canvas), transparent);
-}
-
-.first-agent-suggestion-viewport.can-scroll-back::before,
-.first-agent-suggestion-viewport.can-scroll-forward::after {
-  opacity: 1;
-}
-
+/* Four cards in one row that never overflow. "See all" opens the other rows. */
 .first-agent-suggestion-list {
-  display: flex;
+  display: grid;
   min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--openbot-space-3);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
   margin: 0;
-  padding: 1px 1px var(--openbot-space-1);
+  padding: 0;
   list-style: none;
-  scrollbar-width: none;
-  cursor: grab;
-  touch-action: pan-y;
   user-select: none;
 }
 
-.first-agent-suggestion-list::-webkit-scrollbar {
+@container (min-width: 900px) {
+  .first-agent-suggestion-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.first-agent-suggestion-list:not([data-all]) .first-agent-suggestion-item:nth-child(n + 5) {
   display: none;
 }
 
 .first-agent-suggestion-item {
-  width: 256px;
-  flex: 0 0 256px;
+  min-width: 0;
   margin: 0;
 }
 
 .ui-button.first-agent-suggestion-card {
   width: 100%;
-  height: 112px;
+  height: 100%;
+  min-height: calc(var(--openbot-space-8) * 3);
   justify-content: flex-start;
-  gap: var(--openbot-space-4);
-  border-color: var(--openbot-border);
+  gap: var(--openbot-space-3);
+  border-color: var(--openbot-cat-hairline);
   border-radius: var(--openbot-radius-lg);
-  background: transparent;
-  padding: var(--openbot-space-4);
-  cursor: grab;
+  background: var(--openbot-cat-surface);
+  padding: var(--openbot-space-3);
   text-align: left;
   white-space: normal;
   transition:
@@ -293,20 +477,14 @@
 }
 
 .first-agent-suggestion-card[aria-pressed="true"] {
-  border-color: var(--openbot-accent);
-  background: var(--openbot-accent-soft);
-}
-
-.first-agent-suggestion-viewport.is-dragging,
-.first-agent-suggestion-viewport.is-dragging .first-agent-suggestion-list,
-.first-agent-suggestion-viewport.is-dragging .first-agent-suggestion-card {
-  cursor: grabbing;
+  border-color: var(--openbot-cat-accent);
+  background: var(--openbot-cat-accent-soft);
 }
 
 .first-agent-suggestion-card .agent-avatar {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: var(--openbot-space-8);
+  height: var(--openbot-space-8);
+  flex: 0 0 var(--openbot-space-8);
 }
 
 .first-agent-suggestion-card > span:last-child {
@@ -322,42 +500,21 @@
 
 .first-agent-suggestion-card strong {
   color: var(--openbot-text-primary);
-  font-size: var(--openbot-text-xl);
+  font-size: var(--openbot-text-lg);
   font-weight: var(--openbot-weight-medium);
   line-height: var(--openbot-leading-xl);
 }
 
 .first-agent-suggestion-card small {
   color: var(--openbot-text-muted);
-  font-size: var(--openbot-text-md);
+  font-size: var(--openbot-text-sm);
   font-weight: var(--openbot-weight-regular);
-  line-height: var(--openbot-leading-md);
+  line-height: var(--openbot-leading-sm);
 }
 
 @media (max-width: 800px) {
-  .first-agent-editor {
-    width: min(400px, calc(100% - 32px));
-    padding-block: var(--openbot-space-4);
-  }
-
-  .first-agent-live-avatar,
-  .first-agent-live-avatar .agent-avatar {
-    width: 62px;
-    height: 62px;
-  }
-
   .first-agent-face-options {
-    gap: var(--openbot-space-0-5);
     flex-wrap: wrap;
-  }
-
-  .first-agent-suggestions {
-    padding-inline: var(--openbot-space-4);
-  }
-
-  .first-agent-suggestion-item {
-    width: min(256px, calc(100vw - 64px));
-    flex-basis: min(256px, calc(100vw - 64px));
   }
 }
 
@@ -367,12 +524,7 @@
     transition: none;
   }
 
-  .first-agent-suggestion-viewport .ui-button.first-agent-suggestion-card {
-    transition: none;
-  }
-
-  .first-agent-suggestion-viewport::before,
-  .first-agent-suggestion-viewport::after {
+  .ui-button.first-agent-suggestion-card {
     transition: none;
   }
 }

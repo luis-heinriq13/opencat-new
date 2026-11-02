@@ -1,59 +1,214 @@
+/* The usage page: plain cards on the canvas, one large total with a soft glow, and no narrow column.
+ * The same rules serve both themes; the --openbot-cat-* tokens have a value for each. */
 .agent-usage-secondary,
 .agent-usage-footer {
   font-size: var(--openbot-text-sm);
   color: var(--openbot-text-muted);
 }
-.agent-usage-overview {
-  display: grid;
-  gap: var(--openbot-space-8);
+.agent-usage h3 {
+  font-size: var(--openbot-text-xl);
+  font-weight: var(--openbot-weight-semibold);
 }
-.agent-usage-summary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--openbot-space-8);
-}
-.agent-usage-hero {
-  font-size: var(--openbot-text-usage-total);
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-  margin-bottom: var(--openbot-space-3);
-}
-.agent-usage-providers {
-  display: flex;
-  flex-direction: column;
-  gap: var(--openbot-space-6);
-}
-.agent-usage-provider-heading {
+.agent-usage-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--openbot-space-4);
-  font-size: var(--openbot-text-lg);
+  margin-bottom: var(--openbot-space-2);
+}
+.agent-usage-section-header > .ui-button {
+  color: var(--openbot-cat-accent-text);
+  font-weight: var(--openbot-weight-medium);
+}
+
+p.agent-usage-notice {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3) var(--openbot-space-4);
+  border-radius: var(--openbot-radius-lg);
+  background: linear-gradient(90deg, var(--openbot-cat-accent-soft), var(--openbot-cat-accent-wash));
+  color: var(--openbot-text-secondary);
+}
+/* The information mark. A mask draws it, so the text keeps one element. */
+p.agent-usage-notice::before {
+  flex: none;
+  width: var(--openbot-icon-lg);
+  height: var(--openbot-icon-lg);
+  background: var(--openbot-cat-accent);
+  content: "";
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* The total at the left and the provider rows at the right. */
+.agent-usage-summary {
+  display: grid;
+  flex: none;
+  gap: var(--openbot-space-4);
+}
+@container (min-width: 850px) {
+  .agent-usage-summary {
+    grid-template-columns: minmax(320px, 0.74fr) minmax(0, 1fr);
+  }
+}
+.agent-usage-hero-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-8);
+  min-height: calc(var(--openbot-space-8) * 8);
+  overflow: hidden;
+  padding: var(--openbot-space-6) var(--openbot-space-8) calc(var(--openbot-space-8) + var(--openbot-space-6));
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background:
+    radial-gradient(70% 90% at 100% 0%, var(--openbot-cat-glow-strong), transparent 100%),
+    radial-gradient(60% 80% at 0% 100%, var(--openbot-cat-glow), transparent 100%), var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
+}
+/* The soft wave along the bottom: it starts pale at the left and ends at the accent. */
+.agent-usage-hero-card::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--openbot-space-8) * 2 + var(--openbot-space-2));
+  background: linear-gradient(
+    90deg,
+    var(--openbot-cat-glow-strong),
+    color-mix(in srgb, var(--openbot-cat-accent-end) 48%, transparent) 55%,
+    var(--openbot-cat-accent)
+  );
+  content: "";
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 100' preserveAspectRatio='none'%3E%3Cpath d='M0 100C50 96 90 84 136 62S210 34 250 42 330 40 400 6V100Z'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+}
+.agent-usage-hero-tile {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--openbot-space-8) * 3);
+  height: calc(var(--openbot-space-8) * 3);
+  border-radius: var(--openbot-cat-radius-tile-large);
+  background: var(--openbot-cat-tile);
+  box-shadow: var(--openbot-cat-shadow-tile);
+  color: var(--openbot-cat-accent);
+  transform: rotate(-7deg);
+}
+/* The dotted ring around the tile. */
+.agent-usage-hero-tile::before {
+  position: absolute;
+  inset: calc(var(--openbot-space-8) * -1);
+  border: 1px dotted var(--openbot-cat-dot);
+  border-radius: var(--openbot-radius-pill);
+  content: "";
+}
+.agent-usage-hero-tile svg {
+  width: var(--openbot-space-8);
+  height: var(--openbot-space-8);
+  stroke-width: 3.25;
+}
+.agent-usage-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+}
+.agent-usage-hero-label {
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-xl);
+}
+.agent-usage-hero {
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-usage-hero);
+  font-weight: var(--openbot-weight-bold);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+}
+
+.agent-usage-providers {
+  min-width: 0;
+  padding: var(--openbot-space-4) var(--openbot-space-6) var(--openbot-space-2);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background: var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
+}
+.agent-usage-provider {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--openbot-space-4);
+  padding: var(--openbot-space-2) 0;
+}
+.agent-usage-provider + .agent-usage-provider {
+  border-top: 1px solid var(--openbot-cat-hairline);
+}
+/* The face on the provider's color: a rounded tile with two eyes. */
+.agent-usage-provider-tile {
+  position: relative;
+  grid-row: 1 / span 2;
+  width: calc(var(--openbot-space-8) + var(--openbot-space-2));
+  height: var(--openbot-space-8);
+  border-radius: var(--openbot-radius-lg);
+}
+.agent-usage-provider-tile::before,
+.agent-usage-provider-tile::after {
+  position: absolute;
+  top: 50%;
+  width: var(--openbot-space-1-5);
+  height: var(--openbot-space-1-5);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-cat-on-accent);
+  content: "";
+  translate: 0 -50%;
+}
+.agent-usage-provider-tile::before {
+  left: 32%;
+}
+.agent-usage-provider-tile::after {
+  right: 32%;
+}
+.agent-usage-provider-heading {
+  display: contents;
 }
 .agent-usage-provider-heading > span {
   display: flex;
+  grid-column: 2;
   align-items: center;
   gap: var(--openbot-space-2);
-}
-/* The legend mark for the row's series. Its colour is an inline style, because it is the
-   provider that decides it rather than the stylesheet. */
-.agent-usage-series-dot {
-  width: var(--openbot-space-2);
-  height: var(--openbot-space-2);
-  border-radius: var(--openbot-radius-pill);
-  flex-shrink: 0;
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-semibold);
 }
 .agent-usage-provider-heading strong {
-  font-weight: 550;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  padding: var(--openbot-space-1-5) var(--openbot-space-4);
+  border-radius: var(--openbot-radius-md);
+  background: var(--openbot-bg-control-hover);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-xl);
+  font-weight: var(--openbot-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
+.agent-usage-provider:nth-child(-n + 2) strong {
+  background: var(--openbot-cat-accent-soft);
+  color: var(--openbot-cat-accent-text);
+}
 .agent-usage-provider p {
+  grid-column: 2;
   color: var(--openbot-text-muted);
   font-size: var(--openbot-text-sm);
-  margin-top: var(--openbot-space-2);
 }
 .agent-usage-provider-icon {
   fill: var(--openbot-provider-current);
@@ -61,70 +216,142 @@
   height: var(--openbot-space-4);
   flex-shrink: 0;
 }
-.agent-usage-trend {
-  min-width: 0;
-}
-.agent-usage-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--openbot-space-4);
-  margin-bottom: var(--openbot-space-4);
-}
 
-/* One line, never two. A wrapped second row put two entries under five and read as a
-   second, more important group; the entries are a tail of decreasing interest instead, so
-   a panel too narrow to hold them all drops the last ones rather than rewrapping. */
+/* The totals: one row of compact cards with colored round tiles. */
+.agent-usage-totals-section {
+  flex: none;
+}
 .agent-usage-totals {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: calc(var(--openbot-space-6) * 2);
-  margin-top: var(--openbot-space-4);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--openbot-space-8) * 5), 1fr));
+  gap: var(--openbot-space-2);
+  margin-top: var(--openbot-space-2);
+}
+@container (min-width: 1100px) {
+  .agent-usage-totals {
+    grid-template-columns: 1.3fr 1.35fr 1.1fr 1.1fr 1.1fr 0.95fr 0.95fr;
+  }
+}
+.agent-usage-totals > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  column-gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
 }
 .agent-usage-totals dt {
-  font-size: var(--openbot-text-sm);
+  grid-column: 2;
   color: var(--openbot-text-muted);
-  margin-bottom: var(--openbot-space-1);
-  white-space: nowrap;
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
 }
 .agent-usage-totals dd {
+  grid-column: 2;
   margin: 0;
-  font-size: var(--openbot-text-xl);
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.agent-usage-total-tile {
+  display: inline-flex;
+  grid-row: 1 / span 2;
+  align-items: center;
+  justify-content: center;
+  width: var(--openbot-control-lg);
+  height: var(--openbot-control-lg);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-cat-accent-soft);
+  color: var(--openbot-cat-accent);
+}
+.agent-usage-total-tile svg {
+  width: var(--openbot-icon-md);
+  height: var(--openbot-icon-md);
+  stroke-width: 2.5;
+}
+.agent-usage-totals > div:nth-child(2) .agent-usage-total-tile,
+.agent-usage-totals > div:nth-child(3) .agent-usage-total-tile,
+.agent-usage-totals > div:nth-child(4) .agent-usage-total-tile {
+  background: var(--openbot-warning-soft);
+  color: var(--openbot-warning);
+}
+.agent-usage-totals > div:nth-child(5) .agent-usage-total-tile {
+  background: color-mix(in srgb, var(--openbot-chart-series-codex) 16%, transparent);
+  color: var(--openbot-chart-series-codex);
+}
+.agent-usage-totals > div:nth-child(6) .agent-usage-total-tile {
+  background: var(--openbot-file-blue-soft);
+  color: var(--openbot-file-blue);
+}
+.agent-usage-totals > div:nth-child(7) .agent-usage-total-tile {
+  background: var(--openbot-success-soft);
+  color: var(--openbot-success);
+}
+
+/* The breakdown: one card that holds the title, the segmented control and the table. */
+.agent-usage-breakdown,
+.agent-usage-trend {
+  flex: none;
+  min-width: 0;
+  padding: var(--openbot-space-4) var(--openbot-space-4) var(--openbot-space-2);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background: var(--openbot-cat-surface);
+  box-shadow: var(--openbot-cat-shadow);
+}
+.agent-usage-breakdown .ui-sliding-tabs:has(.ui-sliding-tabs-trigger) {
+  background: var(--openbot-bg-control-hover);
+  box-shadow: none;
+}
+.agent-usage-breakdown .ui-sliding-tabs-pill {
+  background: var(--openbot-cat-surface);
+  box-shadow: 0 0 0 1px var(--openbot-cat-accent-strong);
+}
+.agent-usage-breakdown .ui-sliding-tabs-trigger[aria-selected="true"] {
+  color: var(--openbot-cat-accent-text);
+}
+/* The long daily table does not keep its height while another tab is open. */
+.agent-usage-breakdown .ui-sliding-tabs-content:not([data-selected]) {
+  height: 0;
+  overflow: hidden;
 }
 .agent-usage-table {
   overflow-x: auto;
 }
 .agent-usage-table table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--openbot-text-lg);
   font-variant-numeric: tabular-nums;
 }
-.agent-usage-table th,
-.agent-usage-table td {
-  text-align: right;
+.agent-usage-table :is(th, td) {
   padding: var(--openbot-space-2) var(--openbot-space-3);
-  border-bottom: 1px solid var(--openbot-border-strong);
+  border-bottom: 1px solid var(--openbot-cat-hairline);
+  font-weight: var(--openbot-weight-regular);
+  text-align: right;
   white-space: nowrap;
-  font-weight: 400;
 }
 .agent-usage-table th:first-child {
   text-align: left;
-  padding-left: 0;
   white-space: normal;
 }
-.agent-usage-table td:last-child {
-  padding-right: 0;
-}
 .agent-usage-table thead th {
+  border-bottom: 0;
   color: var(--openbot-text-muted);
-  font-size: var(--openbot-text-sm);
+  font-size: var(--openbot-text-md);
 }
 .agent-usage-table td {
   color: var(--openbot-text-secondary);
+}
+.agent-usage-table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
 }
 .agent-usage-model-name {
   display: flex;
@@ -133,11 +360,47 @@
   overflow-wrap: anywhere;
   min-width: 10rem;
 }
+.agent-usage-share {
+  padding: var(--openbot-space-0-5) var(--openbot-space-2);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-bg-control-hover);
+}
+/* The top row is the most important one, so it has a pale band and two chips. */
+.agent-usage-table tbody tr:first-child :is(th, td) {
+  border-bottom: 0;
+  background: var(--openbot-cat-accent-soft);
+}
+.agent-usage-table tbody tr:first-child th {
+  border-radius: var(--openbot-radius-md) 0 0 var(--openbot-radius-md);
+}
+.agent-usage-table tbody tr:first-child td:last-child {
+  border-radius: 0 var(--openbot-radius-md) var(--openbot-radius-md) 0;
+}
+.agent-usage-table tbody tr:first-child td:nth-child(2) > span[aria-hidden="true"],
+.agent-usage-table tbody tr:first-child .agent-usage-share {
+  padding: var(--openbot-space-0-5) var(--openbot-space-2);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-cat-accent-soft);
+  color: var(--openbot-cat-accent-text);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+.agent-usage-trend {
+  padding-bottom: var(--openbot-space-3);
+}
+.agent-usage-trend h3 {
+  margin-bottom: var(--openbot-space-2);
+}
+.agent-usage-trend .ui-chart {
+  height: calc(var(--openbot-space-8) * 7);
+}
+
 .agent-usage-footer {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: var(--openbot-space-3);
-  padding-bottom: var(--openbot-space-6);
+  padding-bottom: var(--openbot-space-2);
 }
 .agent-usage-footer summary {
   cursor: pointer;
@@ -149,297 +412,23 @@
   line-height: 1.6;
 }
 
-/* The decoration of the light design. The dark theme does not show it. */
-.agent-usage-hero-tile,
-.agent-usage-hero-label,
-.agent-usage-total-tile {
-  display: none;
-}
-
-/* The light design: plain cards on a near-white canvas, a very large dark total and one warm wave.
- * The page is never tinted. */
-:root[data-openbot-color-scheme="light"] {
-  .agent-usage {
-    background: var(--openbot-cat-canvas);
-  }
-  .agent-usage-header {
-    border-bottom-color: var(--openbot-cat-hairline);
-  }
-  .agent-usage-controls .ui-select-trigger {
-    border-color: var(--openbot-cat-hairline);
-    border-radius: var(--openbot-radius-pill);
-  }
-  .agent-usage-body {
-    gap: var(--openbot-space-6);
-  }
-  .agent-usage h3 {
-    font-size: var(--openbot-text-xl);
-    font-weight: var(--openbot-weight-semibold);
-  }
-  p.agent-usage-notice {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: var(--openbot-space-3);
-    border-radius: var(--openbot-cat-radius);
-    background: var(--openbot-cat-accent-soft);
-    color: var(--openbot-text-secondary);
-  }
-  p.agent-usage-notice::before {
-    flex: none;
-    width: var(--openbot-icon-lg);
-    height: var(--openbot-icon-lg);
-    border: 2px solid var(--openbot-cat-accent);
-    border-radius: var(--openbot-radius-pill);
-    box-shadow: inset 0 0 0 3px var(--openbot-cat-surface);
-    background: var(--openbot-cat-accent);
-    content: "";
-  }
-
-  /* The total at the left, and at the right the daily card, which holds the chart and the provider
-   rows. The summary is contents, so its two parts are items of the same grid. */
-  .agent-usage-overview {
-    flex: none;
-    gap: var(--openbot-space-4);
-    grid-template-rows: auto auto;
-  }
-  .agent-usage-summary {
-    display: contents;
-  }
+@container (max-width: 480px) {
   .agent-usage-hero-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--openbot-space-2);
-    min-height: calc(var(--openbot-space-8) * 10);
-    overflow: hidden;
-    padding: var(--openbot-space-8);
-    padding-bottom: calc(var(--openbot-space-8) * 3);
-    border: 1px solid var(--openbot-cat-hairline);
-    border-radius: var(--openbot-radius-xl);
-    background: var(--openbot-cat-surface);
-    box-shadow: var(--openbot-cat-shadow);
-  }
-  /* The warm wave at the bottom of the total. A mask gives the shape, and the gradient is a token. */
-  .agent-usage-hero-card::after {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: calc(var(--openbot-space-8) * 3);
-    background: var(--openbot-cat-gradient);
-    content: "";
-    mask:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 100' preserveAspectRatio='none'%3E%3Cpath d='M0 62C60 22 118 18 176 48S300 92 400 18V100H0Z'/%3E%3C/svg%3E")
-      center / 100% 100% no-repeat;
-    opacity: 0.92;
+    gap: var(--openbot-space-4);
+    padding-inline: var(--openbot-space-4);
   }
   .agent-usage-hero-tile {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: calc(var(--openbot-space-8) + var(--openbot-space-4));
-    height: calc(var(--openbot-space-8) + var(--openbot-space-4));
-    margin-bottom: var(--openbot-space-3);
-    border-radius: var(--openbot-radius-card);
-    background: linear-gradient(145deg, var(--openbot-cat-surface), var(--openbot-cat-canvas));
-    box-shadow: var(--openbot-cat-shadow-raised);
-    color: var(--openbot-cat-accent);
+    width: calc(var(--openbot-space-8) * 2);
+    height: calc(var(--openbot-space-8) * 2);
   }
-  .agent-usage-hero-tile svg {
-    width: var(--openbot-icon-lg);
-    height: var(--openbot-icon-lg);
-  }
-  .agent-usage-hero-label {
-    display: block;
-    color: var(--openbot-text-muted);
-    font-size: var(--openbot-text-lg);
-    font-weight: var(--openbot-weight-medium);
+  .agent-usage-hero-tile::before {
+    display: none;
   }
   .agent-usage-hero {
-    margin-bottom: var(--openbot-space-1);
-    color: var(--openbot-text-primary);
-    font-size: var(--openbot-text-usage-hero);
-    font-weight: var(--openbot-weight-bold);
-    overflow-wrap: break-word;
-  }
-  .agent-usage-trend,
-  .agent-usage-providers {
-    border: 1px solid var(--openbot-cat-hairline);
-    background: var(--openbot-cat-surface);
-    box-shadow: var(--openbot-cat-shadow);
-  }
-  .agent-usage-trend {
-    padding: var(--openbot-space-6) var(--openbot-space-6) var(--openbot-space-3);
-    border-radius: var(--openbot-radius-xl);
-  }
-  .agent-usage-providers {
-    gap: 0;
-    padding: var(--openbot-space-2) var(--openbot-space-6);
-    border-radius: var(--openbot-radius-xl);
-  }
-  .agent-usage-section-header > .ui-button {
-    color: var(--openbot-cat-accent-text);
-    font-weight: var(--openbot-weight-medium);
-  }
-  .agent-usage-trend .ui-chart {
-    height: calc(var(--openbot-space-8) * 7);
-  }
-  .agent-usage-provider {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: var(--openbot-space-3);
-    padding: var(--openbot-space-3) 0;
-  }
-  .agent-usage-provider + .agent-usage-provider {
-    border-top: 1px solid var(--openbot-cat-hairline);
-  }
-  .agent-usage-provider-heading {
-    display: contents;
-  }
-  .agent-usage-provider-heading > span {
-    font-weight: var(--openbot-weight-semibold);
+    font-size: var(--openbot-text-display);
   }
   .agent-usage-provider-heading strong {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    padding: var(--openbot-space-1) var(--openbot-space-3);
-    border-radius: var(--openbot-radius-pill);
-    background: var(--openbot-bg-control-hover);
-    color: var(--openbot-text-secondary);
+    padding-inline: var(--openbot-space-2);
     font-size: var(--openbot-text-md);
-    font-weight: var(--openbot-weight-semibold);
-  }
-  .agent-usage-provider:nth-child(-n + 2) strong {
-    background: var(--openbot-cat-accent-soft);
-    color: var(--openbot-cat-accent-text);
-  }
-  .agent-usage-provider p {
-    grid-column: 1;
-    margin-top: var(--openbot-space-0-5);
-  }
-
-  /* The totals: small plain cards with colored tiles */
-  .agent-usage-totals-section {
-    flex: none;
-  }
-  .agent-usage-totals,
-  .app-frame:not(.web-app-frame) .agent-usage-totals {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(calc(var(--openbot-space-8) * 5), 1fr));
-    gap: var(--openbot-space-3);
-    overflow: visible;
-    padding-bottom: 0;
-  }
-  .agent-usage-totals > div:nth-child(n),
-  .app-frame:not(.web-app-frame) .agent-usage-totals > div:nth-child(n) {
-    display: block;
-    min-width: 0;
-    padding: var(--openbot-space-4);
-    border: 1px solid var(--openbot-cat-hairline);
-    border-radius: var(--openbot-radius-card);
-    background: var(--openbot-cat-surface);
-    box-shadow: var(--openbot-cat-shadow);
-  }
-  .agent-usage-totals dt {
-    display: flex;
-    align-items: center;
-    gap: var(--openbot-space-2);
-    margin-bottom: var(--openbot-space-2);
-    white-space: normal;
-  }
-  .agent-usage-totals dd {
-    font-size: var(--openbot-text-2xl);
-    font-weight: var(--openbot-weight-semibold);
-  }
-  .agent-usage-total-tile {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: var(--openbot-control-sm);
-    height: var(--openbot-control-sm);
-    border-radius: var(--openbot-radius-md);
-    background: var(--openbot-cat-accent-soft);
-    color: var(--openbot-cat-accent);
-  }
-  .agent-usage-total-tile svg {
-    width: var(--openbot-icon-sm);
-    height: var(--openbot-icon-sm);
-  }
-  .agent-usage-totals > div:nth-child(3n + 2) .agent-usage-total-tile {
-    background: var(--openbot-warning-soft);
-    color: var(--openbot-warning);
-  }
-  .agent-usage-totals > div:nth-child(3n + 3) .agent-usage-total-tile {
-    background: var(--openbot-file-yellow-soft);
-    color: var(--openbot-file-yellow);
-  }
-
-  /* The breakdown */
-  .ui-sliding-tabs:has(.ui-sliding-tabs-trigger) {
-    background: var(--openbot-bg-control-hover);
-    box-shadow: none;
-  }
-  .agent-usage-body .ui-sliding-tabs-trigger[aria-selected="true"] {
-    color: var(--openbot-cat-accent-text);
-  }
-  .agent-usage-table {
-    border: 1px solid var(--openbot-cat-hairline);
-    border-radius: var(--openbot-radius-xl);
-    background: var(--openbot-cat-surface);
-    box-shadow: var(--openbot-cat-shadow);
-    padding: var(--openbot-space-2) var(--openbot-space-4);
-  }
-  .agent-usage-table :is(th, td) {
-    padding: var(--openbot-space-3);
-    border-bottom-color: var(--openbot-cat-hairline);
-    font-size: var(--openbot-text-md);
-  }
-  .agent-usage-table th:first-child {
-    padding-left: var(--openbot-space-3);
-    font-weight: var(--openbot-weight-medium);
-  }
-  .agent-usage-table td:last-child {
-    padding-right: var(--openbot-space-3);
-  }
-  .agent-usage-table tbody tr:last-child :is(th, td) {
-    border-bottom: 0;
-  }
-  .agent-usage-table tbody tr:first-child :is(th, td) {
-    background: var(--openbot-cat-accent-wash);
-  }
-  .agent-usage-table tbody tr:first-child th {
-    border-radius: var(--openbot-radius-md) 0 0 var(--openbot-radius-md);
-    box-shadow: inset 3px 0 0 var(--openbot-cat-accent);
-  }
-  .agent-usage-table tbody tr:first-child td:last-child {
-    border-radius: 0 var(--openbot-radius-md) var(--openbot-radius-md) 0;
-  }
-  .agent-usage-table tbody tr:first-child td > span[aria-hidden="true"] {
-    padding: var(--openbot-space-0-5) var(--openbot-space-2);
-    border-radius: var(--openbot-radius-pill);
-    background: var(--openbot-cat-accent-soft);
-    color: var(--openbot-cat-accent-text);
-    font-weight: var(--openbot-weight-semibold);
-  }
-
-  @container (min-width: 850px) {
-    .agent-usage-overview {
-      grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.5fr);
-    }
-    .agent-usage-hero-card {
-      grid-row: 1 / span 2;
-    }
-    .agent-usage-trend {
-      grid-column: 2;
-      grid-row: 1;
-    }
-    .agent-usage-providers {
-      grid-column: 2;
-      grid-row: 2;
-    }
   }
 }

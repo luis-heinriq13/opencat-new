@@ -8,7 +8,13 @@ import {
   type ShapeId,
 } from "@norbert_bodziony/bloub";
 import type { AvatarHue } from "@openbot/contracts/ipc";
-import { EXTRA_SILHOUETTE_IDS, EXTRA_SILHOUETTE_RADII, type ExtraSilhouetteId } from "./bloub-extra-shapes";
+import {
+  CREATURE_BY_RELEASED_SILHOUETTE,
+  CREATURE_SILHOUETTE_RADII,
+  EXTRA_SILHOUETTE_IDS,
+  EXTRA_SILHOUETTE_RADII,
+  type ExtraSilhouetteId,
+} from "./bloub-extra-shapes";
 
 export type BuiltInAvatarSilhouetteId = Exclude<ShapeId, "goutte">;
 export type SupportedAvatarSilhouetteId = BuiltInAvatarSilhouetteId | ExtraSilhouetteId;
@@ -19,6 +25,14 @@ export { EXTRA_SILHOUETTE_IDS, type ExtraSilhouetteId };
 // and a longer list would change the look of every stored avatar.
 for (const id of EXTRA_SILHOUETTE_IDS) {
   SHAPE_BY_ID.set(id, { id: "cercle", radii: [...EXTRA_SILHOUETTE_RADII[id]] });
+}
+
+// A released slot keeps its id, so a stored seed picks the same slot; only the radii behind it change.
+// A new array has no entry in the library eye-offset table, so the eyes get no offset: the creatures keep
+// the face margin inside the outline (radius >= 0.6 around the eyes).
+for (const [id, creature] of Object.entries(CREATURE_BY_RELEASED_SILHOUETTE)) {
+  const entry = SHAPE_BY_ID.get(id);
+  if (entry) SHAPE_BY_ID.set(id, { id: entry.id, radii: [...CREATURE_SILHOUETTE_RADII[creature]] });
 }
 
 const SHAPE_TAG = ":shape-";

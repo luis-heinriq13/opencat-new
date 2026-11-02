@@ -7,7 +7,7 @@
   "creatorName": "Meta",
   "iconUrl": null,
   "version": "1.0.0",
-  "panel": "connect",
+  "panel": "interactive",
   "prompts": [
     {
       "id": "prompt-accounts",

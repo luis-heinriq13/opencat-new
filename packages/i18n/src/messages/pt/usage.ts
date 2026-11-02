@@ -43,6 +43,7 @@ export const messages = {
   "usage.totals.cacheCreation": "Criação de cache",
   "usage.totals.output": "Saída",
   "usage.totals.userMessages": "Mensagens do usuário",
+  "usage.totals.messages": "Mensagens",
   "usage.totals.assistantMessages": "Mensagens concluídas do assistente",
   "usage.breakdown.title": "Detalhamento",
   "usage.breakdown.label": "Detalhamento do uso",

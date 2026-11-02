@@ -246,7 +246,7 @@ export function createTeamsTools({
   async function accessToken() {
     if (access && access.expiresAt - 60_000 > now()) return access.token;
     const refresh = await tokens.load();
-    if (!refresh) throw new Error("O Teams não está conectado. Use teams_sign_in.");
+    if (!refresh) throw Object.assign(new Error("O Teams não está conectado. Use teams_sign_in."), { kind: "signin" });
     remember(refresh);
     const { body } = await postForm(`${authority}/token`, {
       client_id: clientId,
@@ -258,7 +258,9 @@ export function createTeamsTools({
       if (body.error === "invalid_grant" || body.error === "interaction_required") {
         await tokens.clear();
         access = null;
-        throw new Error("A sessão do Teams expirou ou foi revogada. Use teams_sign_in de novo.");
+        throw Object.assign(new Error("A sessão do Teams expirou ou foi revogada. Use teams_sign_in de novo."), {
+          kind: "signin",
+        });
       }
       throw new Error(`Não consegui renovar a sessão do Teams (${body.error ?? "erro desconhecido"}).`);
     }
@@ -267,7 +269,7 @@ export function createTeamsTools({
   }
 
   /** Erro depois de uma resposta (ou antes de qualquer pedido): a mensagem com certeza não foi enviada. */
-  const definite = (message) => Object.assign(new Error(message), { definite: true });
+  const definite = (message, kind = "other") => Object.assign(new Error(message), { definite: true, kind });
 
   async function graph(path, post = null, retried = false) {
     let token;
@@ -292,10 +294,12 @@ export function createTeamsTools({
     if (response.status === 403) {
       throw definite(
         "O Microsoft recusou o acesso (403). A conta pode ser pessoal (não tem chats do Teams no Graph), ou o administrador da organização bloqueou a permissão pedida (pode exigir consentimento de administrador).",
+        "permission",
       );
     }
     if (response.status === 404) throw definite("Não encontrei esse item no Teams (404).");
-    if (response.status === 429) throw definite("O Teams pediu para esperar (429). Tente de novo em alguns minutos.");
+    if (response.status === 429)
+      throw definite("O Teams pediu para esperar (429). Tente de novo em alguns minutos.", "rate");
     if (!response.ok) throw definite(`O Microsoft Graph respondeu ${response.status}.`);
     return response.json();
   }
@@ -520,6 +524,15 @@ export function createTeamsTools({
   return {
     tools,
     sendEnabled,
+    /** Leitura estruturada para a página do app: o mesmo token, erros e tempo limite das ferramentas. */
+    graph: (path) => graph(path),
+    /** O código de entrada em andamento, ou null. */
+    pendingSignIn: () =>
+      pending && pending.expiresAt > now()
+        ? { userCode: pending.userCode, uri: pending.uri, expiresAt: pending.expiresAt }
+        : null,
+    lastSignInError: () => lastSignInError,
+    hasSession: async () => Boolean(access || (await tokens.load())),
     /** A ferramenta de envio só aparece com o envio ligado. */
     toolList: () => (sendEnabled ? [...TOOL_LIST, SEND_TOOL] : TOOL_LIST),
     /** Para testes: termina quando a entrada em andamento acaba. */

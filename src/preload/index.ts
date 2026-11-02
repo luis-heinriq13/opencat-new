@@ -188,6 +188,15 @@ import {
   decodeVoiceTranscriptionResult,
   decodeVoid,
 } from "./app-decoding";
+import {
+  decodeMetaAdsChangeResult,
+  decodeMetaAdsChildren,
+  decodeMetaAdsOverview,
+  decodeTeamsMessages,
+  decodeTeamsOverview,
+  decodeTeamsSendResult,
+  decodeTeamsSendSetting,
+} from "./app-pages-decoding";
 import { decodeAttendanceReport } from "./attendance-decoding";
 import { decodeBackgroundProcesses } from "./background-process-decoding";
 import {
@@ -873,6 +882,16 @@ const openbotApi: OpenBotDesktopApi = {
   appConnections: bridgeGroup(IPC_ENDPOINTS.appConnections, {
     status: decodeAppConnectionStatus,
     change: decodeAppConnectionStatus,
+  }),
+  appPages: bridgeGroup(IPC_ENDPOINTS.appPages, {
+    metaOverview: decodeMetaAdsOverview,
+    metaChildren: decodeMetaAdsChildren,
+    metaChange: decodeMetaAdsChangeResult,
+    teamsOverview: decodeTeamsOverview,
+    teamsMessages: decodeTeamsMessages,
+    teamsSend: decodeTeamsSendResult,
+    teamsSignIn: decodeTeamsOverview,
+    teamsSetSendEnabled: decodeTeamsSendSetting,
   }),
   attendance: bridgeGroup(IPC_ENDPOINTS.attendance, {
     report: decodeAttendanceReport,

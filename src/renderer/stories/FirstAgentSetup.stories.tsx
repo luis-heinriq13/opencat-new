@@ -42,6 +42,7 @@ function ControlledFirstAgentSetup(props: FirstAgentSetupProps) {
   return (
     <FirstAgentSetup
       {...props}
+      suggestions={FIRST_AGENT_SUGGESTIONS}
       value={draft()}
       onChange={(value) => {
         setDraft(value);

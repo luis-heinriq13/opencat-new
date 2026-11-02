@@ -34,7 +34,7 @@ export const PLUGIN_CATALOG_INDEX: PluginCatalogIndex = {
       slug: "teams",
       version: "1.0.0",
       featured: false,
-      detailSha256: "46a923d48881d2f2eec25fc5b08e6345e6f8ca6d3a418d694207fe7c4710ded8",
+      detailSha256: "8dfc4737773e94f69a6874c5260eb165ed2917646b2b4b23909c0cf1032a1526",
     },
     {
       slug: "aave",
@@ -52,7 +52,7 @@ export const PLUGIN_CATALOG_INDEX: PluginCatalogIndex = {
       slug: "meta-ads",
       version: "1.0.0",
       featured: false,
-      detailSha256: "23dc60d7ab7fbab8e2d2d55b1b505c4622d51659314356477c8b4ea799fc73b8",
+      detailSha256: "2a35658ad1e0daeda6d9f9701e34a828a09d3a4525688bbfdf175bbe6ecbbaf3",
     },
     {
       slug: "linear",
@@ -376,6 +376,7 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
     websiteUrl: "https://learn.microsoft.com/en-us/graph/api/chat-post",
     privacyPolicyUrl: "https://privacy.microsoft.com/privacystatement",
     termsUrl: "https://www.microsoft.com/servicesagreement",
+    panel: "interactive",
     skills: [],
   },
   aave: {
@@ -508,6 +509,7 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
     websiteUrl: "https://developers.facebook.com/docs/marketing-apis",
     privacyPolicyUrl: "https://www.facebook.com/privacy/policy/",
     termsUrl: "https://www.facebook.com/terms/",
+    panel: "interactive",
     skills: [],
   },
   linear: {

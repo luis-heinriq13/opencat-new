@@ -5,6 +5,7 @@ import { messages as agent } from "./agent";
 import { messages as agentSettings } from "./agentSettings";
 import { messages as agentTemplate } from "./agentTemplate";
 import { messages as app } from "./app";
+import { messages as appPages } from "./appPages";
 import { messages as attachment } from "./attachment";
 import { messages as attendance } from "./attendance";
 import { messages as billing } from "./billing";
@@ -66,6 +67,7 @@ export const pt = {
   ...billing,
   ...provider,
   ...app,
+  ...appPages,
   ...attendance,
   ...composer,
   ...attachment,

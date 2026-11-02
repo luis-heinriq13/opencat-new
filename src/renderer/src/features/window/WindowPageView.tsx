@@ -3,6 +3,8 @@ import { Loading, Match, Show, Switch } from "solid-js";
 import { AgentUsagePanel, WorkflowsPage } from "../../lazy-views";
 import { SkillsMarketplace } from "../../WorkspaceOverlays";
 import { useAgents } from "../agents/agents-context";
+import { MetaAdsPanel } from "../app-pages/MetaAdsPanel";
+import { TeamsPanel } from "../app-pages/TeamsPanel";
 import { AttendancePanel } from "../attendance/AttendancePanel";
 import { SchedulePanel } from "../schedule/SchedulePanel";
 import { useServers } from "../servers/servers-context";
@@ -21,7 +23,13 @@ export function WindowPageView() {
   const usage = useUsage();
   const { servers } = useServers();
   const { agentList } = useAgents();
-  const { setSkillsMarketplaceOpen } = useSettings();
+  const { setSkillsMarketplaceOpen, setPendingPluginSlug } = useSettings();
+  /** Every agent of the host can use its apps, so the pages list them all. */
+  const pageAgents = () => agentList().map((agent) => ({ id: agent.id, name: agent.name }));
+  const openApp = (slug: string) => {
+    setPendingPluginSlug(slug);
+    setSkillsMarketplaceOpen(true);
+  };
   const settingsKind = (): SettingsKind | null => {
     const page = windowPage.page();
     if (page === "settings") return "personal";
@@ -58,6 +66,23 @@ export function WindowPageView() {
             <AttendancePanel
               agentName={(agentId) => agentList().find((agent) => agent.id === agentId)?.name ?? null}
               onOpenStore={() => setSkillsMarketplaceOpen(true)}
+              onBack={usage.closeUsage}
+            />
+          </Match>
+          <Match when={usage.state.view === "meta-ads"}>
+            <MetaAdsPanel
+              serverId={serverId()}
+              agents={pageAgents()}
+              onOpenApp={() => openApp("meta-ads")}
+              onOpenTasks={() => windowPage.openTasks(null)}
+              onBack={usage.closeUsage}
+            />
+          </Match>
+          <Match when={usage.state.view === "teams"}>
+            <TeamsPanel
+              serverId={serverId()}
+              agents={pageAgents()}
+              onOpenTasks={() => windowPage.openTasks(null)}
               onBack={usage.closeUsage}
             />
           </Match>

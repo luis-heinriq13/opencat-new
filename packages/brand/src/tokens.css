@@ -33,7 +33,36 @@
   /* Neutral color system. Keep UI colors here, not in components. */
   --openbot-bg-canvas: #1a1a1a;
   /* The one accent of the Attendance page: the hero number, the selected period and the main series. */
-  --attendance-accent: #c9a227;
+  --attendance-accent: var(--openbot-cat-accent);
+  /* OpenCat's design on the dark greys. Only the desktop workspace uses these: the app shell maps the
+     accent tokens to them, so the public site keeps its own accent. The accent is never a page color;
+     the heroes have only a soft glow. Dark text on the fill, because white on it fails AA. */
+  --openbot-cat-accent: #f0442c;
+  --openbot-cat-accent-end: #ff7a2f;
+  --openbot-cat-accent-deep: #d9432c;
+  --openbot-cat-accent-hover: #ff5a42;
+  --openbot-cat-accent-text: #ff8a70;
+  --openbot-cat-accent-wash: rgba(240, 68, 44, 0.08);
+  --openbot-cat-accent-soft: rgba(240, 68, 44, 0.16);
+  --openbot-cat-accent-strong: rgba(240, 68, 44, 0.34);
+  --openbot-cat-on-accent: #141414;
+  --openbot-cat-gradient: linear-gradient(135deg, var(--openbot-cat-accent), var(--openbot-cat-accent-end));
+  --openbot-cat-canvas: #1a1a1a;
+  --openbot-cat-surface: #212121;
+  --openbot-cat-hairline: rgba(255, 255, 255, 0.07);
+  --openbot-cat-radius: 16px;
+  --openbot-cat-radius-tile: 24px;
+  --openbot-cat-radius-tile-large: 28px;
+  --openbot-cat-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.22);
+  --openbot-cat-shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 28px rgba(240, 68, 44, 0.12);
+  --openbot-cat-shadow-accent: 0 6px 16px rgba(240, 68, 44, 0.28);
+  --openbot-cat-shadow-tile:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 36px rgba(0, 0, 0, 0.36), 0 4px 18px rgba(240, 68, 44, 0.1);
+  --openbot-cat-tile: linear-gradient(145deg, #2f2f2f, #262322);
+  --openbot-cat-glow: rgba(255, 122, 47, 0.06);
+  --openbot-cat-glow-strong: rgba(255, 122, 47, 0.09);
+  --openbot-cat-dot: rgba(240, 68, 44, 0.32);
+  --openbot-cat-dot-neutral: rgba(255, 255, 255, 0.1);
   /* The window frame around the page card, darker than the card, so the card comes forward. */
   --openbot-bg-frame: #0d0d0d;
   /* A rail inside a menu, a step darker than the menu sheet. */
@@ -284,6 +313,7 @@
   --openbot-leading-display: 38px;
   --openbot-text-hero: clamp(3rem, 8vw, 6.5rem);
   --openbot-text-usage-hero: clamp(2.5rem, 4.6cqi, 3.75rem);
+  --openbot-text-attendance-hero: 5rem;
 
   /* Glyphs, not copy: a file-extension string inside a fixed 16-24px chip. Below the
    * scale's floor because the container is fixed, not because the text is small. Outside

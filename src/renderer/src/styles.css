@@ -44,6 +44,7 @@
 @import "@openbot/ui/features/tasks/tasks.css";
 @import "@openbot/ui/styles/chart.css";
 @import "@openbot/ui/features/attendance/attendance.css";
+@import "@openbot/ui/features/app-pages/app-pages.css";
 @import "@openbot/ui/features/files/files.css";
 @import "@openbot/ui/features/import/agent-import.css";
 @import "@openbot/ui/features/transfer/instance-transfer.css";

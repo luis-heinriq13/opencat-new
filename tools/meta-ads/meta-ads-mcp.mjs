@@ -243,18 +243,22 @@ export function createMetaAdsTools({
     }
     if (!response.ok || data?.error) {
       // Depois de uma resposta de erro, a alteração com certeza não foi aplicada.
-      const fail = (message) => Object.assign(new Error(message), { definite: true });
+      const fail = (message, kind = "other") => Object.assign(new Error(message), { definite: true, kind });
       const code = data?.error?.code;
       if (response.status === 401 || code === 190) {
-        throw fail("A Meta recusou o token (expirado ou revogado). Gere outro e atualize o META_ACCESS_TOKEN.");
+        throw fail(
+          "A Meta recusou o token (expirado ou revogado). Gere outro e atualize o META_ACCESS_TOKEN.",
+          "token",
+        );
       }
       if (response.status === 403 || code === 200 || code === 10) {
         throw fail(
           "A Meta negou a permissão. O token precisa de ads_read (e ads_management para alterar) e acesso a essa conta.",
+          "permission",
         );
       }
       if (response.status === 429 || [4, 17, 32, 613, 80004].includes(code)) {
-        throw fail("A Meta pediu para esperar (limite de chamadas). Tente de novo em alguns minutos.");
+        throw fail("A Meta pediu para esperar (limite de chamadas). Tente de novo em alguns minutos.", "rate");
       }
       // O texto do erro vem da Meta e pode ecoar dados de terceiros: é dado, não instrução.
       const detail = data?.error?.message ? `\n${untrusted(String(data.error.message).slice(0, 200))}` : "";
@@ -619,6 +623,11 @@ export function createMetaAdsTools({
   return {
     tools,
     changesAllowed,
+    /** O teto diário das alterações, ou null. A página de anúncios do app lê dados estruturados por aqui. */
+    cap,
+    hasToken: token !== "",
+    /** GET/POST no Graph com o mesmo token, tempo limite e erros (com `kind`) das ferramentas. */
+    graph,
     toolList: () => (changesAllowed ? [...READ_TOOLS, ...CHANGE_TOOLS] : READ_TOOLS),
     async callTool(name, args) {
       const tool = Object.hasOwn(tools, name) ? tools[name] : undefined;

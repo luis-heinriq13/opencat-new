@@ -28,11 +28,13 @@
      mobile keep their accent. */
   --openbot-cat-accent: #f0442c;
   --openbot-cat-accent-end: #ff7a2f;
+  --openbot-cat-accent-deep: #b3261a;
   --openbot-cat-accent-hover: #d93a24;
   --openbot-cat-accent-text: #c9341e;
   --openbot-cat-accent-wash: rgba(240, 68, 44, 0.05);
   --openbot-cat-accent-soft: rgba(240, 68, 44, 0.09);
   --openbot-cat-accent-strong: rgba(240, 68, 44, 0.24);
+  --openbot-cat-on-accent: #ffffff;
   --openbot-cat-gradient: linear-gradient(135deg, var(--openbot-cat-accent), var(--openbot-cat-accent-end));
   --openbot-cat-canvas: #fbfbfc;
   --openbot-cat-surface: #ffffff;
@@ -41,7 +43,11 @@
   --openbot-cat-shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 8px 24px rgba(20, 20, 20, 0.05);
   --openbot-cat-shadow-raised: 0 2px 4px rgba(20, 20, 20, 0.05), 0 12px 28px rgba(240, 68, 44, 0.1);
   --openbot-cat-shadow-accent: 0 6px 16px rgba(240, 68, 44, 0.28);
+  --openbot-cat-shadow-tile:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 18px 36px rgba(240, 68, 44, 0.16), 0 4px 10px rgba(20, 20, 20, 0.05);
+  --openbot-cat-tile: linear-gradient(145deg, #ffffff, #fff1ea);
   --openbot-cat-glow: rgba(255, 122, 47, 0.1);
+  --openbot-cat-glow-strong: rgba(255, 122, 47, 0.17);
   --openbot-cat-dot: rgba(240, 68, 44, 0.2);
   --openbot-cat-dot-neutral: rgba(20, 20, 20, 0.1);
 

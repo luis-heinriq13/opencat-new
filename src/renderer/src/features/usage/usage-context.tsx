@@ -6,7 +6,7 @@ import { useServers } from "../servers/servers-context";
  * The host pane over the middle of the workspace: the usage report, the routine schedule, the
  * tasks or the workflows. One state holds them, so each path that uncovers the conversation closes any of them.
  */
-type HostPaneView = "usage" | "schedule" | "attendance" | "tasks" | "workflows";
+type HostPaneView = "usage" | "schedule" | "attendance" | "tasks" | "workflows" | "meta-ads" | "teams";
 
 const context = createSimpleContext({
   name: "UsageProvider",
@@ -42,6 +42,14 @@ const context = createSimpleContext({
 
     function openAttendance(serverId: string, source: HTMLElement | null) {
       open("attendance", serverId, source);
+    }
+
+    function openMetaAds(serverId: string, source: HTMLElement | null) {
+      open("meta-ads", serverId, source);
+    }
+
+    function openTeams(serverId: string, source: HTMLElement | null) {
+      open("teams", serverId, source);
     }
 
     function openTasks(serverId: string, source: HTMLElement | null) {
@@ -88,6 +96,8 @@ const context = createSimpleContext({
       openUsage,
       openSchedule,
       openAttendance,
+      openMetaAds,
+      openTeams,
       openTasks,
       openWorkflows,
       closeUsage() {

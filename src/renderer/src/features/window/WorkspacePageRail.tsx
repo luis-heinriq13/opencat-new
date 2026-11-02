@@ -102,13 +102,18 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       void appPort().openUrl(WHATSCAT_PANEL_URL);
       return;
     }
+    // The Meta Ads and Teams pages read this computer's apps, so a joined server never opens them.
+    if (app?.panel === "interactive" && isLocalHost()) {
+      if (slug === "meta-ads") return windowPage.openMetaAds(null);
+      if (slug === "teams") return windowPage.openTeams(null);
+    }
     setPendingPluginSlug(slug);
     setSkillsMarketplaceOpen(true);
   }
   const current = (): PageRailPage | null => {
     const page = windowPage.page();
     if (page === "agents") return layout.sidebarView();
-    return page === "server-settings" ? null : page;
+    return page === "server-settings" || page === "meta-ads" || page === "teams" ? null : page;
   };
   return (
     <PageRail
@@ -117,6 +122,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       pinned={layout.railPinned()}
       onPinChange={layout.setRailPinned}
       apps={pinnedApps()}
+      currentApp={windowPage.page() === "meta-ads" || windowPage.page() === "teams" ? windowPage.page() : null}
       onOpenApp={openApp}
       usageRows={usageRows()}
       customAgentUsage={localAgentUsage()}

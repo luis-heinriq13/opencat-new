@@ -21,6 +21,8 @@ export const messages = {
   "agent.setup.creating": "Criando agente…",
   "agent.setup.create": "Criar agente",
   "agent.setup.suggestions": "Sugestões",
+  "agent.setup.suggestions.all": "Ver todos",
+  "agent.setup.suggestions.fewer": "Ver menos",
   "agent.setup.suggestion.label": "{name}. {description}",
   "agent.setup.suggestion.inboxHelper.name": "Assistente de e-mail",
   "agent.setup.suggestion.inboxHelper.description": "Rascunha respostas e não deixa nenhum retorno passar.",

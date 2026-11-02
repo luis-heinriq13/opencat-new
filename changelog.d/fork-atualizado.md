@@ -28,3 +28,11 @@
 - Settings > Providers lists Antigravity as its own provider, with the Google accounts of Gemini,
   its models, and a note that the route uses an unofficial client. It no longer shows in the custom
   providers list. The `antigravity-pro` id, and the agents that use it, stay the same.
+- Pin Meta Ads or Microsoft Teams to the rail to open a page of its own. Ads: a date range, spend,
+  revenue, ROAS, purchases, cost per purchase, CTR, CPC, CPM, a spend-per-day chart, and campaigns
+  with drill down to ad sets and ads, sortable and filterable by account and status. Pause and
+  Resume show only when a daily cap is set, each behind a confirmation. Teams: chats, messages as
+  plain text, the device-code sign-in with copy and open buttons, and a box to send that works only
+  when sending is on (a switch on the page writes `TEAMS_PERMITIR_ENVIO`). Both pages list the
+  agents that can use the app and start a task from an editable draft. The app reads the services
+  in the main process with the saved credentials; the page never gets a token.

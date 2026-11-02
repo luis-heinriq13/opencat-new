@@ -1,0 +1,461 @@
+/* The Meta Ads and Microsoft Teams pages. They reuse the shell of the usage page (.agent-usage, its
+ * header and body) and add their own parts. Cards, hairlines, radius and shadow come from the light
+ * tokens of opencat-light.css, with the dark surface tokens as the fallback. The red-orange accent
+ * marks the selected filter, the sort arrow and the key number only. */
+.app-page {
+  --app-page-surface: var(--openbot-cat-surface, var(--openbot-bg-surface));
+  --app-page-hairline: var(--openbot-cat-hairline, var(--openbot-border));
+  --app-page-radius: var(--openbot-cat-radius, var(--openbot-radius-lg));
+  --app-page-shadow: var(--openbot-cat-shadow, none);
+  --app-page-accent: var(--openbot-cat-accent, var(--openbot-text-primary));
+  --app-page-accent-soft: var(--openbot-cat-accent-soft, var(--openbot-hover));
+  --app-page-wash: var(--openbot-cat-canvas, var(--openbot-glass-surface));
+}
+.app-page-body {
+  gap: var(--openbot-space-4);
+  overflow-y: auto;
+}
+.app-page h3 {
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-semibold);
+}
+.app-page h4 {
+  font-size: var(--openbot-text-md);
+  font-weight: var(--openbot-weight-semibold);
+}
+.app-page-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.app-page-muted {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.app-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-3);
+  min-width: 0;
+  padding: var(--openbot-space-4);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--app-page-radius);
+  background: var(--app-page-surface);
+  box-shadow: var(--app-page-shadow);
+}
+.app-page-risk {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--openbot-radius-md);
+  background: var(--app-page-surface);
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-secondary);
+}
+.app-page-risk svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--openbot-warning);
+}
+.app-page-status {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-secondary);
+}
+.app-page-status[data-tone="ok"] {
+  color: var(--openbot-success);
+}
+.app-page-status[data-tone="error"] {
+  color: var(--openbot-danger);
+}
+.app-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--openbot-space-2);
+}
+.app-page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-6);
+  border: 1px dashed var(--app-page-hairline);
+  border-radius: var(--app-page-radius);
+  background: var(--app-page-surface);
+}
+
+/* Filters */
+.app-page-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--openbot-space-4);
+}
+.app-page-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  min-width: 0;
+}
+.app-page-field-label {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.app-page-segments,
+.app-page-agent-list {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.app-page-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--openbot-space-1);
+}
+.app-page-segment[aria-pressed="true"] {
+  background: var(--app-page-accent-soft);
+  color: var(--app-page-accent);
+}
+
+/* The numbers of the period */
+.app-page-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: var(--openbot-space-3);
+}
+.app-page-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  min-width: 0;
+  padding: var(--openbot-space-3) var(--openbot-space-4);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--app-page-radius);
+  background: var(--app-page-surface);
+  box-shadow: var(--app-page-shadow);
+}
+.app-page-kpi-label {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.app-page-kpi-value {
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.app-page-kpi:first-child .app-page-kpi-value {
+  color: var(--app-page-accent);
+}
+
+/* Spend per day: one bar for each day, in the accent. */
+.app-page-chart {
+  display: flex;
+  align-items: stretch;
+  gap: var(--openbot-space-1);
+  height: 9rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.app-page-bar {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: var(--openbot-space-4);
+}
+.app-page-bar-fill {
+  display: block;
+  width: 100%;
+  border-radius: var(--openbot-radius-sm) var(--openbot-radius-sm) 0 0;
+  background: var(--app-page-accent);
+  opacity: 0.85;
+}
+.app-page-bar:hover .app-page-bar-fill {
+  opacity: 1;
+}
+.app-page-bar-date {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: clip;
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+  white-space: nowrap;
+}
+@container (max-width: 40rem) {
+  .app-page-bar-date {
+    display: none;
+  }
+  .app-page-bar {
+    padding-bottom: 0;
+  }
+}
+
+/* The campaign table */
+.app-page-table-wrap {
+  overflow-x: auto;
+}
+.app-page-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--openbot-text-md);
+  font-variant-numeric: tabular-nums;
+}
+.app-page-table th,
+.app-page-table td {
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  border-bottom: 1px solid var(--app-page-hairline);
+  text-align: left;
+  white-space: nowrap;
+}
+.app-page-table th[data-numeric="true"],
+.app-page-table td[data-numeric="true"] {
+  text-align: right;
+}
+.app-page-table thead th {
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-medium);
+  color: var(--openbot-text-muted);
+}
+.app-page-table tbody th {
+  font-weight: var(--openbot-weight-medium);
+}
+.app-page-sort.ui-button {
+  height: auto;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+}
+.app-page-sort:hover {
+  color: var(--openbot-text-primary);
+}
+th[aria-sort="ascending"] .app-page-sort,
+th[aria-sort="descending"] .app-page-sort {
+  color: var(--app-page-accent);
+}
+.app-page-sort svg {
+  width: var(--openbot-space-3);
+  height: var(--openbot-space-3);
+}
+.app-page-name {
+  max-width: 22rem;
+}
+.app-page-name-line {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-1);
+  min-width: 0;
+}
+.app-page-name-line[data-level="adset"] {
+  padding-left: var(--openbot-space-5);
+}
+.app-page-name-line[data-level="ad"] {
+  padding-left: var(--openbot-space-8);
+}
+.app-page-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-page-expand.ui-button,
+.app-page-chevron-space {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--openbot-space-5);
+  height: var(--openbot-space-5);
+  padding: 0;
+  color: var(--openbot-text-muted);
+}
+.app-page-note-row td {
+  padding-left: var(--openbot-space-8);
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.app-page-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--openbot-space-1);
+  padding: 0 var(--openbot-space-2);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--openbot-radius-pill);
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-secondary);
+}
+.app-page-pill::before {
+  content: "";
+  width: var(--openbot-space-2);
+  height: var(--openbot-space-2);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-text-muted);
+}
+.app-page-pill[data-status="active"]::before {
+  background: var(--openbot-success);
+}
+.app-page-pill[data-status="paused"]::before {
+  background: var(--openbot-warning);
+}
+.app-page-pill[data-status="issue"]::before {
+  background: var(--openbot-danger);
+}
+
+/* Agents with access and the guidance box */
+.app-page-agent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--openbot-space-2);
+}
+.app-page-agent[aria-pressed="true"] {
+  border-color: var(--app-page-accent);
+  background: var(--app-page-accent-soft);
+  color: var(--app-page-accent);
+}
+.app-page-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-3);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--openbot-radius-md);
+  background: var(--app-page-wash);
+}
+
+/* Teams */
+.app-page-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--openbot-space-4);
+  align-items: start;
+}
+@container (min-width: 52rem) {
+  .app-page-teams {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  }
+}
+.app-page-chat-list,
+.app-page-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.app-page-chat-list {
+  max-height: 28rem;
+  overflow-y: auto;
+}
+.app-page-chat.ui-button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--openbot-space-1);
+  width: 100%;
+  height: auto;
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  border: 1px solid transparent;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+}
+.app-page-chat[aria-pressed="true"] {
+  border-color: var(--app-page-accent);
+  background: var(--app-page-accent-soft);
+}
+.app-page-chat-top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--openbot-space-2);
+}
+.app-page-chat-title {
+  overflow: hidden;
+  font-weight: var(--openbot-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-page-chat-kind {
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-muted);
+}
+.app-page-chat-preview {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--openbot-text-sm);
+  color: var(--openbot-text-secondary);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.app-page-messages {
+  max-height: 24rem;
+  gap: var(--openbot-space-3);
+  overflow-y: auto;
+}
+.app-page-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+  min-width: 0;
+}
+.app-page-message[data-system="true"] {
+  font-style: italic;
+  color: var(--openbot-text-muted);
+}
+.app-page-message-head {
+  display: flex;
+  gap: var(--openbot-space-2);
+  align-items: baseline;
+  font-size: var(--openbot-text-sm);
+}
+/* Message text is written by other people. It shows as text: line breaks kept, long words wrapped. */
+.app-page-message-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.app-page-compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  padding-top: var(--openbot-space-3);
+  border-top: 1px solid var(--app-page-hairline);
+}
+.app-page-code-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-3);
+  border: 1px solid var(--app-page-hairline);
+  border-radius: var(--openbot-radius-md);
+  background: var(--app-page-wash);
+}
+.app-page-code-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--openbot-space-3);
+}
+.app-page-code {
+  font-family: var(--openbot-font-mono, monospace);
+  font-size: var(--openbot-text-3xl);
+  font-weight: var(--openbot-weight-semibold);
+  letter-spacing: 0.12em;
+  color: var(--app-page-accent);
+  user-select: all;
+}
+.app-page-link-text {
+  overflow-wrap: anywhere;
+}

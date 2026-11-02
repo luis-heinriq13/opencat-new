@@ -7,14 +7,12 @@ import {
 } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import {
-  Activity,
   ArrowLeft,
   Button,
-  ChartArea,
+  CalendarDays,
   ChartNoAxesColumnIncreasing,
   CircleAlert,
   Clock3,
-  Flame,
   Funnel,
   Hand,
   IconButton,
@@ -22,13 +20,32 @@ import {
   MessageCircle,
   Pause,
   Play,
+  Settings,
   TriangleAlert,
+  Zap,
 } from "@openbot/ui";
-import { Area, AreaChart, ChartContainer, ChartTooltip, ChartTooltipContent, XAxis, YAxis } from "@openbot/ui/chart";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  XAxis,
+  YAxis,
+} from "@openbot/ui/chart";
 import { useText } from "@openbot/ui/text";
 import { Dynamic } from "@solidjs/web";
 import { type Component, createMemo, For, onSettled, Show } from "solid-js";
-import { attendanceTrend, heatLevel, peakCell, savedMinutes, shareOf, sparklineSeries } from "./attendance-format";
+import {
+  attendanceTrend,
+  chartValueTicks,
+  heatLevel,
+  peakCell,
+  savedMinutes,
+  shareOf,
+  sparklineSeries,
+} from "./attendance-format";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 
 export interface AttendanceViewProps {
@@ -82,7 +99,7 @@ const FAILURE_LABELS = {
 
 const SPARK = { width: 160, height: 44 };
 
-/** The pale tile before a card title. It is decoration, and only the light theme shows it. */
+/** The pale tile before a card title. It is decoration. */
 function AttendanceTile(props: { icon: Component }) {
   return (
     <span class="attendance-tile" aria-hidden="true">
@@ -288,18 +305,37 @@ function AttendanceReportBody(props: {
       ? t("attendance.duration.hours", { value: format.number(saved() / 60, { maximumFractionDigits: 1 }) })
       : t("attendance.duration.minutes", { value: format.number(saved()) });
 
+  // A label is unique, so the tooltip names one bucket and the axis can pick its ticks by label.
   const rows = createMemo(() =>
     props.report.buckets.map((bucket) => {
       const date = new Date(bucket.start);
       const hour = props.hourLabel(date.getHours());
-      const label =
+      const day = format.date(date, { month: "short", day: "numeric" });
+      const tick =
         props.period === "today"
-          ? hour
-          : props.report.bucketHours === 1
-            ? `${format.date(date, { month: "short", day: "numeric" })} ${hour}`
-            : format.date(date, { month: "short", day: "numeric" });
-      return { label, answered: bucket.answered, received: bucket.received };
+          ? date.getHours() % 6 === 0
+            ? hour
+            : null
+          : date.getHours() < props.report.bucketHours
+            ? day
+            : null;
+      return {
+        label: props.period === "today" ? hour : `${day} ${hour}`,
+        tick,
+        answered: bucket.answered,
+        received: bucket.received,
+      };
     }),
+  );
+  // Seven labels at most, so the axis is not crammed on the longer periods.
+  const xTicks = createMemo(() => {
+    const marked = rows().filter((row) => row.tick !== null);
+    const step = Math.max(1, Math.ceil(marked.length / 7));
+    return marked.filter((_, index) => index % step === 0);
+  });
+  const xTickText = createMemo(() => new Map(xTicks().map((row) => [row.label, row.tick ?? row.label])));
+  const yTicks = createMemo(() =>
+    chartValueTicks(Math.max(0, ...props.report.buckets.flatMap((bucket) => [bucket.answered, bucket.received]))),
   );
   const chartSeries = (key: string) => ({
     name: key === "answered" ? t("attendance.chart.answered") : t("attendance.chart.received"),
@@ -330,18 +366,17 @@ function AttendanceReportBody(props: {
   return (
     <>
       <section class="attendance-hero" aria-label={t("attendance.hero.label")}>
-        {/* Decoration of the light theme: the dark theme does not show it. */}
         <div class="attendance-hero-art" aria-hidden="true">
-          <span class="attendance-hero-dots" data-place="left" />
-          <span class="attendance-hero-dots" data-place="right" />
-          <span class="attendance-hero-tile" data-place="a">
+          <span class="attendance-hero-ring" data-place="left" />
+          <span class="attendance-hero-ring" data-place="right" />
+          <span class="attendance-hero-tile" data-place="left">
             <MessageCircle />
           </span>
-          <span class="attendance-hero-tile" data-place="b">
-            <Clock3 />
+          <span class="attendance-hero-tile" data-place="center">
+            <ChartNoAxesColumnIncreasing />
           </span>
-          <span class="attendance-hero-tile" data-place="c">
-            <Activity />
+          <span class="attendance-hero-tile" data-place="right">
+            <Settings />
           </span>
         </div>
         <div class="attendance-hero-main">
@@ -419,7 +454,7 @@ function AttendanceReportBody(props: {
         <section class="attendance-panel" aria-labelledby="attendance-chart-title">
           <header class="agent-usage-section-header">
             <h3 id="attendance-chart-title">
-              <AttendanceTile icon={ChartArea} />
+              <AttendanceTile icon={ChartNoAxesColumnIncreasing} />
               {props.report.bucketHours === 1 ? t("attendance.chart.titleHour") : t("attendance.chart.titleSix")}
             </h3>
             <span class="attendance-legend">
@@ -437,18 +472,21 @@ function AttendanceReportBody(props: {
             <ChartContainer label={t("attendance.chart.label")}>
               <AreaChart
                 data={rows()}
-                margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                margin={{ top: 8, right: 28, bottom: 0, left: 0 }}
                 accessibilityLayer
                 role="img"
                 tabIndex={0}
                 aria-label={t("attendance.chart.label")}
               >
+                <CartesianGrid vertical={false} stroke="var(--openbot-cat-hairline)" />
                 <XAxis
                   dataKey="label"
                   tickLine={false}
                   axisLine={false}
-                  minTickGap={56}
-                  tickMargin={10}
+                  interval={0}
+                  ticks={xTicks().map((row) => row.label)}
+                  tickFormatter={(value) => xTickText().get(String(value)) ?? String(value)}
+                  tickMargin={8}
                   stroke="var(--openbot-text-muted)"
                 />
                 <YAxis
@@ -456,6 +494,10 @@ function AttendanceReportBody(props: {
                   axisLine={false}
                   width={32}
                   allowDecimals={false}
+                  // The top of the scale stays above the highest point, and every tick has its grid line.
+                  domain={[0, yTicks().at(-1) ?? 1]}
+                  ticks={yTicks()}
+                  interval={0}
                   stroke="var(--openbot-text-muted)"
                 />
                 <ChartTooltip
@@ -471,7 +513,7 @@ function AttendanceReportBody(props: {
                 <Area
                   dataKey="received"
                   type="monotone"
-                  stroke="var(--openbot-text-muted)"
+                  stroke="var(--openbot-text-dim)"
                   fill="var(--openbot-text-muted)"
                   fillOpacity={0.08}
                   strokeWidth={1.5}
@@ -539,7 +581,7 @@ function AttendanceReportBody(props: {
         <section class="attendance-panel" aria-labelledby="attendance-heatmap-title">
           <header class="agent-usage-section-header">
             <h3 id="attendance-heatmap-title">
-              <AttendanceTile icon={Flame} />
+              <AttendanceTile icon={CalendarDays} />
               {t("attendance.heatmap.title")}
             </h3>
             <span class="attendance-legend" aria-hidden="true">
@@ -601,7 +643,7 @@ function AttendanceReportBody(props: {
         <section class="attendance-panel" aria-labelledby="attendance-latency-title">
           <header class="agent-usage-section-header">
             <h3 id="attendance-latency-title">
-              <AttendanceTile icon={ChartNoAxesColumnIncreasing} />
+              <AttendanceTile icon={Clock3} />
               {t("attendance.latency.title")}
             </h3>
             <span class="attendance-legend" aria-hidden="true">
@@ -683,7 +725,7 @@ function AttendanceReportBody(props: {
         <section class="attendance-panel" aria-labelledby="attendance-attention-title">
           <header class="agent-usage-section-header">
             <h3 id="attendance-attention-title">
-              <AttendanceTile icon={Hand} />
+              <AttendanceTile icon={TriangleAlert} />
               {t("attendance.attention.title")}
             </h3>
           </header>
@@ -734,7 +776,7 @@ function AttendanceReportBody(props: {
         <section class="attendance-panel" aria-labelledby="attendance-failures-title">
           <header class="agent-usage-section-header">
             <h3 id="attendance-failures-title">
-              <AttendanceTile icon={TriangleAlert} />
+              <AttendanceTile icon={Zap} />
               {t("attendance.failures.title")}
             </h3>
           </header>

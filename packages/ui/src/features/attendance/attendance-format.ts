@@ -50,6 +50,17 @@ export function peakCell(heatmap: readonly (readonly number[])[]): { day: number
   return best;
 }
 
+/**
+ * The ticks of a chart that starts at zero: three even steps of a round size, with a top above the
+ * highest value so that its peak does not touch the edge. 13 gives 0, 10, 20, 30.
+ */
+export function chartValueTicks(max: number): number[] {
+  const wanted = Math.max(1, Math.ceil((max * 1.2) / 3));
+  const scale = 10 ** Math.floor(Math.log10(wanted));
+  const step = ([1, 2, 5, 10].find((size) => size * scale >= wanted) ?? 10) * scale;
+  return [0, step, step * 2, step * 3];
+}
+
 /** Answered replies in at most `points` groups of buckets, for the small trend line. */
 export function sparklineSeries(buckets: AttendanceReport["buckets"], points = 28): number[] {
   if (buckets.length === 0) return [];

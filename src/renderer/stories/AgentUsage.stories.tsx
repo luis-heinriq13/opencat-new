@@ -61,7 +61,7 @@ function UsageStory(props: {
         background: "var(--openbot-bg-canvas)",
       }}
     >
-      <AgentUsagePanel hostName="Local host" serverId="local" agentId={props.agentId} onBack={fn()} />
+      <AgentUsagePanel port={mock.api} hostName="Local host" serverId="local" agentId={props.agentId} onBack={fn()} />
     </main>
   );
 }

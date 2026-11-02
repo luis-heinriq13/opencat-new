@@ -84,6 +84,8 @@ const seriesColors: Readonly<Record<string, string>> = {
   codex: "var(--openbot-chart-series-codex)",
   claude: "var(--openbot-chart-series-claude)",
   grok: "var(--openbot-chart-series-grok)",
+  antigravity: "var(--openbot-file-blue)",
+  opencode: "var(--openbot-success)",
 };
 export function usageSeriesColor(provider: string): string {
   return seriesColors[provider] ?? "var(--openbot-chart-series-other)";

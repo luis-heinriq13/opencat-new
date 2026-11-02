@@ -12,6 +12,8 @@ export type WindowPage =
   | "tasks"
   | "schedule"
   | "attendance"
+  | "meta-ads"
+  | "teams"
   | "workflows"
   | "usage"
   | "marketplace"
@@ -141,6 +143,14 @@ const context = createSimpleContext({
       openAttendance(source: HTMLElement | null) {
         const serverId = activeServerId();
         if (serverId) usage.openAttendance(serverId, source);
+      },
+      openMetaAds(source: HTMLElement | null) {
+        const serverId = activeServerId();
+        if (serverId) usage.openMetaAds(serverId, source);
+      },
+      openTeams(source: HTMLElement | null) {
+        const serverId = activeServerId();
+        if (serverId) usage.openTeams(serverId, source);
       },
       openWorkflows(source: HTMLElement | null) {
         const serverId = activeServerId();

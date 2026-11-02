@@ -42,6 +42,7 @@ export const messages = defineMessages("usage", {
   "usage.totals.cacheCreation": "Cache creation",
   "usage.totals.output": "Output",
   "usage.totals.userMessages": "User messages",
+  "usage.totals.messages": "Messages",
   "usage.totals.assistantMessages": "Completed assistant messages",
   "usage.breakdown.title": "Breakdown",
   "usage.breakdown.label": "Usage breakdown",

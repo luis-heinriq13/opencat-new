@@ -223,6 +223,8 @@ export interface PageRailProps {
   onPinChange: (page: PageRailPinnablePage, pinned: boolean) => void;
   /** The installed apps that the user pinned, after the pinned pages. Absent where there are no apps. */
   apps?: readonly PageRailApp[] | undefined;
+  /** The slug of the app whose page is open, or null. */
+  currentApp?: string | null | undefined;
   onOpenApp?: ((slug: string) => void) | undefined;
   /** The plan limits of each provider account. Each one with a reported window shows as rings. */
   usageRows: readonly AccountUsageProviderRow[];
@@ -427,7 +429,11 @@ export function PageRail(props: PageRailProps) {
         </For>
         <For each={props.apps ?? []} keyed={(app) => app.slug}>
           {(app) => (
-            <RailButton label={app().name} onClick={() => props.onOpenApp?.(app().slug)}>
+            <RailButton
+              label={app().name}
+              current={props.currentApp === app().slug}
+              onClick={() => props.onOpenApp?.(app().slug)}
+            >
               <Dynamic component={railAppIcon(app().slug)} aria-hidden="true" />
             </RailButton>
           )}
