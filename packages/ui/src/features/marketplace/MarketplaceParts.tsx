@@ -19,6 +19,7 @@ import { useText } from "@openbot/ui/text";
 import type { JSX } from "@solidjs/web";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { CONNECTOR_LISTINGS } from "../connectors/connector-catalog";
+import { MetaMark, TeamsMark } from "../settings/brand-marks";
 import { LogoTile } from "../settings/IntegrationLayout";
 import type { MarketplaceListing } from "./marketplace-listing";
 import type { MarketplaceApp, MarketplaceModel } from "./marketplace-model";
@@ -150,6 +151,12 @@ export function AppMark(props: { app: MarketplaceApp }) {
         <svg viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
           <path d={WHATSAPP_PATH} />
         </svg>
+      </Match>
+      <Match when={props.app.kind === "plugin" && props.app.plugin.slug === "meta-ads"}>
+        <MetaMark colored />
+      </Match>
+      <Match when={props.app.kind === "plugin" && props.app.plugin.slug === "teams"}>
+        <TeamsMark colored />
       </Match>
       <Match when={url()} keyed>
         {(src) => <img src={src} alt="" onError={() => setFailed(src)} />}

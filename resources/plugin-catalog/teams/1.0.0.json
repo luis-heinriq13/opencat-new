@@ -1,8 +1,8 @@
 {
   "slug": "teams",
-  "name": "Microsoft Teams (leitura)",
-  "tagline": "Leia suas conversas do Teams. Não envia nada.",
-  "description": "Deixa o agente listar e ler as conversas (chats) do Microsoft Teams da pessoa que entrar, em um computador só seu. Somente leitura: não existe ferramenta para enviar mensagem.\n\nO que pede: uma conta de trabalho ou escola. Conta pessoal da Microsoft não funciona. O dono do OpenCat precisa registrar uma vez um app público no Azure (multilocatário, com fluxo de cliente público ligado e as permissões delegadas Chat.Read e User.Read) e colar o ID do app abaixo. Se o ID estiver vazio, as ferramentas explicam o passo a passo.\nAdministrador: Chat.Read e User.Read não exigem consentimento de administrador pela Microsoft, mas a organização pode bloquear o consentimento do usuário. Nesse caso o administrador precisa liberar o app.\nPrivacidade: o texto das mensagens vai para o modelo do agente. É texto de terceiros e o agente o trata como dado, não como instrução. A sessão fica no Chaveiro do macOS e nunca aparece em logs. Precisa de Node.js.",
+  "name": "Microsoft Teams",
+  "tagline": "Leia e, se você permitir, envie mensagens no Teams",
+  "description": "Deixa o agente listar e ler as conversas (chats) do Microsoft Teams e, se você ligar, enviar mensagens em conversas e canais, com a sua conta, neste computador.\n\nComo conectar: nenhum cadastro nem ID. Depois de instalar, o agente chama teams_sign_in e mostra o endereço https://microsoft.com/devicelogin e um código; você digita o código e entra com a sua conta. O OpenCat usa o app público \"Microsoft Graph Command Line Tools\", da Microsoft, por código de dispositivo.\n\nLimites: precisa de uma conta de trabalho ou escola. Contas pessoais da Microsoft não têm chats do Teams pelo Graph. A sua organização pode exigir consentimento de um administrador ou bloquear esse app; nesse caso, peça ao administrador.\n\nEnvio: vem desligado. Para ligar, abra as configurações do servidor \"teams\" e defina a variável TEAMS_PERMITIR_ENVIO como sim (padrão: não), depois chame teams_sign_in de novo para aceitar as novas permissões. Ligado, o agente pode enviar mensagens como você, no máximo 20 por hora, e só deve fazê-lo quando você pedir na conversa. Cada envio mostra o destinatário e o texto. Desligado, as permissões de envio nem são pedidas.\n\nPrivacidade: o texto das mensagens vai para o modelo do agente. É texto de terceiros e o agente o trata como dado, não como instrução. A sessão fica no Chaveiro do macOS e nunca aparece em logs. Precisa de Node.js.",
   "category": "productivity",
   "creatorName": "OpenCat",
   "iconUrl": null,
@@ -15,43 +15,13 @@
   "apps": [
     {
       "id": "app-teams",
-      "name": "Microsoft Teams (leitura)",
-      "description": "Lista conversas e lê mensagens do Teams pelo Microsoft Graph, em um servidor local, sem envio.",
+      "name": "Microsoft Teams",
+      "description": "Lista conversas, lê mensagens e (se você permitir) envia mensagens no Teams pelo Microsoft Graph, em um servidor local.",
       "iconUrl": null,
-      "server": {
-        "name": "teams",
-        "transport": "stdio",
-        "command": "~/.opencat/teams/teams-mcp.mjs",
-        "args": [],
-        "auth": [
-          {
-            "id": "teams-app-id",
-            "kind": "key",
-            "label": "ID do app do Azure",
-            "fields": [
-              {
-                "id": "client-id",
-                "label": "ID do aplicativo (cliente)",
-                "env": "TEAMS_CLIENT_ID",
-                "placeholder": "00000000-0000-0000-0000-000000000000",
-                "hint": "Do registro de aplicativo no Azure. Se ainda não tem, veja o passo a passo ao lado; a ferramenta teams_status também o explica."
-              },
-              {
-                "id": "tenant-id",
-                "label": "ID do diretório (locatário)",
-                "env": "TEAMS_TENANT_ID",
-                "placeholder": "Só se o app for de um locatário",
-                "optional": true
-              }
-            ],
-            "docsUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app",
-            "docsLabel": "Como registrar o app"
-          }
-        ]
-      }
+      "server": { "name": "teams", "transport": "stdio", "command": "~/.opencat/teams/teams-mcp.mjs", "args": [] }
     }
   ],
-  "websiteUrl": "https://learn.microsoft.com/en-us/graph/api/chat-list",
+  "websiteUrl": "https://learn.microsoft.com/en-us/graph/api/chat-post",
   "privacyPolicyUrl": "https://privacy.microsoft.com/privacystatement",
   "termsUrl": "https://www.microsoft.com/servicesagreement",
   "skills": []

@@ -18,7 +18,7 @@
       "slug": "teams",
       "version": "1.0.0",
       "featured": false,
-      "detailSha256": "812b1520fb756b58ad5c3afc559efd2e395ada920f518a61bd76e7740c10fdf9"
+      "detailSha256": "46a923d48881d2f2eec25fc5b08e6345e6f8ca6d3a418d694207fe7c4710ded8"
     },
     {
       "slug": "aave",
@@ -36,7 +36,7 @@
       "slug": "meta-ads",
       "version": "1.0.0",
       "featured": false,
-      "detailSha256": "2dd9f263297ce2680cae15840110d4f9320d33f63b4b41bbf55ea6270f88fc06"
+      "detailSha256": "23dc60d7ab7fbab8e2d2d55b1b505c4622d51659314356477c8b4ea799fc73b8"
     },
     {
       "slug": "linear",

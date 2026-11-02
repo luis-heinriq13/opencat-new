@@ -7,6 +7,7 @@
 import { ProviderLogo } from "@openbot/brand";
 import {
   type AgentProviderId,
+  ANTIGRAVITY_GATEWAY_PROVIDER_ID,
   agentProviderName,
   type CustomProviderSummary,
   DEFAULT_CUSTOM_PROVIDER_HARNESS,
@@ -83,6 +84,7 @@ import { useText } from "../../text";
 import { AccountUsageWindowList } from "../account/AccountUsageDetails";
 import type { AccountUsageProviderRow, AccountUsageWindowRow } from "../account/account-usage-view";
 import { providerUpdateAvailable } from "../provider-updates/provider-update";
+import { AntigravityMark } from "./brand-marks";
 import { DetailHeader, type IntegrationStatus } from "./IntegrationLayout";
 
 /** The provider page on screen. The settings window puts "Providers ›" before its title. */
@@ -148,26 +150,41 @@ export interface ProviderSettingsPageProps extends ProviderRowHost {
   footer?: JSX.Element;
 }
 
-type PageId = AgentProviderId | "custom";
+type PageId = AgentProviderId | "custom" | typeof ANTIGRAVITY_GATEWAY_PROVIDER_ID;
+
+/**
+ * The saved endpoints the user manages. The Antigravity route is one of them in the store, but it has
+ * its own row and page, which read the accounts of Gemini, so it does not show with the custom ones.
+ */
+function visibleEndpoints(props: { customProviders?: readonly CustomProviderSummary[] | undefined }) {
+  return (props.customProviders ?? []).filter((endpoint) => endpoint.id !== ANTIGRAVITY_GATEWAY_PROVIDER_ID);
+}
 
 export function ProviderSettingsPage(props: ProviderSettingsPageProps) {
   const { t } = useText();
   const [open, setOpen] = createSignal<PageId | null>(null);
+  const gateway = () => props.customProviders?.find((endpoint) => endpoint.id === ANTIGRAVITY_GATEWAY_PROVIDER_ID);
+  /** The Antigravity route signs in with the accounts of Gemini, so its page reads the Gemini option. */
   const openOption = () => {
     const id = open();
-    return id && id !== "custom" ? props.options.find((option) => option.id === id) : undefined;
+    if (!id || id === "custom") return undefined;
+    const provider = id === ANTIGRAVITY_GATEWAY_PROVIDER_ID ? "antigravity" : id;
+    return props.options.find((option) => option.id === provider);
   };
   const customOffered = () => Boolean(props.onAddCustomProvider);
   /** The page on screen. The list shows again when its provider leaves the options. */
   const page = (): PageId | null => {
-    if (open() === "custom") return customOffered() ? "custom" : null;
-    return openOption()?.id ?? null;
+    const id = open();
+    if (id === "custom") return customOffered() ? "custom" : null;
+    if (id === ANTIGRAVITY_GATEWAY_PROVIDER_ID && !gateway()) return null;
+    return openOption() ? id : null;
   };
   // The dialog outlives this page, so the cleanup clears a title that names a page that is gone.
   createEffect(
     () => {
       const id = page();
       if (id === null) return null;
+      if (id === ANTIGRAVITY_GATEWAY_PROVIDER_ID) return t("provider.antigravity.name");
       return id === "custom" ? t("provider.custom.name") : (openOption()?.name ?? null);
     },
     (title) => {
@@ -181,7 +198,13 @@ export function ProviderSettingsPage(props: ProviderSettingsPageProps) {
       <Show when={page()} fallback={<ProviderList {...props} onOpen={setOpen} />}>
         {(id) => (
           <Show when={id() === "custom" ? null : openOption()} fallback={<CustomEndpointsPage {...props} />}>
-            {(option) => <ProviderPage {...props} option={option()} />}
+            {(option) => (
+              <ProviderPage
+                {...props}
+                option={option()}
+                antigravity={id() === ANTIGRAVITY_GATEWAY_PROVIDER_ID ? gateway() : undefined}
+              />
+            )}
           </Show>
         )}
       </Show>
@@ -234,7 +257,25 @@ function ProviderList(props: ProviderSettingsPageProps & { onOpen: (id: PageId) 
   );
   const connectedRows = () => shown().filter(isConnected);
   const otherRows = () => shown().filter((option) => !isConnected(option));
-  const endpoints = () => props.customProviders ?? [];
+  const endpoints = () => visibleEndpoints(props);
+  /** The Antigravity route has a row of its own, in the group of the Gemini account that it uses. */
+  const gemini = () => props.options.find((option) => option.id === "antigravity");
+  const gatewayRow = () => {
+    const option = gemini();
+    if (!option || !props.customProviders?.some((endpoint) => endpoint.id === ANTIGRAVITY_GATEWAY_PROVIDER_ID))
+      return undefined;
+    const matched = matches(
+      t("provider.antigravity.name"),
+      summary(option),
+      option.email,
+      ...(option.accounts ?? []).flatMap((account) => [account.label, account.email]),
+    );
+    return matched ? option : undefined;
+  };
+  const gatewayConnected = () => {
+    const option = gatewayRow();
+    return option !== undefined && isConnected(option);
+  };
   const endpointsShown = () =>
     Boolean(props.onAddCustomProvider) &&
     matches(t("provider.custom.name"), ...endpoints().map((endpoint) => endpoint.name));
@@ -270,7 +311,7 @@ function ProviderList(props: ProviderSettingsPageProps & { onOpen: (id: PageId) 
         }
       >
         <ItemGroup class="settings-modal-card">
-          <Show when={connectedRows().length === 0 && !endpointsConnected()}>
+          <Show when={connectedRows().length === 0 && !endpointsConnected() && !gatewayConnected()}>
             <Item class="server-settings-empty-row">
               <ItemContent>
                 <ItemDescription>{emptyText()}</ItemDescription>
@@ -280,17 +321,23 @@ function ProviderList(props: ProviderSettingsPageProps & { onOpen: (id: PageId) 
           <For each={connectedRows()} keyed={false}>
             {(option) => <ProviderNavRow option={option()} summary={summary(option())} onOpen={props.onOpen} />}
           </For>
+          <Show when={gatewayConnected() ? gatewayRow() : undefined}>
+            {(option) => <AntigravityNavRow option={option()} summary={summary(option())} onOpen={props.onOpen} />}
+          </Show>
           <Show when={endpointsConnected()}>
             <EndpointsNavRow {...props} onOpen={() => props.onOpen("custom")} />
           </Show>
         </ItemGroup>
       </SettingsSection>
-      <Show when={otherRows().length > 0 || endpointsOther()}>
+      <Show when={otherRows().length > 0 || endpointsOther() || (gatewayRow() && !gatewayConnected())}>
         <SettingsSection title={t("provider.settings.other")}>
           <ItemGroup class="settings-modal-card">
             <For each={otherRows()} keyed={false}>
               {(option) => <ProviderNavRow option={option()} summary={summary(option())} onOpen={props.onOpen} />}
             </For>
+            <Show when={gatewayConnected() ? undefined : gatewayRow()}>
+              {(option) => <AntigravityNavRow option={option()} summary={summary(option())} onOpen={props.onOpen} />}
+            </Show>
             <Show when={endpointsOther()}>
               <EndpointsNavRow {...props} onOpen={() => props.onOpen("custom")} />
             </Show>
@@ -345,9 +392,26 @@ function ProviderNavRow(props: { option: ProviderPickerOption; summary: string; 
   );
 }
 
+function AntigravityNavRow(props: { option: ProviderPickerOption; summary: string; onOpen: (id: PageId) => void }) {
+  const { t } = useText();
+  return (
+    <NavRow
+      logo={
+        <AntigravityMark
+          class={["provider-picker-logo", { "provider-settings-logo-off": Boolean(props.option.off) }]}
+        />
+      }
+      name={t("provider.antigravity.name")}
+      summary={props.summary}
+      end={<RowStatus option={props.option} />}
+      onOpen={() => props.onOpen(ANTIGRAVITY_GATEWAY_PROVIDER_ID)}
+    />
+  );
+}
+
 function EndpointsNavRow(props: ProviderSettingsPageProps & { onOpen: () => void }) {
   const { t, format } = useText();
-  const names = () => (props.customProviders ?? []).map((endpoint) => endpoint.name);
+  const names = () => visibleEndpoints(props).map((endpoint) => endpoint.name);
   return (
     <NavRow
       logo={<SlidersHorizontal class="provider-picker-custom-mark" aria-hidden="true" />}
@@ -407,8 +471,7 @@ function DefaultProviderRow(props: ProviderSettingsPageProps) {
     const providers = props.options
       .filter((option) => (option.state === "available" && !option.off) || option.id === value)
       .map((option) => ({ id: option.id, name: option.name }));
-    const custom =
-      (props.customProviders?.length ?? 0) > 0 && servesCustomEndpoints(props) && props.onAddCustomProvider;
+    const custom = visibleEndpoints(props).length > 0 && servesCustomEndpoints(props) && props.onAddCustomProvider;
     return custom || value === "custom" ? [...providers, { id: "custom", name: t("provider.custom.name") }] : providers;
   };
   const selected = () => choices().find((choice) => choice.id === props.defaultProvider?.value) ?? null;
@@ -463,7 +526,11 @@ function ChoiceLabel(props: { choice: DefaultChoice }) {
 
 /* ------------------------------------------------------------------ Provider page */
 
-type PageProps = ProviderSettingsPageProps & { option: ProviderPickerOption };
+/** `antigravity` is set on the Antigravity page: the Gemini option, with the models of the gateway endpoint. */
+type PageProps = ProviderSettingsPageProps & {
+  option: ProviderPickerOption;
+  antigravity?: CustomProviderSummary | undefined;
+};
 
 function ProviderPage(props: PageProps) {
   const { t, format } = useText();
@@ -491,6 +558,7 @@ function ProviderPage(props: PageProps) {
     return { status: "connected", label: t("provider.status.connected") };
   };
   const subtitle = () => {
+    if (props.antigravity) return t("provider.antigravity.summary");
     const use =
       usedBy().length === 0
         ? t("provider.settings.unused")
@@ -505,8 +573,14 @@ function ProviderPage(props: PageProps) {
   return (
     <>
       <DetailHeader
-        logo={<ProviderLogo provider={props.option.id} class="provider-picker-logo" />}
-        name={props.option.name}
+        logo={
+          props.antigravity ? (
+            <AntigravityMark class="provider-picker-logo" />
+          ) : (
+            <ProviderLogo provider={props.option.id} class="provider-picker-logo" />
+          )
+        }
+        name={props.antigravity ? t("provider.antigravity.name") : props.option.name}
         status={header().status}
         statusLabel={header().label}
         subtitle={subtitle()}
@@ -515,21 +589,64 @@ function ProviderPage(props: PageProps) {
         <Show when={accountsShown()} fallback={<SignInSection {...props} row={row} keyShown={keyShown()} />}>
           <AccountsSection {...props} row={row} />
         </Show>
-        <Show when={keyShown()}>
-          <ApiKeySection {...props} row={row} />
-        </Show>
-        <RuntimeSection {...props} row={row} />
-        <Show when={props.option.id === "claude" && props.promptCache}>
-          {(cache) => <PromptCacheSection cache={cache()} disabled={props.disabled} menuMount={props.menuMount} />}
+        <Show when={!props.antigravity}>
+          <Show when={keyShown()}>
+            <ApiKeySection {...props} row={row} />
+          </Show>
+          <RuntimeSection {...props} row={row} />
+          <Show when={props.option.id === "claude" && props.promptCache}>
+            {(cache) => <PromptCacheSection cache={cache()} disabled={props.disabled} menuMount={props.menuMount} />}
+          </Show>
         </Show>
       </Show>
-      <UseSection {...props} row={row} />
-      <DownloadSection {...props} row={row} />
+      <Show
+        when={props.antigravity}
+        fallback={
+          <>
+            <UseSection {...props} row={row} />
+            <DownloadSection {...props} row={row} />
+          </>
+        }
+      >
+        {(endpoint) => <AntigravityModelsSection endpoint={endpoint()} />}
+      </Show>
     </>
   );
 }
 
 type SectionProps = PageProps & { row: ProviderRow };
+
+/** The models of the Antigravity route, and the note that it is not Google's own client. */
+function AntigravityModelsSection(props: { endpoint: CustomProviderSummary }) {
+  const { t } = useText();
+  return (
+    <SettingsSection title={t("provider.antigravity.models")} description={t("provider.antigravity.unofficial")}>
+      <ItemGroup class="settings-modal-card" aria-label={t("provider.antigravity.models")}>
+        <Show
+          when={props.endpoint.models.length > 0}
+          fallback={
+            <Item class="server-settings-empty-row">
+              <ItemContent>
+                <ItemDescription>{t("provider.antigravity.noModels")}</ItemDescription>
+              </ItemContent>
+            </Item>
+          }
+        >
+          <For each={props.endpoint.models} keyed={(model) => model.id}>
+            {(model) => (
+              <Item class="settings-modal-row">
+                <ItemContent>
+                  <ItemTitle>{model().name}</ItemTitle>
+                  <ItemDescription>{model().id}</ItemDescription>
+                </ItemContent>
+              </Item>
+            )}
+          </For>
+        </Show>
+      </ItemGroup>
+    </SettingsSection>
+  );
+}
 
 /** The ⋯ button of a row. Its menu portals into the dialog, where a modal leaves it in reach. */
 function MenuTrigger(props: { label: string; disabled?: boolean | undefined }) {
@@ -1754,7 +1871,7 @@ function servesCustomEndpoints(props: ProviderSettingsPageProps): boolean {
 
 function CustomEndpointsPage(props: ProviderSettingsPageProps) {
   const { t, format } = useText();
-  const endpoints = () => props.customProviders ?? [];
+  const endpoints = () => visibleEndpoints(props);
   const engine = () => props.options.find((option) => option.id === "opencode");
   const ready = () => servesCustomEndpoints(props);
   const runsOn = (endpoint: CustomProviderSummary) =>

@@ -16,6 +16,12 @@ import { isDynamicRecord, isNumber, isOneOf, isString } from "./runtime-values";
  * OpenCode reports back. `INPUT_LIMITS` has no entry for a key or an endpoint because no other
  * OpenBot payload has ever carried one.
  */
+/**
+ * The id of the endpoint that the local Antigravity gateway saves. Settings shows it as its own
+ * provider, with the accounts of Gemini, and not with the custom endpoints. Agents keep this id.
+ */
+export const ANTIGRAVITY_GATEWAY_PROVIDER_ID = "antigravity-pro";
+
 export const CUSTOM_PROVIDER_LIMITS = {
   apiKey: 4_096,
   baseUrl: 2_048,

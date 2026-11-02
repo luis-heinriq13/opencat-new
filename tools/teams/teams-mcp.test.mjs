@@ -5,10 +5,11 @@ import {
   createKeychainTokenStore,
   createMemoryTokenStore,
   createTeamsTools,
+  DEFAULT_CLIENT_ID,
   htmlToText,
   redact,
   SCOPES,
-  TOOL_LIST,
+  SEND_SCOPES,
   untrusted,
 } from "./teams-mcp.mjs";
 
@@ -32,13 +33,21 @@ function fakeFetch(routes) {
 const noSleep = async () => undefined;
 const text = (result) => result.content[0].text;
 
-test("sem TEAMS_CLIENT_ID as ferramentas explicam os passos e não chamam a rede", async () => {
-  const fetch = fakeFetch({});
-  const teams = createTeamsTools({ fetch, env: {}, store: createMemoryTokenStore() });
-  for (const name of ["teams_status", "teams_sign_in", "listar_conversas"]) {
-    assert.match(text(await teams.callTool(name, {})), /Azure/);
-  }
-  assert.equal(fetch.calls.length, 0);
+test("sem TEAMS_CLIENT_ID usa o cliente público padrão e o código de dispositivo", async () => {
+  const fetch = fakeFetch({
+    "/devicecode": {
+      status: 200,
+      body: { device_code: "dc-secreto-12345", user_code: "QQQQ-1", expires_in: 900, interval: 1 },
+    },
+    "/token": { status: 400, body: { error: "authorization_declined" } },
+  });
+  const teams = createTeamsTools({ fetch, env: {}, store: createMemoryTokenStore(), sleep: noSleep });
+  const out = text(await teams.callTool("teams_sign_in", {}));
+  assert.match(out, /https:\/\/microsoft\.com\/devicelogin/);
+  assert.match(out, /QQQQ-1/);
+  assert.equal(new URLSearchParams(fetch.calls[0].init.body).get("client_id"), DEFAULT_CLIENT_ID);
+  assert.equal(new URLSearchParams(fetch.calls[0].init.body).get("scope"), SCOPES);
+  await teams.settled();
 });
 
 test("entrada por código de dispositivo guarda o refresh token e nunca o mostra", async () => {
@@ -213,9 +222,84 @@ test("fora do macOS a sessão fica só na memória", () => {
   assert.equal(createKeychainTokenStore({ account: "a", platform: "linux" }).persistent, false);
 });
 
-test("não existe ferramenta de envio", () => {
-  const names = TOOL_LIST.map((tool) => tool.name);
-  assert.deepEqual(names, ["teams_status", "teams_sign_in", "listar_conversas", "ler_mensagens"]);
+test("a ferramenta de envio só aparece com TEAMS_PERMITIR_ENVIO", () => {
+  const off = createTeamsTools({ env: {}, store: createMemoryTokenStore() });
+  assert.deepEqual(
+    off.toolList().map((tool) => tool.name),
+    ["teams_status", "teams_sign_in", "listar_conversas", "ler_mensagens"],
+  );
+  const on = createTeamsTools({ env: { TEAMS_PERMITIR_ENVIO: "sim" }, store: createMemoryTokenStore() });
+  assert.ok(on.toolList().some((tool) => tool.name === "teams_enviar_mensagem"));
+});
+
+async function signedInWith(env, routes) {
+  const store = createMemoryTokenStore();
+  await store.save(REFRESH);
+  const fetch = fakeFetch({
+    "/token": { status: 200, body: { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 } },
+    ...routes,
+  });
+  let time = 1_000_000;
+  const teams = createTeamsTools({ fetch, env, store, sleep: noSleep, now: () => time });
+  return { fetch, teams, advance: (ms) => (time += ms) };
+}
+
+test("envio desligado recusa sem chamar o Graph", async () => {
+  const { teams, fetch } = await signedInWith({}, {});
+  const result = await teams.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "oi" });
+  assert.equal(result.isError, true);
+  assert.match(text(result), /desligado/);
+  assert.equal(fetch.calls.filter((call) => call.url.includes("graph.microsoft.com")).length, 0);
+});
+
+test("envio ligado pede os escopos de envio e mostra destinatário e texto", async () => {
+  const { teams, fetch } = await signedInWith(
+    { TEAMS_PERMITIR_ENVIO: "sim" },
+    {
+      "/messages": (init) => ({ status: 201, body: { id: "m1", echo: init.body } }),
+      "/chats/": { status: 200, body: { topic: "Projeto", members: [{ displayName: "Ana" }] } },
+    },
+  );
+  const out = text(await teams.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "Olá time" }));
+  assert.match(out, /Destinatário/);
+  assert.match(out, /Projeto \| Ana/);
+  assert.match(out, /Olá time/);
+  const post = fetch.calls.find((call) => call.init.method === "POST" && call.url.includes("/messages"));
+  assert.deepEqual(JSON.parse(post.init.body), { body: { contentType: "text", content: "Olá time" } });
+  assert.ok(
+    SEND_SCOPES.includes("ChatMessage.Send") &&
+      SEND_SCOPES.includes("ChannelMessage.Send") &&
+      SEND_SCOPES.includes("Chat.ReadWrite"),
+  );
+  const refresh = fetch.calls.find((call) => call.url.includes("/token"));
+  assert.equal(new URLSearchParams(refresh.init.body).get("scope"), SEND_SCOPES);
+});
+
+test("envio para canal, validação de destino e limite de 20 por hora", async () => {
+  const { teams, fetch, advance } = await signedInWith(
+    { TEAMS_PERMITIR_ENVIO: "sim" },
+    { "/messages": { status: 201, body: { id: "m" } }, "/channels/": { status: 200, body: { displayName: "Geral" } } },
+  );
+  const both = await teams.callTool("teams_enviar_mensagem", {
+    chat_id: "19:abc@thread.v2",
+    team_id: "t-1",
+    channel_id: "c-1",
+    texto: "x",
+  });
+  assert.equal(both.isError, true);
+  const channel = text(
+    await teams.callTool("teams_enviar_mensagem", { team_id: "tt-1", channel_id: "19:cc@thread.tacv2", texto: "x" }),
+  );
+  assert.match(channel, /Geral/);
+  assert.ok(fetch.calls.some((call) => call.url.includes("/teams/tt-1/channels/") && call.init.method === "POST"));
+  for (let i = 0; i < 19; i += 1) {
+    assert.ok(!(await teams.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "y" })).isError);
+  }
+  const blocked = await teams.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "z" });
+  assert.equal(blocked.isError, true);
+  assert.match(text(blocked), /Limite/);
+  advance(3_600_001);
+  assert.ok(!(await teams.callTool("teams_enviar_mensagem", { chat_id: "19:abc@thread.v2", texto: "z" })).isError);
 });
 
 test("auxiliares", () => {

@@ -18,6 +18,7 @@ import {
 import { AccountUsageDetails } from "@openbot/ui/features/account/AccountUsageDetails";
 import { type AccountUsageProviderRow, accountUsageRowKey } from "@openbot/ui/features/account/account-usage-view";
 import { WhatsAppIcon } from "@openbot/ui/features/attendance/WhatsAppIcon";
+import { MetaMark, TeamsMark } from "@openbot/ui/features/settings/brand-marks";
 import { useText } from "@openbot/ui/text";
 import { Dynamic, type JSX } from "@solidjs/web";
 import { type Component, createMemo, createSignal, For, Show } from "solid-js";
@@ -204,6 +205,14 @@ export interface PageRailApp {
 
 /** The WhatsApp apps keep the WhatsApp mark that the attendance page has. Other apps get a plug-in mark. */
 const WHATSAPP_APP_SLUGS: ReadonlySet<string> = new Set(["whatscat", "whatsapp-oficial"]);
+
+/** The mark of a pinned app: WhatsApp, Meta Ads and Teams have their own; the others get a plug-in mark. */
+function railAppIcon(slug: string): Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined }> {
+  if (WHATSAPP_APP_SLUGS.has(slug)) return WhatsAppIcon;
+  if (slug === "meta-ads") return MetaMark;
+  if (slug === "teams") return TeamsMark;
+  return Puzzle;
+}
 
 export interface PageRailProps {
   hidden: boolean;
@@ -419,7 +428,7 @@ export function PageRail(props: PageRailProps) {
         <For each={props.apps ?? []} keyed={(app) => app.slug}>
           {(app) => (
             <RailButton label={app().name} onClick={() => props.onOpenApp?.(app().slug)}>
-              <Dynamic component={WHATSAPP_APP_SLUGS.has(app().slug) ? WhatsAppIcon : Puzzle} aria-hidden="true" />
+              <Dynamic component={railAppIcon(app().slug)} aria-hidden="true" />
             </RailButton>
           )}
         </For>

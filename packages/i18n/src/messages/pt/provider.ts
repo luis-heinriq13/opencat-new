@@ -4,6 +4,12 @@ import type { messages as source } from "../en/provider";
 export const messages = {
   "provider.availableHere": "Disponível neste computador",
   "provider.availableOnHost": "Executado em {name}",
+  "provider.antigravity.name": "Antigravity",
+  "provider.antigravity.summary": "Usa as mesmas contas Google do Gemini",
+  "provider.antigravity.models": "Modelos",
+  "provider.antigravity.noModels": "Os modelos aparecem depois que você entra e a rota inicia.",
+  "provider.antigravity.unofficial":
+    "Esta rota usa um cliente não oficial. O Google pode alterá-lo ou bloqueá-lo a qualquer momento, e o risco é da sua conta.",
   "provider.custom.name": "Provedor personalizado",
   "provider.custom.description": "Seu próprio endpoint de modelos",
   "provider.custom.addLabel": "Adicionar provedor personalizado",

@@ -14,9 +14,17 @@
 - An installed app can be pinned to the page rail from its store page. A pinned app that opens a
   panel (WhatsApp, not official) opens it; any other pinned app opens its store page. An app that
   is not installed does not show in the rail. Saved rail layouts keep working.
-- The store lists Meta Ads (the official Meta MCP server, with sign-in in the browser). The listing
-  says that the agent can read results and that creating, activating or raising a budget can spend
-  real money. OpenCat has no approval per tool for a remote MCP server, so it cannot force one.
-- The store lists Microsoft Teams (read only): list chats and read messages with a work or school
-  account. It has no send tool. The owner registers an Azure public client app and fills its ID.
-
+- The store lists Meta Ads, with its own local server on the Marketing API (Graph v26.0): the owner
+  pastes a token once. Reads are always on. Creating a campaign (always paused), pause, resume and
+  budget changes stay off until the owner sets a daily budget cap; the server refuses a budget above
+  the cap, refuses a resume that would pass it, allows 10 changes per hour, and shows before and after.
+  Meta's hosted MCP server refused the OpenCat sign-in, so it is no longer used.
+- The store lists Microsoft Teams: list chats and read messages with a work or school account, with
+  no Azure registration (public client "Microsoft Graph Command Line Tools", device code at
+  https://microsoft.com/devicelogin). Sending (`teams_enviar_mensagem`) is off until the server
+  variable `TEAMS_PERMITIR_ENVIO` is `sim`; then it asks for the send scopes, allows 20 messages per
+  hour, and shows the recipient and text. Received messages are marked as untrusted data.
+- Meta Ads and Teams have their own marks in the store and on the page rail.
+- Settings > Providers lists Antigravity as its own provider, with the Google accounts of Gemini,
+  its models, and a note that the route uses an unofficial client. It no longer shows in the custom
+  providers list. The `antigravity-pro` id, and the agents that use it, stay the same.

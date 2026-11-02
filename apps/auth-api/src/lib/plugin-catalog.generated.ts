@@ -34,7 +34,7 @@ export const PLUGIN_CATALOG_INDEX: PluginCatalogIndex = {
       slug: "teams",
       version: "1.0.0",
       featured: false,
-      detailSha256: "812b1520fb756b58ad5c3afc559efd2e395ada920f518a61bd76e7740c10fdf9",
+      detailSha256: "46a923d48881d2f2eec25fc5b08e6345e6f8ca6d3a418d694207fe7c4710ded8",
     },
     {
       slug: "aave",
@@ -52,7 +52,7 @@ export const PLUGIN_CATALOG_INDEX: PluginCatalogIndex = {
       slug: "meta-ads",
       version: "1.0.0",
       featured: false,
-      detailSha256: "2dd9f263297ce2680cae15840110d4f9320d33f63b4b41bbf55ea6270f88fc06",
+      detailSha256: "23dc60d7ab7fbab8e2d2d55b1b505c4622d51659314356477c8b4ea799fc73b8",
     },
     {
       slug: "linear",
@@ -350,10 +350,10 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
   },
   teams: {
     slug: "teams",
-    name: "Microsoft Teams (leitura)",
-    tagline: "Leia suas conversas do Teams. Não envia nada.",
+    name: "Microsoft Teams",
+    tagline: "Leia e, se você permitir, envie mensagens no Teams",
     description:
-      "Deixa o agente listar e ler as conversas (chats) do Microsoft Teams da pessoa que entrar, em um computador só seu. Somente leitura: não existe ferramenta para enviar mensagem.\n\nO que pede: uma conta de trabalho ou escola. Conta pessoal da Microsoft não funciona. O dono do OpenCat precisa registrar uma vez um app público no Azure (multilocatário, com fluxo de cliente público ligado e as permissões delegadas Chat.Read e User.Read) e colar o ID do app abaixo. Se o ID estiver vazio, as ferramentas explicam o passo a passo.\nAdministrador: Chat.Read e User.Read não exigem consentimento de administrador pela Microsoft, mas a organização pode bloquear o consentimento do usuário. Nesse caso o administrador precisa liberar o app.\nPrivacidade: o texto das mensagens vai para o modelo do agente. É texto de terceiros e o agente o trata como dado, não como instrução. A sessão fica no Chaveiro do macOS e nunca aparece em logs. Precisa de Node.js.",
+      'Deixa o agente listar e ler as conversas (chats) do Microsoft Teams e, se você ligar, enviar mensagens em conversas e canais, com a sua conta, neste computador.\n\nComo conectar: nenhum cadastro nem ID. Depois de instalar, o agente chama teams_sign_in e mostra o endereço https://microsoft.com/devicelogin e um código; você digita o código e entra com a sua conta. O OpenCat usa o app público "Microsoft Graph Command Line Tools", da Microsoft, por código de dispositivo.\n\nLimites: precisa de uma conta de trabalho ou escola. Contas pessoais da Microsoft não têm chats do Teams pelo Graph. A sua organização pode exigir consentimento de um administrador ou bloquear esse app; nesse caso, peça ao administrador.\n\nEnvio: vem desligado. Para ligar, abra as configurações do servidor "teams" e defina a variável TEAMS_PERMITIR_ENVIO como sim (padrão: não), depois chame teams_sign_in de novo para aceitar as novas permissões. Ligado, o agente pode enviar mensagens como você, no máximo 20 por hora, e só deve fazê-lo quando você pedir na conversa. Cada envio mostra o destinatário e o texto. Desligado, as permissões de envio nem são pedidas.\n\nPrivacidade: o texto das mensagens vai para o modelo do agente. É texto de terceiros e o agente o trata como dado, não como instrução. A sessão fica no Chaveiro do macOS e nunca aparece em logs. Precisa de Node.js.',
     category: "productivity",
     creatorName: "OpenCat",
     iconUrl: null,
@@ -366,43 +366,14 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
     apps: [
       {
         id: "app-teams",
-        name: "Microsoft Teams (leitura)",
-        description: "Lista conversas e lê mensagens do Teams pelo Microsoft Graph, em um servidor local, sem envio.",
+        name: "Microsoft Teams",
+        description:
+          "Lista conversas, lê mensagens e (se você permitir) envia mensagens no Teams pelo Microsoft Graph, em um servidor local.",
         iconUrl: null,
-        server: {
-          name: "teams",
-          transport: "stdio",
-          command: "~/.opencat/teams/teams-mcp.mjs",
-          args: [],
-          auth: [
-            {
-              id: "teams-app-id",
-              kind: "key",
-              label: "ID do app do Azure",
-              fields: [
-                {
-                  id: "client-id",
-                  label: "ID do aplicativo (cliente)",
-                  env: "TEAMS_CLIENT_ID",
-                  placeholder: "00000000-0000-0000-0000-000000000000",
-                  hint: "Do registro de aplicativo no Azure. Se ainda não tem, veja o passo a passo ao lado; a ferramenta teams_status também o explica.",
-                },
-                {
-                  id: "tenant-id",
-                  label: "ID do diretório (locatário)",
-                  env: "TEAMS_TENANT_ID",
-                  placeholder: "Só se o app for de um locatário",
-                  optional: true,
-                },
-              ],
-              docsUrl: "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app",
-              docsLabel: "Como registrar o app",
-            },
-          ],
-        },
+        server: { name: "teams", transport: "stdio", command: "~/.opencat/teams/teams-mcp.mjs", args: [] },
       },
     ],
-    websiteUrl: "https://learn.microsoft.com/en-us/graph/api/chat-list",
+    websiteUrl: "https://learn.microsoft.com/en-us/graph/api/chat-post",
     privacyPolicyUrl: "https://privacy.microsoft.com/privacystatement",
     termsUrl: "https://www.microsoft.com/servicesagreement",
     skills: [],
@@ -480,7 +451,7 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
     name: "Meta Ads",
     tagline: "Resultados e campanhas do Facebook e Instagram Ads",
     description:
-      "Conecta o agente à sua conta de anúncios da Meta (Facebook e Instagram), pelo servidor MCP oficial da Meta. Cada pessoa entra com a própria conta Meta, e o agente faz o que essa conta pode fazer.\n\nO que o agente pode fazer: ler resultados de campanhas, conjuntos de anúncios e anúncios, gerar relatórios, ver criativos e catálogos.\nAtenção, pode gastar dinheiro de verdade: o agente também pode criar campanhas, conjuntos de anúncios e anúncios, alterar orçamento e ativar anúncios. Ativar ou aumentar o orçamento começa a gastar o saldo da sua conta de anúncios. A Meta cria os itens novos pausados e diz que o cliente de IA deve pedir confirmação antes de ativar, mas o OpenCat não exige aprovação por ferramenta para este servidor: a confirmação depende do agente.\nCuidados: peça só leitura enquanto testa, confira cada valor antes de aceitar uma mudança e defina limite de gasto na conta de anúncios da Meta.\nAcesso: o servidor da Meta pode estar em beta e liberado só para algumas contas de anúncios.",
+      'Conecta o agente à sua conta de anúncios da Meta (Facebook e Instagram) pela Marketing API, com um token que você cola uma vez. O servidor roda neste computador.\n\nLeitura (sempre ligada): contas, campanhas, conjuntos e resultados por período.\nAgir e gastar (desligado por padrão): criar campanha sempre PAUSADA, pausar, retomar e mudar orçamento. Retomar ou aumentar orçamento gasta dinheiro de verdade. Só liga se você preencher o teto diário abaixo: o servidor recusa orçamento acima do teto e recusa retomar o que passaria dele, faz no máximo 10 alterações por hora e mostra antes e depois de cada mudança. O agente deve descrever a ação e esperar o seu "sim" na conversa antes de qualquer alteração.\n\nComo conectar, em 3 passos:\n1. Na Meta, abra Configurações do Negócio > Usuários > Usuários do sistema, crie um usuário do sistema e atribua a ele a sua conta de anúncios.\n2. Gere um token para um app seu com as permissões ads_read (e ads_management, só se for alterar). Um token de usuário de longa duração também serve.\n3. Cole o token abaixo. Para permitir alterações, informe também o teto diário (na moeda da conta, ex.: 100).\n\nO token fica só no seu computador, vai no cabeçalho Authorization e nunca aparece em logs. Precisa de Node.js.',
     category: "data-analytics",
     creatorName: "Meta",
     iconUrl: null,
@@ -495,21 +466,46 @@ export const PLUGIN_CATALOG_DETAILS: Record<string, PluginCatalogDetail> = {
     ],
     apps: [
       {
-        id: "app-meta-ads-mcp",
+        id: "app-meta-ads",
         name: "Meta Ads",
         description:
-          "Relatórios, campanhas, conjuntos de anúncios, anúncios, criativos e catálogos, em um servidor MCP da Meta.",
+          "Contas, campanhas, conjuntos e resultados do Meta Ads, e (se você permitir) criar campanha pausada, pausar, retomar e mudar orçamento, em um servidor local.",
         iconUrl: null,
         server: {
           name: "meta-ads",
-          transport: "http",
-          url: "https://mcp.facebook.com/ads",
-          auth: [{ id: "meta-ads-oauth", kind: "link", label: "Entrar" }],
+          transport: "stdio",
+          command: "~/.opencat/meta-ads/meta-ads-mcp.mjs",
+          args: [],
+          auth: [
+            {
+              id: "meta-ads-token",
+              kind: "key",
+              label: "Token da Meta",
+              fields: [
+                {
+                  id: "access-token",
+                  label: "Token de acesso",
+                  env: "META_ACCESS_TOKEN",
+                  placeholder: "EAA...",
+                  hint: "Token de usuário do sistema (ou de longa duração) com ads_read e, para alterar, ads_management.",
+                },
+                {
+                  id: "daily-cap",
+                  label: "Teto diário para alterações",
+                  env: "META_LIMITE_ORCAMENTO_DIARIO",
+                  placeholder: "Vazio = somente leitura",
+                  hint: "Opcional. Um valor (ex.: 100) permite alterações até esse orçamento diário.",
+                  optional: true,
+                },
+              ],
+              docsUrl: "https://developers.facebook.com/docs/marketing-api/overview/authorization",
+              docsLabel: "Como gerar o token",
+            },
+          ],
         },
       },
     ],
-    websiteUrl:
-      "https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview",
+    websiteUrl: "https://developers.facebook.com/docs/marketing-apis",
     privacyPolicyUrl: "https://www.facebook.com/privacy/policy/",
     termsUrl: "https://www.facebook.com/terms/",
     skills: [],

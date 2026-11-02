@@ -56,6 +56,11 @@ extraResources:
     to: teams
     filter:
       - teams-mcp.mjs
+  # OpenCat: the Meta Ads server, one file with no dependencies (tools/meta-ads/meta-ads-mcp.mjs).
+  - from: tools/meta-ads
+    to: meta-ads
+    filter:
+      - meta-ads-mcp.mjs
   # OpenCat: the installer that swaps in a local build. The app copies it out and runs it detached.
   - from: scripts/opencat-instalar-atualizacao.py
     to: opencat/opencat-instalar-atualizacao.py

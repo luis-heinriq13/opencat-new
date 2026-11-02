@@ -7,7 +7,7 @@
 import { randomBytes } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import type { CustomProviderModel } from "@openbot/contracts/ipc";
-import { CUSTOM_PROVIDER_LIMITS } from "@openbot/contracts/ipc";
+import { ANTIGRAVITY_GATEWAY_PROVIDER_ID, CUSTOM_PROVIDER_LIMITS } from "@openbot/contracts/ipc";
 import { createOpenBotLogger } from "@openbot/logging";
 import { Effect } from "effect";
 import type { CustomProviderChanges } from "../custom-provider-changes";
@@ -17,7 +17,7 @@ import { parseJsonObject } from "./translate";
 
 const logger = createOpenBotLogger("antigravity-gateway");
 
-export const ANTIGRAVITY_PROVIDER_ID = "antigravity-pro";
+export const ANTIGRAVITY_PROVIDER_ID = ANTIGRAVITY_GATEWAY_PROVIDER_ID;
 const ANTIGRAVITY_PROVIDER_NAME = "Antigravity";
 const TOKEN_PREFIX = "ocag_";
 const PREFERRED_PORT = 20_129;

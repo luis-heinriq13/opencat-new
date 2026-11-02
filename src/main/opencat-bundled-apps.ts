@@ -25,26 +25,27 @@ const BRIDGE_RESTART_MIN_MS = 2_000;
 const BRIDGE_RESTART_MAX_MS = 60_000;
 const BRIDGE_HEALTHY_MS = 60_000;
 
-const TEAMS_DIRECTORY = join(homedir(), ".opencat", "teams");
-
 /**
- * The Microsoft Teams reader is one file with no dependencies, so it is copied as it is. The copy is
- * skipped when the installed file is the same, and a failure leaves the Teams listing unusable only.
+ * The Microsoft Teams and Meta Ads servers are one file each with no dependencies, so they are copied as
+ * they are. The copy is skipped when the installed file is the same, and a failure leaves that listing
+ * unusable only.
  */
-async function installBundledTeams(): Promise<void> {
-  const source = join(process.resourcesPath, "teams", "teams-mcp.mjs");
+async function installBundledSingleFile(folder: string, file: string): Promise<void> {
+  const source = join(process.resourcesPath, folder, file);
   if (!app.isPackaged || !existsSync(source)) return;
   const wanted = await readFile(source);
-  const target = join(TEAMS_DIRECTORY, "teams-mcp.mjs");
+  const directory = join(homedir(), ".opencat", folder);
+  const target = join(directory, file);
   const installed = await readFile(target).catch(() => null);
   if (installed?.equals(wanted)) return;
-  await mkdir(TEAMS_DIRECTORY, { recursive: true, mode: 0o700 });
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   await writeFile(target, wanted, { mode: 0o755 });
   await chmod(target, 0o755).catch(() => undefined);
 }
 
 export async function installBundledApps(): Promise<void> {
-  await installBundledTeams().catch(() => undefined);
+  await installBundledSingleFile("teams", "teams-mcp.mjs").catch(() => undefined);
+  await installBundledSingleFile("meta-ads", "meta-ads-mcp.mjs").catch(() => undefined);
   const source = join(process.resourcesPath, "whatscat");
   if (!app.isPackaged || !existsSync(source)) return;
   const stamp = join(INSTALL_DIRECTORY, ".versao");

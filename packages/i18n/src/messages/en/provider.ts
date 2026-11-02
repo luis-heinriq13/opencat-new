@@ -4,6 +4,12 @@ export const messages = defineMessages("provider", {
   // The provider list, shown in Settings and during onboarding.
   "provider.availableHere": "Available on this computer",
   "provider.availableOnHost": "Runs on {name}",
+  "provider.antigravity.name": "Antigravity",
+  "provider.antigravity.summary": "Uses the same Google accounts as Gemini",
+  "provider.antigravity.models": "Models",
+  "provider.antigravity.noModels": "The models appear after you sign in and the route starts.",
+  "provider.antigravity.unofficial":
+    "This route uses an unofficial client. Google can change or block it at any time, and your account carries that risk.",
   "provider.custom.name": "Custom provider",
   "provider.custom.description": "Your own model endpoint",
   "provider.custom.addLabel": "Add custom provider",

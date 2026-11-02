@@ -2,7 +2,7 @@
   "slug": "meta-ads",
   "name": "Meta Ads",
   "tagline": "Resultados e campanhas do Facebook e Instagram Ads",
-  "description": "Conecta o agente à sua conta de anúncios da Meta (Facebook e Instagram), pelo servidor MCP oficial da Meta. Cada pessoa entra com a própria conta Meta, e o agente faz o que essa conta pode fazer.\n\nO que o agente pode fazer: ler resultados de campanhas, conjuntos de anúncios e anúncios, gerar relatórios, ver criativos e catálogos.\nAtenção, pode gastar dinheiro de verdade: o agente também pode criar campanhas, conjuntos de anúncios e anúncios, alterar orçamento e ativar anúncios. Ativar ou aumentar o orçamento começa a gastar o saldo da sua conta de anúncios. A Meta cria os itens novos pausados e diz que o cliente de IA deve pedir confirmação antes de ativar, mas o OpenCat não exige aprovação por ferramenta para este servidor: a confirmação depende do agente.\nCuidados: peça só leitura enquanto testa, confira cada valor antes de aceitar uma mudança e defina limite de gasto na conta de anúncios da Meta.\nAcesso: o servidor da Meta pode estar em beta e liberado só para algumas contas de anúncios.",
+  "description": "Conecta o agente à sua conta de anúncios da Meta (Facebook e Instagram) pela Marketing API, com um token que você cola uma vez. O servidor roda neste computador.\n\nLeitura (sempre ligada): contas, campanhas, conjuntos e resultados por período.\nAgir e gastar (desligado por padrão): criar campanha sempre PAUSADA, pausar, retomar e mudar orçamento. Retomar ou aumentar orçamento gasta dinheiro de verdade. Só liga se você preencher o teto diário abaixo: o servidor recusa orçamento acima do teto e recusa retomar o que passaria dele, faz no máximo 10 alterações por hora e mostra antes e depois de cada mudança. O agente deve descrever a ação e esperar o seu \"sim\" na conversa antes de qualquer alteração.\n\nComo conectar, em 3 passos:\n1. Na Meta, abra Configurações do Negócio > Usuários > Usuários do sistema, crie um usuário do sistema e atribua a ele a sua conta de anúncios.\n2. Gere um token para um app seu com as permissões ads_read (e ads_management, só se for alterar). Um token de usuário de longa duração também serve.\n3. Cole o token abaixo. Para permitir alterações, informe também o teto diário (na moeda da conta, ex.: 100).\n\nO token fica só no seu computador, vai no cabeçalho Authorization e nunca aparece em logs. Precisa de Node.js.",
   "category": "data-analytics",
   "creatorName": "Meta",
   "iconUrl": null,
@@ -17,19 +17,45 @@
   ],
   "apps": [
     {
-      "id": "app-meta-ads-mcp",
+      "id": "app-meta-ads",
       "name": "Meta Ads",
-      "description": "Relatórios, campanhas, conjuntos de anúncios, anúncios, criativos e catálogos, em um servidor MCP da Meta.",
+      "description": "Contas, campanhas, conjuntos e resultados do Meta Ads, e (se você permitir) criar campanha pausada, pausar, retomar e mudar orçamento, em um servidor local.",
       "iconUrl": null,
       "server": {
         "name": "meta-ads",
-        "transport": "http",
-        "url": "https://mcp.facebook.com/ads",
-        "auth": [{ "id": "meta-ads-oauth", "kind": "link", "label": "Entrar" }]
+        "transport": "stdio",
+        "command": "~/.opencat/meta-ads/meta-ads-mcp.mjs",
+        "args": [],
+        "auth": [
+          {
+            "id": "meta-ads-token",
+            "kind": "key",
+            "label": "Token da Meta",
+            "fields": [
+              {
+                "id": "access-token",
+                "label": "Token de acesso",
+                "env": "META_ACCESS_TOKEN",
+                "placeholder": "EAA...",
+                "hint": "Token de usuário do sistema (ou de longa duração) com ads_read e, para alterar, ads_management."
+              },
+              {
+                "id": "daily-cap",
+                "label": "Teto diário para alterações",
+                "env": "META_LIMITE_ORCAMENTO_DIARIO",
+                "placeholder": "Vazio = somente leitura",
+                "hint": "Opcional. Um valor (ex.: 100) permite alterações até esse orçamento diário.",
+                "optional": true
+              }
+            ],
+            "docsUrl": "https://developers.facebook.com/docs/marketing-api/overview/authorization",
+            "docsLabel": "Como gerar o token"
+          }
+        ]
       }
     }
   ],
-  "websiteUrl": "https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview",
+  "websiteUrl": "https://developers.facebook.com/docs/marketing-apis",
   "privacyPolicyUrl": "https://www.facebook.com/privacy/policy/",
   "termsUrl": "https://www.facebook.com/terms/",
   "skills": []
