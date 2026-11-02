@@ -61,6 +61,10 @@ export const messages = {
   "app.rail.settingsNotice": "Configurações. {notice}",
   "app.rail.more": "Mais",
   "app.rail.pinPage": "Fixar {name} na barra",
+  "app.rail.expand": "Expandir páginas",
+  "app.rail.collapse": "Recolher páginas",
+  // Num rail aberto: uma linha por janela de limite. `percent` já traz o sinal de porcentagem.
+  "app.rail.usageWindow": "{window} {percent} · renova em {time}",
   "app.page.serverFallback": "Servidor",
   "app.help.label": "Ajuda",
   "app.help.whatsNew": "Novidades",

@@ -14,6 +14,7 @@ import {
   avatarMoodPresentation,
   type ShapeSafeStateId,
 } from "@openbot/brand/bloub-avatar-motion";
+import { subscribe } from "@openbot/brand/vendor/bot-avatars/ticker";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { prefersReducedMotion } from "@openbot/ui/utils";
 import type { JSX } from "@solidjs/web";
@@ -21,6 +22,7 @@ import { createEffect, createMemo, createSignal, createUniqueId, For, onSettled,
 import { type AvatarMotion, bloubAvatarProfile, type SupportedAvatarSilhouetteId } from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
 import { createPointerGaze } from "./avatar-pointer-gaze";
+import { BotCanvasAvatar } from "./BotCanvasAvatar";
 
 // Cap avatar animation at 30fps: uncapped bloub clocks measured 30% renderer / 24% GPU
 // for two visible avatars. The shape is 24-40px, so the eye cannot see the difference.
@@ -161,15 +163,10 @@ function OrbitRings(props: { children: JSX.Element }) {
 
   onSettled(() => {
     if (prefersReducedMotion()) return;
-    let handle = 0;
-    let previousFrameAt = 0;
-    let drawnAt = -Infinity;
-    const step = (now: number) => {
-      handle = requestAnimationFrame(step);
-      elapsed += previousFrameAt ? Math.min((now - previousFrameAt) / 1000, 0.064) : 0;
-      previousFrameAt = now;
-      if (elapsed - drawnAt < 1 / AVATAR_FPS) return;
-      drawnAt = elapsed;
+    // The rings run on the page's shared avatar clock: one requestAnimationFrame serves every
+    // avatar's engine at once, and stops while the window is hidden or the row scrolled away.
+    const step = (dt: number) => {
+      elapsed += dt;
       let sampled = engine.sample(elapsed);
       // A pose plays once, and its rings fade out before it ends - orbit holds them for 3.6s of a
       // 4.3s block. So the pose restarts on the frame its rings run out, which is the engine's own
@@ -182,17 +179,14 @@ function OrbitRings(props: { children: JSX.Element }) {
       ringsSeen ||= sampled.arcs.length > 0;
       setArcs(sampled.arcs);
     };
-    const stop = () => {
-      if (!handle) return;
-      cancelAnimationFrame(handle);
-      handle = 0;
-    };
+    let stop: (() => void) | null = null;
     const start = () => {
-      if (handle) return;
-      // The clock restarts from the next frame, so a row that scrolls back in resumes where it
-      // stopped rather than jumping forward by the time it spent out of sight.
-      previousFrameAt = 0;
-      handle = requestAnimationFrame(step);
+      if (stop) return;
+      stop = subscribe(step, { fps: AVATAR_FPS, weight: 2 });
+    };
+    const close = () => {
+      stop?.();
+      stop = null;
     };
     // A `BloubBot` pauses itself off screen through its own observer. These rings are our loop, so
     // without the same gate every working row in a long sidebar keeps sampling an engine and
@@ -201,14 +195,14 @@ function OrbitRings(props: { children: JSX.Element }) {
       anchor && window.IntersectionObserver
         ? new IntersectionObserver(([entry]) => {
             if (entry?.isIntersecting) start();
-            else stop();
+            else close();
           })
         : undefined;
     if (observer && anchor) observer.observe(anchor);
     else start();
     return () => {
       observer?.disconnect();
-      stop();
+      close();
     };
   });
 
@@ -351,19 +345,60 @@ function GeneratedAvatar(props: {
   );
 
   const avatar = () => (
-    <BloubBot
-      size={100}
+    <BotCanvasAvatar
       shape={appearance().shape}
       color={appearance().color}
-      expression={appearance().expression}
-      cycle={motionCycle()}
-      playing={true}
-      fps={AVATAR_FPS}
-      initialPhase={props.animationOffset ?? avatarAnimationPhase(props.seed)}
-      gaze={gazeScript()}
-      ariaLabel=""
+      // The canvas states are the engine's own three; the mood folds onto them.
+      state={
+        props.mood === "asleep"
+          ? "sleeping"
+          : props.mood === "working" || props.mood === "connecting"
+            ? "working"
+            : "default"
+      }
+      motion={animated() ? "full" : "subtle"}
+      interactive={props.followPointer}
+      seed={props.seed}
       class="bloub-avatar-svg"
+      fallback={fallbackForNow()}
     />
+  );
+
+  const FallbackFrozen = () => (
+    <Show when={appearance()} keyed>
+      {(frozen) => (
+        <BloubBot
+          size={100}
+          shape={frozen.shape}
+          color={frozen.color}
+          expression={frozen.expression}
+          state={frozen.state}
+          frozenAt={POSES[frozen.state]}
+          ariaLabel=""
+          class="bloub-avatar-svg"
+        />
+      )}
+    </Show>
+  );
+
+  /** The current SVG stands in while the canvas engine loads under the first paint and whenever it
+      fails; it animates exactly as before so nothing looks frozen during the handover. */
+  const fallbackForNow = () => (
+    <Show when={animated()} fallback={<FallbackFrozen />}>
+      <BloubBot
+        size={100}
+        shape={appearance().shape}
+        color={appearance().color}
+        expression={appearance().expression}
+        cycle={motionCycle()}
+        playing={true}
+        fps={AVATAR_FPS}
+        initialPhase={props.animationOffset ?? avatarAnimationPhase(props.seed)}
+        gaze={gazeScript()}
+        ariaLabel=""
+        class="bloub-avatar-svg"
+      />
+    </Show>
   );
 
   return (
@@ -376,32 +411,7 @@ function GeneratedAvatar(props: {
       data-breathe={props.breathe}
       aria-hidden="true"
     >
-      <AvatarRings when={presentation().rings}>
-        <Show
-          when={animated()}
-          fallback={
-            /* A frozen Bloub frame cannot finish a morph, and the engine reads `state` only when it
-               is built, so a mood change has to rebuild the bot. Keying on the appearance, state
-               included, does both: `frozenAt` alone would sample the seeded idle face. */
-            <Show when={appearance()} keyed>
-              {(frozen) => (
-                <BloubBot
-                  size={100}
-                  shape={frozen.shape}
-                  color={frozen.color}
-                  expression={frozen.expression}
-                  state={frozen.state}
-                  frozenAt={POSES[frozen.state]}
-                  ariaLabel=""
-                  class="bloub-avatar-svg"
-                />
-              )}
-            </Show>
-          }
-        >
-          {avatar()}
-        </Show>
-      </AvatarRings>
+      <AvatarRings when={presentation().rings}>{avatar()}</AvatarRings>
     </span>
   );
 }

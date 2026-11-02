@@ -837,8 +837,7 @@ export class TurnLifecycle {
           agentId &&
           errorTurnId !== null &&
           this.#runningTurns.has(errorTurnId) &&
-          (FAILOVER_CAUSES.has(context.causeCode) ||
-            (source.provider === "antigravity" && context.causeCode === "usage_limit")) &&
+          (FAILOVER_CAUSES.has(context.causeCode) || context.causeCode === "usage_limit") &&
           this.#hooks.mayFailOver(agentId)
         ) {
           this.#failoverTurns.set(errorTurnId, { message, context });
@@ -929,6 +928,30 @@ export class TurnLifecycle {
       this.#limitedTurns.delete(turnId);
       let failover = this.#failoverTurns.get(turnId);
       this.#failoverTurns.delete(turnId);
+      if (
+        status === "failed" &&
+        running !== undefined &&
+        failover === undefined &&
+        !limited &&
+        this.#hooks.mayFailOver(agentId)
+      ) {
+        const errText = reportedError ?? reportedFailure;
+        if (errText) {
+          const cause = classifyFailure(errText);
+          if (FAILOVER_CAUSES.has(cause) || cause === "usage_limit") {
+            failover = {
+              message: errText,
+              context: {
+                causeCode: cause,
+                provider: running.client.provider,
+                model: this.#hooks.turnModel(agentId, turnId),
+                turnId,
+                severity: "error",
+              },
+            };
+          }
+        }
+      }
       // A provider can answer a retired model with a notice as a normal final answer. That is an outage:
       // the notice is not kept as an answer, and the turn fails over like a held provider error.
       if (status === "completed" && running !== undefined && failover === undefined && !limited) {

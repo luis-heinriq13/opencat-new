@@ -83,17 +83,18 @@ function RailPreview(props: {
           onSettings={() => setCurrent("settings")}
           settingsNotice={props.updateReady ? t("account.update.ready") : undefined}
           logo={props.logo}
-          help={
+          help={(expanded) => (
             <HelpMenu
               news={[]}
               triggerClass="window-rail-button"
+              railLabel={expanded ? t("app.help.label") : undefined}
               onOpenWhatsNew={fn()}
               onOpenChangelog={fn()}
               onOpenGuides={fn()}
               onOpenDiscord={fn()}
               onSendFeedback={fn()}
             />
-          }
+          )}
         />
       </div>
     </div>

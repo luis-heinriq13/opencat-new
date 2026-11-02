@@ -62,6 +62,10 @@ export const messages = defineMessages("app", {
   "app.rail.settingsNotice": "Settings. {notice}",
   "app.rail.more": "More",
   "app.rail.pinPage": "Pin {name} to the rail",
+  "app.rail.expand": "Expand pages",
+  "app.rail.collapse": "Collapse pages",
+  // On an open rail: one line per limit window. `percent` already carries its percent sign.
+  "app.rail.usageWindow": "{window} {percent} · renews in {time}",
   "app.page.serverFallback": "Server",
   "app.help.label": "Help",
   "app.help.whatsNew": "What’s new",
