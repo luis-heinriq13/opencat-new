@@ -365,9 +365,13 @@ export async function spawnLocalInstaller(input: {
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
   const script = join(runDirectory, "opencat-instalar-atualizacao.py");
   await copyFile(join(input.resourcesPath, "opencat", "opencat-instalar-atualizacao.py"), script);
+  // A atualização do fork tem um único destino. Uma cópia de recuperação aberta pelo
+  // Dock antigo não pode virar o novo destino, ou cada instalação passa a atualizar
+  // uma cópia diferente e /Applications/OpenCat.app fica parado numa versão velha.
+  const targetBundlePath = process.platform === "darwin" ? "/Applications/OpenCat.app" : input.bundlePath;
   const child = spawn(
     "/usr/bin/python3",
-    ["-I", script, "--commit", input.commit, "--atual", input.bundlePath, "--wait-pid", String(process.pid)],
+    ["-I", script, "--commit", input.commit, "--atual", targetBundlePath, "--wait-pid", String(process.pid)],
     { detached: true, stdio: "ignore", env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: homedir() } },
   );
   child.unref();

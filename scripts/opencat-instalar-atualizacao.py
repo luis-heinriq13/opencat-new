@@ -98,6 +98,38 @@ def rodando():
     return bool(run("lsof", "-nP", str(DATA / "openbot.db")).stdout.strip())
 
 
+def app_rodando(app):
+    """Confirma o processo principal do bundle exato, não só qualquer processo que abra o banco."""
+    executavel = app / "Contents" / "MacOS" / "OpenBot"
+    return subprocess.run(("pgrep", "-f", str(executavel)), capture_output=True, text=True).returncode == 0
+
+
+def copiar_app(origem, destino):
+    """Copia um bundle assinado sem transformar o destino em app registrado pelo LaunchServices."""
+    return run("ditto", str(origem), str(destino)).returncode == 0
+
+
+def limpar_conteudo_app(app):
+    """Preserva o inode de /Applications/OpenCat.app, que é o alvo do ícone fixado no Dock."""
+    try:
+        for entrada in app.iterdir():
+            if entrada.is_dir() and not entrada.is_symlink():
+                shutil.rmtree(entrada)
+            else:
+                entrada.unlink()
+    except OSError as error:
+        log(f"nao consegui limpar o conteudo do app: {error}")
+        return False
+    return True
+
+
+def instalar_no_mesmo_bundle(origem, destino):
+    """Atualiza o conteúdo no bundle canônico sem mover sua pasta raiz para uma cópia."""
+    if not limpar_conteudo_app(destino):
+        return False
+    return copiar_app(origem, destino) and assinatura_ok(destino)
+
+
 def pid_vivo(pid):
     try:
         os.kill(pid, 0)
@@ -232,8 +264,6 @@ def reabrir_se_fechado(args):
 
 
 def reabrir_apos_interrupcao():
-    if ANTERIOR is not None and ANTERIOR.is_dir() and not ATUAL.exists():
-        shutil.move(str(ANTERIOR), str(ATUAL))
     if ATUAL.is_dir() and not rodando():
         run("open", str(ATUAL))
 
@@ -274,12 +304,14 @@ def voltar(dados_ruins, wait_pid):
     desmarcar_em_andamento()
     log("voltando ao app anterior" + (" e aos dados anteriores" if dados_ruins else ""))
     fechar(None)
-    if ATUAL.exists():
-        shutil.move(str(ATUAL), str(COPIA / "OpenCat-falhou.app"))
+    if ATUAL.exists() and COPIA is not None:
+        copiar_app(ATUAL, COPIA / "OpenCat-falhou.bundle")
     if dados_ruins:
         shutil.move(str(DATA), str(COPIA / "dados-apos-falha"))
         run("cp", "-c", "-R", str(COPIA / "dados-OpenBot"), str(DATA))
-    shutil.move(str(ANTERIOR), str(ATUAL))
+    if ANTERIOR is None or not instalar_no_mesmo_bundle(ANTERIOR, ATUAL):
+        log("nao consegui restaurar o app anterior no bundle canonico")
+        return
     run("open", str(ATUAL))
 
 
@@ -374,7 +406,10 @@ def instalar(args):
 
     COPIA = UPDATES / "copias" / time.strftime("%Y%m%d-%H%M%S")
     COPIA.mkdir(parents=True, mode=0o700)
-    ANTERIOR = COPIA / "OpenCat-anterior.app"
+    # Uma cópia com sufixo .app é registrada pelo macOS. Quando o instalador movia o
+    # bundle de /Applications para ela, o ícone já fixado no Dock continuava apontando
+    # para essa cópia antiga. .bundle mantém a recuperação sem virar outro OpenCat.
+    ANTERIOR = COPIA / "OpenCat-anterior.bundle"
     if run("cp", "-c", "-R", str(DATA), str(COPIA / "dados-OpenBot")).returncode:
         log("copia dos dados falhou; nada foi alterado")
         shutil.rmtree(PREPARADO, ignore_errors=True)
@@ -382,15 +417,18 @@ def instalar(args):
         return 1
     log(f"copia dos dados pronta: {COPIA}")
 
-    try:
-        shutil.move(str(ATUAL), str(ANTERIOR))
-        shutil.move(str(PREPARADO), str(ATUAL))
-    except OSError as error:
-        log(f"troca falhou: {error}")
-        if ANTERIOR.exists() and not ATUAL.exists():
-            shutil.move(str(ANTERIOR), str(ATUAL))
+    if not copiar_app(ATUAL, ANTERIOR):
+        log("copia do app anterior falhou; nada foi alterado")
+        shutil.rmtree(PREPARADO, ignore_errors=True)
         run("open", str(ATUAL))
         return 1
+    if not instalar_no_mesmo_bundle(PREPARADO, ATUAL):
+        log("troca no bundle canonico falhou; restaurando o app anterior")
+        instalar_no_mesmo_bundle(ANTERIOR, ATUAL)
+        shutil.rmtree(PREPARADO, ignore_errors=True)
+        run("open", str(ATUAL))
+        return 1
+    shutil.rmtree(PREPARADO, ignore_errors=True)
     TROCADO = True
     try:
         marcar_em_andamento(manifest)
@@ -408,9 +446,10 @@ def instalar(args):
         if api is None:
             continue
         banco = contar_agentes_db()
-        if base_api is not None and api >= base_api:
+        novo_app = app_rodando(ATUAL)
+        if novo_app and base_api is not None and api >= base_api:
             veredito = "ok"
-        elif base_api is None and (base_db is None or (banco is not None and banco >= base_db)):
+        elif novo_app and base_api is None and (base_db is None or (banco is not None and banco >= base_db)):
             veredito = "ok"
         if veredito == "ok":
             break
@@ -419,9 +458,9 @@ def instalar(args):
         if base_db is not None and banco is not None and banco < base_db:
             veredito, dados_ruins = "ruim", True
             log(f"faltam agentes no banco: antes={base_db} agora={banco}")
-        elif not rodando():
+        elif not app_rodando(ATUAL):
             veredito = "ruim"
-            log("o app novo nao esta rodando")
+            log("o app novo nao esta rodando no bundle canonico")
     if veredito == "ruim":
         voltar(dados_ruins, None)
         log(f"FALHOU: voltei ao app anterior. Copia em {COPIA}")
