@@ -41,6 +41,8 @@ function RailButton(props: {
   /** The lines under the row name, as the limit windows of a provider. Absent on page rows. */
   copy?: JSX.Element | undefined;
   card?: () => JSX.Element;
+  /** Open rows already carry their name and usage in the rail, so they must not show a duplicate hover card. */
+  tooltipSuppressed?: boolean;
   current?: boolean;
   class?: string;
   onClick: (button: HTMLElement) => void;
@@ -63,7 +65,14 @@ function RailButton(props: {
     </Button>
   );
   return (
-    <Show when={props.card} fallback={<MotionTooltip content={props.tooltip ?? props.label}>{button()}</MotionTooltip>}>
+    <Show
+      when={props.card}
+      fallback={
+        <MotionTooltip content={props.tooltip ?? props.label} suppressed={props.tooltipSuppressed}>
+          {button()}
+        </MotionTooltip>
+      }
+    >
       {(card) => (
         <MotionTooltip
           content={card()()}
@@ -71,6 +80,7 @@ function RailButton(props: {
           placement="right-end"
           openDelay={250}
           closeDelay={75}
+          suppressed={props.tooltipSuppressed}
         >
           {button()}
         </MotionTooltip>
@@ -116,6 +126,7 @@ function UsageRings(props: {
       // The account name, "Gemini · conta" for a second account, not the airy sentence of the label.
       rowLabel={props.row.name}
       tooltip={props.expanded ? props.row.name : undefined}
+      tooltipSuppressed={props.expanded}
       copy={
         <Show when={props.expanded && props.row.windows.length > 0}>
           <UsageWindowLines windows={props.row.windows} />
@@ -232,6 +243,7 @@ function CustomAgentUsageButton(props: {
       label={t("app.rail.customAgentUsage", { name: props.row.name })}
       rowLabel={props.row.name}
       tooltip={props.expanded ? props.row.name : undefined}
+      tooltipSuppressed={props.expanded}
       copy={
         <Show when={props.expanded && props.row.text.trim().length > 0}>
           <p class="window-rail-agent-usage-text window-rail-agent-usage-row">{props.row.text}</p>
@@ -584,7 +596,7 @@ export function PageRail(props: PageRailProps) {
         <div class="window-rail-backdrop" aria-hidden="true" onClick={collapseRail} />
       </Show>
       <Show when={props.logo}>{(logo) => <RailLogo variant={logo().variant} href={logo().href} />}</Show>
-      <div class="window-rail-group">
+      <div class="window-rail-group window-rail-pages">
         <MotionTooltip content={expanded() ? t("app.rail.collapse") : t("app.rail.expand")} suppressed={expanded()}>
           <Button
             variant="ghost"
@@ -595,13 +607,16 @@ export function PageRail(props: PageRailProps) {
             onClick={toggleRail}
           >
             <TextAlignJustify aria-hidden="true" />
-            <span class="window-rail-text">
-              <span class="window-rail-label">{t("app.rail.label")}</span>
-            </span>
+            <Show when={!expanded()}>
+              <span class="window-rail-text">
+                <span class="window-rail-label">{t("app.rail.label")}</span>
+              </span>
+            </Show>
           </Button>
         </MotionTooltip>
         <RailButton
           label={t("app.rail.agents")}
+          tooltipSuppressed={expanded()}
           current={props.current === "agents"}
           onClick={() => {
             closeOverlayAfterAction();
@@ -614,6 +629,7 @@ export function PageRail(props: PageRailProps) {
           {(page) => (
             <RailButton
               label={page().label}
+              tooltipSuppressed={expanded()}
               current={props.current === page().id}
               onClick={(button) => {
                 closeOverlayAfterAction();
@@ -628,6 +644,7 @@ export function PageRail(props: PageRailProps) {
           {(app) => (
             <RailButton
               label={app().name}
+              tooltipSuppressed={expanded()}
               current={props.currentApp === app().slug}
               onClick={() => {
                 closeOverlayAfterAction();
@@ -643,7 +660,7 @@ export function PageRail(props: PageRailProps) {
           <RailMoreMenu pages={pages()} current={props.current} pinned={props.pinned} onPinChange={props.onPinChange} />
         </Show>
       </div>
-      <div class="window-rail-group">
+      <div class="window-rail-group window-rail-footer">
         <div class="window-rail-usage-scroll">
           {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
           <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
@@ -676,6 +693,7 @@ export function PageRail(props: PageRailProps) {
           {(onMarketplace) => (
             <RailButton
               label={t("app.rail.marketplace")}
+              tooltipSuppressed={expanded()}
               current={props.current === "marketplace"}
               onClick={() => {
                 closeOverlayAfterAction();
@@ -693,6 +711,7 @@ export function PageRail(props: PageRailProps) {
               ? t("app.rail.settingsNotice", { notice: props.settingsNotice })
               : t("app.rail.settings")
           }
+          tooltipSuppressed={expanded()}
           current={props.current === "settings"}
           onClick={(button) => {
             closeOverlayAfterAction();

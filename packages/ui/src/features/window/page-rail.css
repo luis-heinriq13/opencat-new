@@ -264,12 +264,27 @@
   min-height: 0;
 }
 
+/* The page controls keep their natural height. The bottom group owns the remaining height so a
+ * long provider list scrolls inside the rail instead of painting its rows over each other. */
+.window-rail-footer {
+  min-height: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
 .window-rail[data-expanded] .window-rail-button {
   width: 100%;
   height: var(--openbot-control-lg);
   justify-content: flex-start;
   gap: var(--openbot-space-2);
   padding-inline: var(--openbot-space-2);
+}
+
+.window-rail[data-expanded] .window-rail-button.window-rail-usage {
+  height: auto;
+  min-height: var(--openbot-control-lg);
+  align-items: flex-start;
+  padding-block: var(--openbot-space-1);
 }
 
 .window-rail-text {
@@ -346,7 +361,8 @@
 
 .window-rail[data-expanded] .window-rail-usage-scroll {
   align-items: stretch;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  max-height: 100%;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;

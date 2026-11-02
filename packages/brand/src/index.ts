@@ -7,5 +7,6 @@ export {
   type PlatformLogoVariant,
 } from "./PlatformLogo";
 export { ProviderLogo, type ProviderLogoProps, type ProviderLogoVariant } from "./ProviderLogo";
-export * from "./vendor/bot-avatars";
-export * as BotAvatars from "./vendor/bot-avatars";
+// The canvas mascot engine has its own exported subpath. Re-exporting it here made every AppLogo
+// and ProviderLogo import pull the full renderer into the initial application chunk, defeating the
+// idle loader in BotCanvasAvatar.
