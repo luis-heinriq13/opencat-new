@@ -55,9 +55,6 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   const updateNotice = () => {
     const status = updates.status();
     const phase = status.phase;
-    // Locally prepared builds install themselves at the next safe idle point. The compact rail has
-    // no action to offer, so do not advertise a redundant manual update there.
-    if (status.localUpdate !== undefined && phase === "available") return undefined;
     if (!layout.leftPanelCompact() || !isUpdateActivePhase(phase)) return undefined;
     return text.t(phase === "ready" || phase === "installing" ? "account.update.ready" : "account.update.available");
   };

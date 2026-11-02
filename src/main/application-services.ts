@@ -3011,13 +3011,12 @@ export async function createApplicationServices({
   let clearLocalUpdateOffer: () => void = () => {};
   // The updater is built before the rest of the workspace services. This predicate is replaced once
   // the complete restart-readiness check exists below; until then an automatic install is refused.
-  let automaticLocalUpdateReady = () => false;
   const updater = new UpdateService(updateAdapter, {
     currentVersion,
     enabled: updaterEnabled,
     autoDownload: updatePreference.autoDownload,
     beforeInstall: prepareForUpdateInstall,
-    installLocalUpdate: async (update, { automatic }) => {
+    installLocalUpdate: async (update) => {
       const bundlePath = bundlePathFromExecutable(app.getPath("exe"));
       if (!app.isPackaged || !bundlePath) return false;
       // The offer can be stale: the installer may already be running, or the manifest gone. A stale
@@ -3029,42 +3028,32 @@ export async function createApplicationServices({
         clearLocalUpdateOffer();
         return false;
       }
-      if (automatic && !automaticLocalUpdateReady()) {
-        logger.info(`Local update ${update.commit} is waiting for an idle workspace.`);
-        return false;
-      }
-      if (!automatic) {
-        const build = update.build;
-        const busy = service.hasActiveWork().length > 0;
-        const choice = await dialog.showMessageBox({
-          type: "question",
-          title: language.translate("dialog.localUpdate.title"),
-          message: language.translate("dialog.localUpdate.message", {
-            version: formatVersionLabel(update.version, build),
+      const build = update.build;
+      const busy = service.hasActiveWork().length > 0;
+      const choice = await dialog.showMessageBox({
+        type: "question",
+        title: language.translate("dialog.localUpdate.title"),
+        message: language.translate("dialog.localUpdate.message", {
+          version: formatVersionLabel(update.version, build),
+        }),
+        detail: [
+          language.translate("dialog.localUpdate.detail", {
+            changes: update.changes.map((line) => `- ${line}`).join("\n"),
           }),
-          detail: [
-            language.translate("dialog.localUpdate.detail", {
-              changes: update.changes.map((line) => `- ${line}`).join("\n"),
-            }),
-            ...(busy ? [language.translate("dialog.localUpdate.busy")] : []),
-          ].join("\n\n"),
-          buttons: [language.translate("dialog.localUpdate.install"), language.translate("dialog.localUpdate.cancel")],
-          defaultId: 1,
-          cancelId: 1,
-          noLink: true,
-        });
-        if (choice.response !== 0) return false;
-      }
+          ...(busy ? [language.translate("dialog.localUpdate.busy")] : []),
+        ].join("\n\n"),
+        buttons: [language.translate("dialog.localUpdate.install"), language.translate("dialog.localUpdate.cancel")],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice.response !== 0) return false;
       if (!(await stillOffered())) {
         logger.warn(`Local update ${update.commit} changed before installation; the offer was cleared.`);
         clearLocalUpdateOffer();
         return false;
       }
-      logger.info(
-        automatic
-          ? `Local update ${update.commit} is installing after the workspace became idle.`
-          : `Local update ${update.commit} accepted by the user.`,
-      );
+      logger.info(`Local update ${update.commit} accepted by the user.`);
       await spawnLocalInstaller({
         resourcesPath: process.resourcesPath,
         updatesDirectory: localUpdatePaths.updatesDirectory,
@@ -3169,7 +3158,6 @@ export async function createApplicationServices({
       updaterBusy: !updater.getStatus().managedByHost && isUpdateBusyPhase(updater.getStatus().phase),
       initializationPending: !agentInitialization.succeeded,
     });
-  automaticLocalUpdateReady = () => describeRestartReadiness().safeToRestart;
   const hostUpdateCoordinator = new HostUpdateCoordinator({
     uid: typeof process.getuid === "function" ? process.getuid() : 0,
     pid: process.pid,
@@ -3234,45 +3222,6 @@ export async function createApplicationServices({
     log: (message) => logger.info(message),
   });
   teardown.push(TEARDOWN_ORDER.idleRestart, "the restart when idle", () => idleRestart.dispose());
-  // A build produced by our signed local pipeline replaces this app without an extra button. It is
-  // intentionally not a remote auto-updater: the local source already verifies ownership, signature
-  // and the pending manifest; this loop adds the final no-work check immediately before the swap.
-  let automaticLocalUpdateTimer: ReturnType<typeof setTimeout> | null = null;
-  let automaticLocalUpdateInstalling = false;
-  const scheduleAutomaticLocalUpdate = () => {
-    if (automaticLocalUpdateTimer || automaticLocalUpdateInstalling) return;
-    const status = updater.getStatus();
-    if (!status.localUpdate || status.phase !== "available") return;
-    const attempt = () => {
-      automaticLocalUpdateTimer = null;
-      const current = updater.getStatus();
-      if (!current.localUpdate || current.phase !== "available" || automaticLocalUpdateInstalling) return;
-      if (!automaticLocalUpdateReady()) {
-        automaticLocalUpdateTimer = setTimeout(attempt, 5_000);
-        automaticLocalUpdateTimer.unref?.();
-        return;
-      }
-      automaticLocalUpdateInstalling = true;
-      void Effect.runPromise(updater.installLocalUpdateAutomatically())
-        .then(
-          () => undefined,
-          (error) => logger.warn("The automatic local update could not start.", toLogValue(error)),
-        )
-        .finally(() => {
-          automaticLocalUpdateInstalling = false;
-          scheduleAutomaticLocalUpdate();
-        });
-    };
-    automaticLocalUpdateTimer = setTimeout(attempt, 1_000);
-    automaticLocalUpdateTimer.unref?.();
-  };
-  updater.on("status", scheduleAutomaticLocalUpdate);
-  scheduleAutomaticLocalUpdate();
-  teardown.push(TEARDOWN_ORDER.updater, "the automatic local update scheduler", () => {
-    updater.off("status", scheduleAutomaticLocalUpdate);
-    if (automaticLocalUpdateTimer) clearTimeout(automaticLocalUpdateTimer);
-    automaticLocalUpdateTimer = null;
-  });
   if (hostedServer) {
     const hostedServerStartRetry = new HostedServerStartRetry({
       hostPhase: () => host.getStatus().phase,

@@ -7,3 +7,4 @@ Protecao contra repeticao de acoes externas ja executadas (mensagens, deploy, pu
 Recuperacao automatica: 1a tentativa na mesma sessao e 2a tentativa em modelo reserva
 Aviso automatico do lider no canal quando membro travar por silencio
 Status em tempo real indicando inatividade ou tempo de uso de ferramenta
+Restauracao do botao Atualizar visivel no app sem loops automaticos
