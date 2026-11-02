@@ -98,3 +98,19 @@ Hoje só existe a linha no plano. Siga o mesmo modelo de `tools/teams/` e `tools
 - **Loja:** dois apps ou um com as duas funções, o que ficar mais simples para o Luis, com logo real em `MarketplaceParts.tsx` e `PageRail.tsx`, e `panel: "connect"` no começo. Rode `bun run marketplace:build:plugins`. Nunca edite os catálogos gerados à mão.
 - **Teste real:** só o Luis faz o primeiro login. Não envie nenhum e-mail real sem o pedido dele.
 - **Fim:** atualize `PRIVACY.md`, `changelog.d/fork-atualizado.md` e `TASKS.md`. Depois siga "Como fazer o botão Atualizar aparecer".
+
+## Depois: avatares 3D (Bot Avatars)
+
+Pedido do Luis: dar a animação 3D de https://libraries.dev/bots aos mascotes atuais. Faça depois de Gmail e Drive, ou antes, se o Luis pedir. Fatos verificados em `github.com/Jakubantalik/Libraries.dev`, `packages/bot-avatars`, versão 0.2.2: licença MIT, Canvas 2D sem WebGL, respeita `prefers-reduced-motion` e pausa fora da tela. O projeto é React, e o OpenCat é SolidJS, então não instale o pacote: `index.ts` importa `BotAvatar.tsx`, que importa React, e o `exports` só libera a raiz. `engine.ts`, `draw.ts`, `mesh.ts`, `plastic.ts`, `wear.ts`, `shapes.ts`, `ticker.ts`, `color.ts` e `presets.ts` não importam nenhum pacote externo.
+
+1. **Código:** copie esses arquivos para `packages/brand/src/vendor/bot-avatars/`, sem editar, com o `LICENSE` do projeto e o commit de origem. Registre em `NOTICE` e no changelog. Não copie `BotAvatar.tsx` nem `demo`. Confira a procedência antes: `wear.ts` tem um `import` em várias linhas que precisa apontar só para arquivo local.
+2. **Componente:** crie `BotCanvasAvatar.tsx` em SolidJS, em `packages/ui`, seguindo o que `BotAvatar.tsx` faz: `Sim`, `draw`, `subscribe` do `ticker`, redimensionamento e limpeza ao desmontar. Reaproveite `AgentAvatar`, sem mudar as props para quem já usa.
+3. **Mascotes:** cada formato atual vira uma `path` (SVG na caixa 100×100, centrada em 50,50). Converta os raios de `bloub-extra-shapes.ts` e use o perfil real de cada um, com 11 formatos no total. A biblioteca decide a posição do rosto pelo `type`, então escolha um `type` por formato e ajuste até os olhos ficarem no lugar. Mantenha as cores `avatarHue`, passando `color`. As `avatarSeed` salvas continuam escolhendo o mesmo mascote: não mude nenhum agente salvo.
+4. **Estados:** ocioso vira `default`, trabalhando vira `working`, e `sleeping` é para agente pausado, se esse estado existir. Use `seed` para os agentes não piscarem juntos. Não ative rosto com boca, chapéu ou óculos.
+5. **Desempenho, o maior risco:** a lista pode ter dezenas de canvas ao mesmo tempo, e `fabric` e `plastic` são pesados.
+   - Até 32 px: `smooth`, ou o motor atual sem animação 3D.
+   - Na lista lateral, anime só o agente selecionado ou trabalhando; os outros ficam parados (`paused`).
+   - Avatar grande, como em Criar agente e no perfil: `plastic`. Compare `fabric` com o Luis.
+   - Meça uso de CPU com a lista cheia, antes e depois. Se subir muito, reduza.
+6. **Fora do escopo:** o app mobile (o port React Native não está no npm) e o site continuam com o motor atual. Não remova `@norbert_bodziony/bloub`.
+7. **Prova:** story com os 11 mascotes em 20, 32, 64 e 128 px, nos 3 estados, claro e escuro. Envie um vídeo ou print ao Luis antes de trocar nas telas. Depois, o `check:ui`, a geração da versão e o relato do que foi visto no app.
