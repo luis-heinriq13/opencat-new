@@ -60,8 +60,9 @@
   border: 1px solid var(--openbot-cat-hairline);
   border-radius: var(--openbot-radius-xl);
   background:
-    radial-gradient(30% 46% at 16% 44%, var(--openbot-cat-glow-strong), transparent 100%),
-    radial-gradient(30% 46% at 84% 44%, var(--openbot-cat-glow-strong), transparent 100%), var(--openbot-cat-surface);
+    radial-gradient(32% 52% at 50% 36%, var(--openbot-cat-glow-strong), transparent 100%),
+    radial-gradient(24% 42% at 16% 44%, var(--openbot-cat-glow), transparent 100%),
+    radial-gradient(24% 42% at 84% 44%, var(--openbot-cat-glow), transparent 100%), var(--openbot-cat-surface);
   box-shadow: var(--openbot-cat-shadow);
 }
 
@@ -73,12 +74,12 @@
 @container (min-width: 900px) {
   .first-agent-art {
     position: absolute;
-    z-index: -1;
+    z-index: 0;
     top: 0;
     right: 0;
     left: 0;
     display: block;
-    height: calc(var(--openbot-space-8) * 22);
+    height: calc(var(--openbot-space-8) * 24);
     overflow: hidden;
     pointer-events: none;
   }
@@ -95,18 +96,20 @@
 }
 
 .first-agent-orbit[data-orbit="outer"] {
-  top: var(--openbot-space-6);
-  width: calc(var(--openbot-space-8) * 25);
+  top: calc(var(--openbot-space-8) * 2);
+  width: calc(var(--openbot-space-8) * 27);
 }
 
 .first-agent-orbit[data-orbit="inner"] {
-  top: var(--openbot-space-8);
-  width: calc(var(--openbot-space-8) * 14);
+  top: calc(var(--openbot-space-8) * 4);
+  width: calc(var(--openbot-space-8) * 15);
   opacity: 0.6;
 }
 
 .first-agent-float {
   --first-agent-float-tilt: 0deg;
+  --first-agent-float-x: 0deg;
+  --first-agent-float-y: 0deg;
 
   position: absolute;
   display: flex;
@@ -114,17 +117,36 @@
   height: calc(var(--openbot-space-8) * 2 + var(--openbot-space-2));
   align-items: center;
   justify-content: center;
-  border-radius: var(--openbot-cat-radius-tile);
-  background: var(--openbot-cat-tile);
-  box-shadow: var(--openbot-cat-shadow-tile);
+  border: 1px solid var(--openbot-cat-hairline);
+  border-radius: var(--openbot-radius-xl);
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--openbot-cat-surface) 92%, var(--openbot-cat-glow-strong)),
+      transparent 58%
+    ),
+    var(--openbot-cat-tile);
+  box-shadow:
+    inset 0 calc(var(--openbot-space-1) * -1) var(--openbot-space-2)
+    color-mix(in srgb, var(--openbot-cat-accent-deep) 12%, transparent),
+    inset 0 var(--openbot-space-1) var(--openbot-space-2)
+    color-mix(in srgb, var(--openbot-cat-surface) 84%, transparent),
+    0 var(--openbot-space-2) var(--openbot-space-4) color-mix(in srgb, var(--openbot-cat-accent-deep) 12%, transparent),
+    0 calc(var(--openbot-space-6) + var(--openbot-space-1)) calc(var(--openbot-space-8) * 2)
+    color-mix(in srgb, var(--openbot-cat-accent) 15%, transparent);
   color: var(--openbot-cat-accent);
-  rotate: var(--first-agent-float-tilt);
+  transform: perspective(900px) rotate(var(--first-agent-float-tilt)) rotateX(var(--first-agent-float-x))
+    rotateY(var(--first-agent-float-y));
+  transform-style: preserve-3d;
 }
 
 .first-agent-float svg {
   width: var(--openbot-space-8);
   height: var(--openbot-space-8);
   fill: currentcolor;
+  filter: drop-shadow(
+    0 var(--openbot-space-1) var(--openbot-space-1) color-mix(in srgb, var(--openbot-cat-accent-deep) 30%, transparent)
+  );
 }
 
 .first-agent-float svg circle {
@@ -133,6 +155,8 @@
 
 .first-agent-float[data-place="top-left"] {
   --first-agent-float-tilt: 9deg;
+  --first-agent-float-x: 7deg;
+  --first-agent-float-y: -11deg;
 
   top: calc(var(--openbot-space-8) * 5);
   left: calc(50% - var(--openbot-space-8) * 14);
@@ -145,6 +169,8 @@
 
 .first-agent-float[data-place="bottom-left"] {
   --first-agent-float-tilt: -10deg;
+  --first-agent-float-x: -8deg;
+  --first-agent-float-y: 10deg;
 
   top: calc(var(--openbot-space-8) * 10 + var(--openbot-space-4));
   left: calc(50% - var(--openbot-space-8) * 15 - var(--openbot-space-2));
@@ -155,6 +181,8 @@
 
 .first-agent-float[data-place="top-right"] {
   --first-agent-float-tilt: 10deg;
+  --first-agent-float-x: 8deg;
+  --first-agent-float-y: 10deg;
 
   top: calc(var(--openbot-space-8) * 4 + var(--openbot-space-2));
   left: calc(50% + var(--openbot-space-8) * 12);
@@ -162,6 +190,8 @@
 
 .first-agent-float[data-place="bottom-right"] {
   --first-agent-float-tilt: 12deg;
+  --first-agent-float-x: -7deg;
+  --first-agent-float-y: -9deg;
 
   top: calc(var(--openbot-space-8) * 10 + var(--openbot-space-4));
   left: calc(50% + var(--openbot-space-8) * 12);
@@ -172,12 +202,16 @@
 }
 
 @keyframes first-agent-drift {
-  from {
+  0% {
     translate: 0 calc(var(--openbot-space-2) * -1);
+    transform: perspective(900px) rotate(var(--first-agent-float-tilt)) rotateX(var(--first-agent-float-x))
+      rotateY(var(--first-agent-float-y));
   }
 
-  to {
+  100% {
     translate: 0 var(--openbot-space-2);
+    transform: perspective(900px) rotate(calc(var(--first-agent-float-tilt) * -1))
+      rotateX(calc(var(--first-agent-float-x) * -1)) rotateY(calc(var(--first-agent-float-y) * -1));
   }
 }
 
@@ -203,29 +237,32 @@
 }
 
 .first-agent-editor {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: min(600px, calc(100% - 32px));
   align-content: start;
+  align-self: center;
   justify-self: center;
   gap: var(--openbot-space-3);
-  padding: var(--openbot-space-6) 0 var(--openbot-space-3);
+  padding: var(--openbot-space-5) 0 var(--openbot-space-4);
 }
 
 .first-agent-live-avatar {
   display: grid;
-  width: calc(var(--openbot-space-8) * 3);
-  height: calc(var(--openbot-space-8) * 3);
+  width: calc(var(--openbot-space-8) * 3.5);
+  height: calc(var(--openbot-space-8) * 3.5);
   place-items: center;
   justify-self: center;
   border-radius: var(--openbot-radius-pill);
-  background: radial-gradient(closest-side, var(--openbot-cat-glow-strong), transparent 100%);
+  background: radial-gradient(closest-side, var(--openbot-cat-glow-strong), transparent 76%);
 }
 
 .first-agent-live-avatar .agent-avatar {
-  --agent-avatar-optical-offset: calc(var(--openbot-space-8) * 2.5 * -0.14);
+  --agent-avatar-optical-offset: calc(var(--openbot-space-8) * 2.75 * -0.14);
 
-  width: calc(var(--openbot-space-8) * 2.5);
-  height: calc(var(--openbot-space-8) * 2.5);
+  width: calc(var(--openbot-space-8) * 2.75);
+  height: calc(var(--openbot-space-8) * 2.75);
 }
 
 .first-agent-avatar-fieldset {
@@ -400,6 +437,8 @@
 }
 
 .first-agent-suggestions {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   padding: 0 var(--openbot-space-4) var(--openbot-space-4);
 }
@@ -513,6 +552,10 @@
 }
 
 @media (max-width: 800px) {
+  .first-agent-editor {
+    align-self: start;
+  }
+
   .first-agent-face-options {
     flex-wrap: wrap;
   }
