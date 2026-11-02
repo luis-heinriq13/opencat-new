@@ -130,7 +130,6 @@ export function TeamsMark(props: { class?: string | undefined; colored?: boolean
   );
 }
 
-
 /** The Cakto card/payment mark. */
 export function CaktoMark(props: { class?: string | undefined; colored?: boolean | undefined }) {
   const color = () => (props.colored ? "#00E599" : "currentColor");

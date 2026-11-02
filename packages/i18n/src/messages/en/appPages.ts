@@ -30,7 +30,8 @@ export const messages = defineMessages("appPages", {
   "appPages.revenue.status": "Status",
   "appPages.revenue.amount": "Amount",
   "appPages.revenue.notConnected.title": "Revenue is not connected",
-  "appPages.revenue.notConnected.body": "Connect Stripe or Cakto in the Marketplace to read products, orders and subscriptions.",
+  "appPages.revenue.notConnected.body":
+    "Connect Stripe or Cakto in the Marketplace to read products, orders and subscriptions.",
   "appPages.revenue.notConnected.action": "Open apps",
 
   "appPages.meta.title": "Ads",

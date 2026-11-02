@@ -336,7 +336,6 @@ export function decodeTeamsSendSetting(value: unknown): TeamsSendSetting {
   return { sendEnabled: value.sendEnabled, signInAgain: value.signInAgain };
 }
 
-
 function revenueCurrencyTotal(value: DynamicRecord): RevenueCurrencyTotals {
   if (
     !isString(value.currency) ||

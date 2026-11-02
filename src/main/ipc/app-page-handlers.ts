@@ -83,12 +83,15 @@ export function appPageIpcHandlers({
       metaOverview: payloadHandler(parseMetaAdsQuery, (query) => meta.overview(query)),
       metaChildren: payloadHandler(parseMetaAdsChildrenQuery, (query) => meta.children(query)),
       metaChange: payloadHandler(parseMetaAdsChange, (change) => meta.change(change)),
-      revenueOverview: payloadHandler((value): { refresh?: boolean | undefined } => {
-        if (value === undefined) return {};
-        if (!isObject(value) || (value.refresh !== undefined && value.refresh !== true && value.refresh !== false))
-          throw new Error("A refresh value must be boolean.");
-        return { refresh: value.refresh === true };
-      }, (query) => revenue.overview(query.refresh)),
+      revenueOverview: payloadHandler(
+        (value): { refresh?: boolean | undefined } => {
+          if (value === undefined) return {};
+          if (!isObject(value) || (value.refresh !== undefined && value.refresh !== true && value.refresh !== false))
+            throw new Error("A refresh value must be boolean.");
+          return { refresh: value.refresh === true };
+        },
+        (query) => revenue.overview(query.refresh),
+      ),
       teamsOverview: handler(() => teams.overview()),
       teamsMessages: payloadHandler(parseTeamsTarget, (target) => teams.messages(target)),
       teamsSend: payloadHandler(parseTeamsSend, (input) => teams.send(input)),

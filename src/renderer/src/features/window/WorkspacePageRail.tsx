@@ -123,7 +123,11 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       pinned={layout.railPinned()}
       onPinChange={layout.setRailPinned}
       apps={pinnedApps()}
-      currentApp={windowPage.page() === "meta-ads" || windowPage.page() === "teams" || windowPage.page() === "revenue" ? windowPage.page() : null}
+      currentApp={
+        windowPage.page() === "meta-ads" || windowPage.page() === "teams" || windowPage.page() === "revenue"
+          ? windowPage.page()
+          : null
+      }
       onOpenApp={openApp}
       usageRows={usageRows()}
       customAgentUsage={localAgentUsage()}

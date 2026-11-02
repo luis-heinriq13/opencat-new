@@ -20,7 +20,8 @@ export const messages = {
   "appPages.revenue.title": "Receita",
   "appPages.revenue.subtitle": "Visão somente leitura das vendas Stripe e Cakto.",
   "appPages.revenue.back": "Voltar",
-  "appPages.revenue.readOnly": "Somente leitura. Esta página nunca cobra cartão, reembolsa pedidos ou cancela assinaturas.",
+  "appPages.revenue.readOnly":
+    "Somente leitura. Esta página nunca cobra cartão, reembolsa pedidos ou cancela assinaturas.",
   "appPages.revenue.gross": "Receita bruta",
   "appPages.revenue.sales": "Vendas",
   "appPages.revenue.activeSubscriptions": "Assinaturas ativas",

@@ -1699,7 +1699,9 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
   const railPage = (): PageRailPage | null => {
     const current = page();
     if (current === "agents") return layout.sidebarView();
-    return current === "server-settings" || current === "meta-ads" || current === "teams" || current === "revenue" ? null : current;
+    return current === "server-settings" || current === "meta-ads" || current === "teams" || current === "revenue"
+      ? null
+      : current;
   };
   /** The settings page on screen, if any. */
   const settingsKind = (): SettingsKind | null =>
