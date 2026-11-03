@@ -168,6 +168,7 @@ export function MarketplaceOverlay(props: {
           pluginSignInRelay={
             props.server?.kind === "remote" && serverSupportsCapability(props.server, "sign-in-relay-v1")
           }
+          pluginAccounts={serverSupportsCapability(props.server, "mcp-accounts-v1")}
           onRunPluginPrompt={
             composerFree()
               ? (agentId, prompt) =>

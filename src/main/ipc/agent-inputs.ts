@@ -129,6 +129,28 @@ export function parseOptionalAgentId(value: unknown): string | undefined {
   return parseAgentId(value);
 }
 
+/** An action of the renderer or of `sidebar-folders-v1`: it can nest a folder in a folder. */
+export function parseSidebarFolderAction(value: unknown): SidebarLayoutAction {
+  if (!isObject(value) || !isString(value.type)) throw new Error("Invalid sidebar layout action.");
+  if (value.type === "nest") {
+    const parentId = value.parentId;
+    const beforeSectionId = value.beforeSectionId;
+    if (parentId !== null && !isString(parentId)) throw new Error("Invalid sidebar folder parent.");
+    if (beforeSectionId !== null && !isString(beforeSectionId)) throw new Error("Invalid sidebar folder order target.");
+    return {
+      type: "nest",
+      sectionId: requireString(value.sectionId, "sectionId", INPUT_LIMITS.identifier),
+      parentId: parentId === null ? null : requireString(parentId, "parentId", INPUT_LIMITS.identifier),
+      beforeSectionId:
+        beforeSectionId === null ? null : requireString(beforeSectionId, "beforeSectionId", INPUT_LIMITS.identifier),
+    };
+  }
+  const action = parseSidebarLayoutAction(value);
+  if (action.type !== "create" || value.parentId === undefined) return action;
+  return { ...action, parentId: requireString(value.parentId, "parentId", INPUT_LIMITS.identifier) };
+}
+
+/** An action of the released `/v1/sidebar-layout/actions` route: every folder is at the top level. */
 export function parseSidebarLayoutAction(value: unknown): SidebarLayoutAction {
   if (!isObject(value) || !isString(value.type)) throw new Error("Invalid sidebar layout action.");
   switch (value.type) {
@@ -913,14 +935,14 @@ export function parseReorderQueue(value: unknown): ReorderQueueInput {
   if (!isObject(value)) throw new Error("Invalid queue reorder request.");
   return {
     agentId: requireString(value.agentId, "agentId"),
-    deliveryIds: parseIdentifierList(value.deliveryIds, "delivery ids"),
+    deliveryIds: parseIdentifierList(value.deliveryIds, "delivery ids", INPUT_LIMITS.queueReorder),
   };
 }
 
-function parseIdentifierList(value: unknown, label: string): string[] {
+function parseIdentifierList(value: unknown, label: string, limit: number = INPUT_LIMITS.messageRecipients): string[] {
   if (
     !Array.isArray(value) ||
-    value.length > INPUT_LIMITS.messageRecipients ||
+    value.length > limit ||
     !value.every((item) => isString(item) && item.length <= INPUT_LIMITS.identifier)
   ) {
     throw new Error(`Invalid ${label}.`);

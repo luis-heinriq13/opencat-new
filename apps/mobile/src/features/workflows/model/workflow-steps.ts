@@ -32,6 +32,8 @@ const TRIGGER_LABEL = {
   schedule: "mobile.workflow.trigger.schedule",
   webhook: "mobile.workflow.trigger.webhook",
   message: "mobile.workflow.trigger.message",
+  github: "mobile.workflow.trigger.github",
+  discord: "mobile.workflow.trigger.discord",
 } as const satisfies Record<WorkflowTriggerType, MobileTextKey>;
 
 export const RUN_STATUS_LABEL = {
@@ -67,6 +69,8 @@ const TRIGGER_TEXT = {
   schedule: "mobile.workflow.trigger.scheduleHint",
   webhook: "mobile.workflow.trigger.webhookHint",
   message: "mobile.workflow.trigger.messageHint",
+  github: "mobile.workflow.trigger.githubHint",
+  discord: "mobile.workflow.trigger.discordHint",
 } as const satisfies Record<WorkflowTriggerType, MobileTextKey>;
 
 /** When a trigger starts the workflow: how often and at what time for a schedule, such as "Daily · 09:00". */

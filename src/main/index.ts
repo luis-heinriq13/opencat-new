@@ -32,7 +32,7 @@ import {
 } from "electron";
 import { runCauseEffect } from "../backend/effect-boundary";
 import { OWNER_NOTIFICATION_KEY } from "./agent-notification-level-store";
-import { readAppVariant, resolveAppIconPath, resolveLogoColorIconPath } from "./app-icon";
+import { readAppVariant, resolveAppIconPath, resolveLogoColorIconPath, resolveMenuBarIconPath } from "./app-icon";
 import { type ApplicationServices, createApplicationServices } from "./application-services";
 import { type BackgroundTray, createBackgroundTray } from "./background-tray";
 import { removeClaudeCodeSessionEnvironment } from "./claude-session-environment";
@@ -84,6 +84,7 @@ import { hostedServerIpcHandlers } from "./ipc/hosted-server-handlers";
 import { hostedSiteIpcHandlers } from "./ipc/hosted-site-handlers";
 import { instanceTransferIpcHandlers } from "./ipc/instance-transfer-handlers";
 import { licenseIpcHandlers } from "./ipc/license-handlers";
+import { linkAccountIpcHandlers } from "./ipc/link-account-handlers";
 import { localServerIpcHandlers } from "./ipc/local-server-handlers";
 import { macAutomationIpcHandlers } from "./ipc/mac-automation-handlers";
 import { marketplaceAgentIpcHandlers } from "./ipc/marketplace-agent-handlers";
@@ -115,12 +116,14 @@ import { installLinuxDesktopEntry } from "./linux-desktop-entry";
 import { configureLinuxGpu } from "./linux-gpu-mode";
 import { configureLinuxPasswordStore } from "./linux-password-store";
 import { takeLocalServerChildEnvironment } from "./local-server-child";
+import { hideMacDockWhenNoWindowShows, setDockIcon, showMacDock } from "./mac-dock";
 import { MacHapticFeedback } from "./mac-haptic-feedback";
 import {
   configureApplicationMenu,
   createMainWindowController,
   createMainWindowHolder,
   hideWindowsForQuit,
+  keepWindowsHidden,
   showMainWindow,
 } from "./main-window";
 import { ensureMacApplicationPresence, secondLaunchResponse } from "./main-window-state";
@@ -134,6 +137,7 @@ import { sendToRenderer } from "./renderer-ipc";
 import { RoutineWake } from "./routine-wake";
 import { takeServerModeEnvironment } from "./server-mode";
 import { configureContentSecurityPolicy, configureRendererPermissions } from "./session-configuration";
+import { OWNER_PIN_KEY } from "./sidebar-pin-store";
 import { trustSystemCertificates } from "./system-certificates";
 import { TeardownRegistry } from "./teardown-registry";
 import type { TraceFile } from "./trace-file";
@@ -248,6 +252,7 @@ const serverMode = takeServerModeEnvironment(process.env, app.isPackaged, proces
 const localServerChildEnvironment = takeLocalServerChildEnvironment(process.env, commandLineUserDataDirectory);
 const localServerChild = serverMode || hostedServer ? null : localServerChildEnvironment;
 if (serverMode || hostedServer || localServerChild) hideExceptionErrorBox();
+if (serverMode || hostedServer) keepWindowsHidden();
 // A local server has no window, so it has no Dock tile either.
 if (localServerChild && process.platform === "darwin") app.dock?.hide();
 const inviteLinkOptions = {
@@ -449,6 +454,7 @@ const {
   forwardVoiceServerSettings,
   forwardProviderRuntimeStatus,
   forwardGitHubConnectorStatus,
+  forwardLinkAccountStatus,
   forwardOnePasswordConnectorStatus,
   forwardBitwardenConnectorStatus,
   forwardVaultState,
@@ -529,7 +535,7 @@ function applyAppIconColor(color: AppLogoColor): void {
   );
   if (icon.isEmpty()) return;
   if (process.platform === "darwin") {
-    app.dock?.setIcon(icon);
+    setDockIcon(icon);
     return;
   }
   // A window takes `appIconPath` when it is created, so a window opened after the choice gets the
@@ -539,6 +545,16 @@ function applyAppIconColor(color: AppLogoColor): void {
   appIconColorImage = icon;
   for (const window of BrowserWindow.getAllWindows()) window.setIcon(icon);
   backgroundTray?.setIcon(icon);
+}
+
+/**
+ * The menu bar setting changed. Turned off, it shows the Dock icon again. Turned on while the main
+ * window is closed, it hides the Dock icon. Closing the window and showing it again do the rest.
+ */
+function syncMacDock(menuBar: boolean): void {
+  if (process.platform !== "darwin" || localServerChild) return;
+  if (menuBar) hideMacDockWhenNoWindowShows();
+  else void showMacDock();
 }
 
 /**
@@ -625,6 +641,7 @@ function registerIpcHandlers({
   updater,
   setupFile,
   analyticsPreferences,
+  analyticsInstallId,
   updatePreferenceFile,
   requestedUpdate,
   idleRestart,
@@ -655,6 +672,7 @@ function registerIpcHandlers({
   appBehavior,
   agentInitialization,
   sidebarLayout,
+  sidebarPins,
   host,
   remoteDesktop,
   remoteServers,
@@ -662,6 +680,7 @@ function registerIpcHandlers({
   skills,
   hostedSites,
   githubConnector,
+  linkAccount,
   onePasswordConnector,
   bitwardenConnector,
   vault,
@@ -693,6 +712,7 @@ function registerIpcHandlers({
   resourceMonitor,
   routineFlows,
   workflows,
+  workflowGitHub,
   routineResults,
 }: ApplicationServices): void {
   // Every renderer-to-main endpoint is bound by one of these, one file per domain under ./ipc.
@@ -731,6 +751,7 @@ function registerIpcHandlers({
       initializeAgent: () => runCauseEffect(agentInitialization.start()),
       appVariant,
       analyticsCaptureUrl,
+      analyticsInstallId,
       getMainWindow: getDialogParent,
       openChatWindow: windows.openChatWindow,
       chatWindowTargets: windows.chatWindowTargets,
@@ -767,6 +788,7 @@ function registerIpcHandlers({
       translate: language.translate,
     }),
     ...githubConnectorIpcHandlers({ githubConnector, remoteServers, openExternal: openLink }),
+    ...linkAccountIpcHandlers({ linkAccount }),
     ...onePasswordConnectorIpcHandlers({ onePasswordConnector, remoteServers }),
     ...appConnectionIpcHandlers({ dataDirectory: whatsappDataDirectory }),
     ...appPageIpcHandlers({ service }),
@@ -827,7 +849,7 @@ function registerIpcHandlers({
     ...sharedTableIpcHandlers({ service, remoteServers }),
     ...routineIpcHandlers({ service, remoteServers }),
     ...routineFlowIpcHandlers({ routineFlows, remoteServers }),
-    ...workflowIpcHandlers({ workflows, events, remoteServers }),
+    ...workflowIpcHandlers({ workflows, events, github: workflowGitHub, remoteServers }),
     ...routineResultIpcHandlers({ routineResults }),
     ...channelMemoryIpcHandlers({ service, remoteServers }),
     ...channelRoutineIpcHandlers({ service, remoteServers }),
@@ -897,6 +919,7 @@ function registerIpcHandlers({
     ...agentIpcHandlers({
       service,
       sidebarLayout,
+      sidebarPins,
       host,
       remoteServers,
       skills,
@@ -1222,7 +1245,7 @@ if (!hasSingleInstanceLock) {
         .catch((error: unknown) => logger.warn("Unable to install the bundled apps:", toLogValue(error)));
       // Set the Dock icon before `dock.show()` below. A development build runs the stock Electron.app,
       // so until this call its Dock tile shows the Electron logo.
-      if (process.platform === "darwin" && !localServerChild) app.dock?.setIcon(appIconPath);
+      if (process.platform === "darwin" && !localServerChild) setDockIcon(appIconPath);
       if (!(await runCauseEffect(hostAllowsTenantLaunch()))) {
         app.quit();
         return;
@@ -1355,6 +1378,11 @@ if (!hasSingleInstanceLock) {
       service.on("workflowRun", (end) => built.analytics.handleWorkflowRun(end));
       built.browser.onSiteVisited((visit) => built.analytics.handleSiteVisit(visit));
       sidebarLayout.on("changed", (layout) => forwardAgentEvent("local", { type: "sidebar-layout-changed", layout }));
+      // A pin from the owner's phone shows at once in the sidebar of this computer.
+      built.sidebarPins.subscribe((key) => {
+        if (key === OWNER_PIN_KEY)
+          forwardAgentEvent("local", { type: "sidebar-pins-changed", ...built.sidebarPins.snapshot(OWNER_PIN_KEY) });
+      });
       built.approvalAutomation.subscribe((preference) => {
         for (const window of BrowserWindow.getAllWindows()) {
           sendToRenderer(window, IPC_ENDPOINTS.app.approvalAutomation, preference);
@@ -1371,6 +1399,7 @@ if (!hasSingleInstanceLock) {
       host.on("directTyping", (event) => forwardDirectTyping("local", event));
       remoteDesktop.on("changed", forwardRemoteDesktopSessions);
       built.githubConnector.onChanged(forwardGitHubConnectorStatus);
+      built.linkAccount.onChanged(forwardLinkAccountStatus);
       built.onePasswordConnector.onChanged(forwardOnePasswordConnectorStatus);
       built.bitwardenConnector.onChanged(forwardBitwardenConnectorStatus);
       built.vault.onChanged(forwardVaultState);
@@ -1414,12 +1443,18 @@ if (!hasSingleInstanceLock) {
       // Before the renderer loads: the trust boundary and every protocol it fetches through have to
       // be in place before the first request can arrive.
       registerIpcHandlers(built);
+      // A Signal socket of the host can be dead after sleep without knowing it; devices then cannot connect.
+      const renewHostSignal = () =>
+        void runCauseEffect(built.teamWebRtcBridge.renewHostSignal()).catch((error) =>
+          logger.warn("Unable to renew the host Signal connection after sleep:", toLogValue(error)),
+        );
       if (localServerChild) {
         // No window, menu, tray, Dynamic Island or renderer: the desktop app is the interface.
         const childRoutineWake = new RoutineWake({ routines: service, isOnline: () => net.isOnline() });
         powerMonitor.on("suspend", () => childRoutineWake.suspend());
         powerMonitor.on("resume", () => childRoutineWake.resume());
         powerMonitor.on("resume", () => built.messaging.resume());
+        powerMonitor.on("resume", renewHostSignal);
         teardown.push(0, "routine wake", () => childRoutineWake.dispose());
         void runCauseEffect(built.agentInitialization.start()).catch((error) => {
           logger.error("Unable to initialize the local agent backend:", toLogValue(error));
@@ -1440,14 +1475,26 @@ if (!hasSingleInstanceLock) {
       // The way back to a window hidden in the background on Windows and Linux.
       backgroundTray = createBackgroundTray({
         icon: appIconColorImage ?? nativeImage.createFromPath(appIconPath),
+        menuBarIcon: loadMenuBarIcon(),
         translate: language.translate,
         open: reopenMainWindow,
         quit: () => quitFor("tray"),
       });
       const tray = backgroundTray;
       tray.sync(appBehavior.keepRunningInBackground);
-      const unsubscribeBackgroundTray = appBehavior.subscribe(() => tray.sync(appBehavior.keepRunningInBackground));
+      const unsubscribeBackgroundTray = appBehavior.subscribe(() => {
+        tray.sync(appBehavior.keepRunningInBackground);
+        syncMacDock(appBehavior.keepRunningInBackground);
+      });
+      // The main window hides the Dock icon when it closes, unless another window still shows. When
+      // that last window, such as a chat window, closes later, the Dock icon hides then.
+      const hideDockAfterWindow = (_event: Electron.Event, window: BrowserWindow) =>
+        window.once("closed", () => {
+          if (!isQuitting && appBehavior.keepRunningInBackground) syncMacDock(true);
+        });
+      app.on("browser-window-created", hideDockAfterWindow);
       teardown.push(0, "background tray", () => {
+        app.off("browser-window-created", hideDockAfterWindow);
         unsubscribeBackgroundTray();
         tray.destroy();
       });
@@ -1493,6 +1540,12 @@ if (!hasSingleInstanceLock) {
       await runCauseEffect(dynamicIsland.initialize()).catch((error) =>
         logger.error("Unable to initialize Dynamic Island:", toLogValue(error)),
       );
+      const reconcileDynamicIsland = () =>
+        void Effect.runPromise(dynamicIsland.reconcileWindow()).catch((error) =>
+          logger.error("Unable to reconcile Dynamic Island displays:", toLogValue(error)),
+        );
+      // The island pages load beside the main window, not before it.
+      reconcileDynamicIsland();
       await windows.loadRenderer(mainWindow);
       performance.mark("openbot:renderer-loaded");
       // `sendToRenderer` dropped the server changes made while the window loaded: the host list and
@@ -1500,10 +1553,6 @@ if (!hasSingleInstanceLock) {
       forwardServers(remoteServers.list());
       // After the load: `sendToRenderer` drops events aimed at a window that is still loading.
       await Effect.runPromise(remoteServers.startEventConnections());
-      const reconcileDynamicIsland = () =>
-        void Effect.runPromise(dynamicIsland.reconcileWindow()).catch((error) =>
-          logger.error("Unable to reconcile Dynamic Island displays:", toLogValue(error)),
-        );
       screen.on("display-added", reconcileDynamicIsland);
       screen.on("display-removed", reconcileDynamicIsland);
       screen.on("display-metrics-changed", reconcileDynamicIsland);
@@ -1511,6 +1560,7 @@ if (!hasSingleInstanceLock) {
       powerMonitor.on("resume", () => void Effect.runPromise(remoteServers.wake()));
       // A Slack socket can be dead after sleep without knowing it; reconnect instead of waiting for a ping.
       powerMonitor.on("resume", () => built.messaging.resume());
+      powerMonitor.on("resume", renewHostSignal);
       const routineWake = new RoutineWake({ routines: service, isOnline: () => net.isOnline() });
       powerMonitor.on("suspend", () => routineWake.suspend());
       powerMonitor.on("resume", () => routineWake.resume());
@@ -1660,6 +1710,21 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   void prepareForShutdown().finally(() => app.quit());
 });
+
+/** Null outside macOS, or when the file is missing: the tray then shows the app icon. */
+function loadMenuBarIcon(): NativeImage | null {
+  if (process.platform !== "darwin") return null;
+  const icon = nativeImage.createFromPath(
+    resolveMenuBarIconPath({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      sourceRoot: resolve(__dirname, "../.."),
+    }),
+  );
+  if (!icon.isEmpty()) return icon;
+  logger.warn("The menu bar icon is missing.");
+  return null;
+}
 
 function reopenMainWindow(): void {
   void windows

@@ -49,6 +49,8 @@ import type { HighlightDisplay } from "./computer-use-highlight-window";
 import { shouldShowDevelopmentWindow } from "./development-profile";
 import { dynamicIslandNotchSizeForDisplay } from "./dynamic-island-window";
 import { type InterfaceSizeService, type InterfaceSizeStep, interfaceSizeShortcut } from "./interface-size-service";
+import { hideMacDockWhenNoWindowShows, showMacDock } from "./mac-dock";
+import { preventPanelActivation } from "./mac-panel-activation";
 import {
   createMainWindowBoundsRecorder,
   presentMainWindow,
@@ -236,6 +238,7 @@ export function createMainWindowController({
     window.once("ready-to-show", () => {
       performance.mark("openbot:window-ready");
       if (
+        !windowsKeptHidden &&
         shouldShowDevelopmentWindow({
           remoteRole: developmentRemoteRole,
           testClientEnabled: developmentTestClientEnabled,
@@ -249,10 +252,12 @@ export function createMainWindowController({
       // Nobody can use a tab without the window, so the agents waiting on it continue.
       getServices()?.browser.releaseUserControlHeldBy({ kind: "local" });
       // The hidden renderer owns the cross-host Dynamic Island coordinator and must outlive its visible
-      // window. On Windows and Linux the user chooses it, and the tray icon is the way back.
+      // window. On Windows and Linux the user chooses it, and the tray icon is the way back. On macOS
+      // the Dock icon is the way back, or the menu bar icon when the user chooses it.
       if ((process.platform === "darwin" || keepRunningInBackground()) && !isQuitting()) {
         event.preventDefault();
         window.hide();
+        if (process.platform === "darwin" && keepRunningInBackground()) hideMacDockWhenNoWindowShows();
       }
     });
     onMainWindowCreated(window);
@@ -572,6 +577,9 @@ export function createDynamicIslandWindow(bounds: Rectangle, _display: Display):
       webSecurity: true,
     },
   });
+  // The island is the topmost window on every Space. Without this, macOS can give it activation
+  // when the user switches to an application that has no window there.
+  preventPanelActivation(window);
   // Chromium shares zoom per origin. The main window zoom would shrink this fixed-size window's
   // viewport and move the shared avatar out of the expanded panel.
   window.webContents.setZoomMode("isolated");
@@ -795,8 +803,17 @@ export function sendComputerUseHighlightPlacement(
   sendToRenderer(window, IPC_ENDPOINTS.computerUse.highlightPlacement, placement);
 }
 
-/** Set by `hideWindowsForQuit` and never cleared: the process ends after it. */
-let windowsHiddenForQuit = false;
+/** Set by `hideWindowsForQuit` or `keepWindowsHidden` and never cleared. */
+let windowsKeptHidden = false;
+
+/**
+ * A server (`OPENBOT_SERVER=1` or a hosted server) shows no window. Its windows are on a virtual
+ * display that has no viewer and no GPU, so a shown window drew each frame in software for nobody
+ * (#4482). A hidden window draws nothing, and its renderer runs as in the background on a desktop.
+ */
+export function keepWindowsHidden(): void {
+  windowsKeptHidden = true;
+}
 
 /**
  * The renderer keeps reading while the services stop, and a read that the closing services fail
@@ -804,13 +821,24 @@ let windowsHiddenForQuit = false;
  * then does not show the window again.
  */
 export function hideWindowsForQuit(): void {
-  windowsHiddenForQuit = true;
+  windowsKeptHidden = true;
   for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.hide();
 }
 
 export function showMainWindow(window: BrowserWindow): void {
-  if (windowsHiddenForQuit) return;
-  presentMainWindow(window, process.platform, () => app.show());
+  if (windowsKeptHidden) return;
+  if (process.platform !== "darwin" || app.dock?.isVisible() !== false) {
+    presentMainWindow(window, process.platform, () => app.show());
+    return;
+  }
+  // Menu bar mode hid the Dock icon. It comes back before the window takes focus.
+  void showMacDock().then(() => {
+    if (windowsKeptHidden || window.isDestroyed()) return;
+    presentMainWindow(window, process.platform, () => app.show());
+    // An app with no Dock icon is not active, and a click on its menu bar icon does not make it
+    // active. Without this, the window opens behind the app in front.
+    app.focus({ steal: true });
+  });
 }
 
 export function loadDynamicIslandRenderer(window: BrowserWindow, display: Display, variant: AppVariant): Promise<void> {
@@ -872,7 +900,7 @@ function macQuitItem(translate: AppTranslate, quit: (source: MenuQuitSource) => 
       if (!event.triggeredByAccelerator) return quit("menu");
       // A second press while the question is open does not open another one, and a quit that has
       // started hid every window and needs no question.
-      if (quitConfirmationOpen || windowsHiddenForQuit) return;
+      if (quitConfirmationOpen || windowsKeptHidden) return;
       quitConfirmationOpen = true;
       void dialog
         .showMessageBox({

@@ -304,6 +304,11 @@ type SessionHistoryReader = (sessionId: string, options?: { dir?: string }) => P
 type ClaudeEffortCapability = { supported: ClaudeEffort[]; defaultEffort: ClaudeEffort } | null;
 
 const queryLogger = createOpenBotLogger("claude-query");
+/**
+ * The last status that the CLI printed without the key, by `CLAUDE_CONFIG_DIR`. An activation makes a
+ * new client, so a signed-in read with no readable output still keeps the account's email and plan.
+ */
+const lastAuthStatuses = new Map<string, DynamicRecord>();
 
 export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
   readonly contextCompaction = "native";
@@ -710,8 +715,8 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
 
   /**
    * `claude auth status` exits 1 when signed out and still prints its status. Only a status says
-   * signed out: a timeout, a failed spawn or unreadable output throws, so an account refresh keeps
-   * the working client instead of stopping it as signed out.
+   * signed out: a timeout, a failed spawn or an exit 1 with unreadable output throws, so an account
+   * refresh keeps the working client instead of stopping it as signed out.
    */
 
   readonly #readAuthStatusEffect = Effect.fn("ClaudeAgentClient.readAuthStatus")(function* (
@@ -740,11 +745,21 @@ export class ClaudeAgentClient extends EventEmitter<ClientEvents> {
       stdout = isRecord(error) ? error.stdout : undefined;
     }
     const status = parseAuthStatus(stdout);
-    if (status && (failure === null || status.loggedIn === false)) return yield* providerSync(() => status);
+    if (status && (failure === null || status.loggedIn === false)) {
+      if (!withApiKey) lastAuthStatuses.set(this.#environment(false).CLAUDE_CONFIG_DIR ?? "", status);
+      return yield* providerSync(() => status);
+    }
     // `execFile` marks a child it stopped at its timeout: a busy computer, not a failed check.
     if (isDynamicRecord(failure) && failure.killed === true)
       return yield* providerFailure(new RequestTimeoutError("Claude", "account/read"));
-    return yield* providerFailure(failure ?? new Error("Claude returned an unreadable sign-in status."));
+    if (failure !== null) return yield* providerFailure(failure);
+    // Exit 0 says signed in, also when the output is not a status (#4283). Another read would start
+    // one more token refresh that the CLI can leave unsaved (anthropics/claude-code#95822).
+    queryLogger.warn("Claude exited signed in with an unreadable sign-in status.", {
+      outputLength: isString(stdout) ? stdout.length : null,
+    });
+    const last = withApiKey ? null : lastAuthStatuses.get(this.#environment(false).CLAUDE_CONFIG_DIR ?? "");
+    return yield* providerSync(() => (last?.loggedIn === true ? last : { loggedIn: true }));
   });
 
   /** The agent environment, with the saved key when `withApiKey`. */

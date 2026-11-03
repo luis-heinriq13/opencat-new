@@ -37,7 +37,8 @@
     "firecrawl",
     "brave-search",
     "resend",
-    "composio"
+    "composio",
+    "clickup"
   ],
   "featured": ["whatsapp-oficial", "whatscat", "aave", "canva", "notion", "figma"]
 }

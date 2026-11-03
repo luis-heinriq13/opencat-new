@@ -58,7 +58,6 @@ export interface FirstAgentSuggestion {
   purposeKey: AppTextKey;
   avatarSeed: string;
   avatarHue: AvatarHue;
-  animationCycleOffset: number;
   animationOffset: number;
 }
 
@@ -119,7 +118,6 @@ export const FIRST_AGENT_SUGGESTIONS: FirstAgentSuggestion[] = [
     purposeKey: "agent.setup.suggestion.inboxHelper.purpose",
     avatarSeed: FIRST_AGENT_AVATAR_SEEDS[1] ?? "first-bot:inbox",
     avatarHue: 320,
-    animationCycleOffset: 0,
     animationOffset: 0.15,
   },
   {
@@ -129,7 +127,6 @@ export const FIRST_AGENT_SUGGESTIONS: FirstAgentSuggestion[] = [
     purposeKey: "agent.setup.suggestion.tripPlanner.purpose",
     avatarSeed: FIRST_AGENT_AVATAR_SEEDS[2] ?? "first-bot:travel",
     avatarHue: 215,
-    animationCycleOffset: 2,
     animationOffset: 0.65,
   },
   {
@@ -139,7 +136,6 @@ export const FIRST_AGENT_SUGGESTIONS: FirstAgentSuggestion[] = [
     purposeKey: "agent.setup.suggestion.personalOrganizer.purpose",
     avatarSeed: FIRST_AGENT_AVATAR_SEEDS[3] ?? "first-bot:organizer",
     avatarHue: 55,
-    animationCycleOffset: 4,
     animationOffset: 1.2,
   },
   {
@@ -149,7 +145,6 @@ export const FIRST_AGENT_SUGGESTIONS: FirstAgentSuggestion[] = [
     purposeKey: "agent.setup.suggestion.shoppingScout.purpose",
     avatarSeed: FIRST_AGENT_AVATAR_SEEDS[4] ?? "first-bot:shopping",
     avatarHue: 150,
-    animationCycleOffset: 6,
     animationOffset: 1.8,
   },
   {
@@ -159,7 +154,6 @@ export const FIRST_AGENT_SUGGESTIONS: FirstAgentSuggestion[] = [
     purposeKey: "agent.setup.suggestion.writingPartner.purpose",
     avatarSeed: FIRST_AGENT_AVATAR_SEEDS[5] ?? "first-bot:writing",
     avatarHue: 30,
-    animationCycleOffset: 8,
     animationOffset: 2.45,
   },
   {
@@ -169,7 +163,6 @@ export const FIRST_AGENT_SUGGESTIONS: FirstAgentSuggestion[] = [
     purposeKey: "agent.setup.suggestion.learningCoach.purpose",
     avatarSeed: FIRST_AGENT_AVATAR_SEEDS[6] ?? "first-bot:learning",
     avatarHue: 245,
-    animationCycleOffset: 10,
     animationOffset: 3.15,
   },
 ];
@@ -605,7 +598,6 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
                       variant="ghost"
                       type="button"
                       class="first-agent-suggestion-card"
-                      data-animation-cycle-offset={suggestion.animationCycleOffset}
                       data-animation-offset={suggestion.animationOffset}
                       aria-label={t("agent.setup.suggestion.label", {
                         name: t(suggestion.nameKey),
@@ -622,7 +614,6 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
                         seed={suggestion.avatarSeed}
                         hue={suggestion.avatarHue}
                         motion="always"
-                        cycleOffset={suggestion.animationCycleOffset}
                         animationOffset={suggestion.animationOffset}
                       />
                       <span>

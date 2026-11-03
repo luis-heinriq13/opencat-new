@@ -1,10 +1,10 @@
 {
-  "version": "0.57.0",
+  "version": "0.59.0",
   "highlights": [
-    "Branch a conversation from the last agent reply of a turn: right-click the reply and select Branch from here.",
-    "Each agent has an Instructions page that shows its AGENTS.md file, and you can undo a change that the agent makes to its instructions.",
-    "The Marketplace is on openbot.run, with a page and a share link for each agent and skill.",
-    "Agents send fewer tokens with every provider, and idle browser tabs use much less memory.",
-    "In-app updates now install on slow Macs, such as Intel Macs."
+    "Kimi is a new provider, and you can use Hermes Agent from Nous Research with your own memories and skills.",
+    "Start a workflow when someone mentions OpenBot in Discord, and send its result back to Discord.",
+    "Sidebar folders can now hold folders, up to three levels.",
+    "Pinned agents and channels stay the same on each device that connects to a server.",
+    "On a Mac, OpenBot has a menu bar icon and keeps your tasks running after you close the window. Hold ⌘Q or press it twice to quit."
   ]
 }

@@ -334,6 +334,7 @@ import type {
   InstanceTransferResult,
   InstanceTransferSummary,
 } from "./ipc-instance-transfer";
+import type { LinkAccountStatus } from "./ipc-link-account";
 import type { MachineAlertSettings, MachineMetrics } from "./ipc-machine-resources";
 import type {
   AgentPublicationPreview,
@@ -455,6 +456,7 @@ import type {
 } from "./ipc-routines";
 import type { DeleteSharedTableInput, SharedTable } from "./ipc-shared-tables";
 import type { SidebarLayoutAction, SidebarLayoutSnapshot } from "./ipc-sidebar-layout";
+import type { SetSidebarPinsInput, SidebarPinsSnapshot } from "./ipc-sidebar-pins";
 import type {
   CreateLocalSkillInput,
   InstalledSkill,
@@ -538,6 +540,13 @@ import type {
   VoiceTranscriptionInput,
   VoiceTranscriptionResult,
 } from "./ipc-voice";
+import type {
+  WorkflowGitHubCatalog,
+  WorkflowGitHubHistory,
+  WorkflowGitHubLastEventInput,
+  WorkflowGitHubRepositoryInput,
+  WorkflowGitHubRepositoryOptions,
+} from "./ipc-workflow-github";
 import type {
   CreateWorkflowInput,
   DecideWorkflowStepInput,
@@ -790,7 +799,7 @@ export const IPC_ENDPOINTS = {
     getProviderApiKeyState: request<AgentProviderId, ProviderApiKeyState>()("app:get-provider-api-key-state"),
     /**
      * Starts a sign-in the user finishes on another device, for a provider whose backend driver has
-     * one: Codex, Grok, Cursor, Cline and Muse, and Claude on Linux. A pasted code goes to
+     * one: Codex, Grok, Cursor, Cline, Kimi and Muse, and Claude on Linux. A pasted code goes to
      * `providerAdmin.submitCodeLogin` with `LOCAL_SERVER_ID`. Cancel it with
      * `cancelProviderCodeLogin`; leaving it running holds one provider process open until the code
      * expires.
@@ -1240,6 +1249,15 @@ export const IPC_ENDPOINTS = {
     ),
     hostDisconnect: scopedQuery<BitwardenConnectorStatus, "required">()("bitwarden-connector:host-disconnect"),
   },
+  // The Link account of this computer, for agent payments. The tokens stay in main; every answer is the
+  // status only. A joined server has no Link account: the Team API does not carry one.
+  linkAccount: {
+    status: request<undefined, LinkAccountStatus>()("link-account:status"),
+    connect: request<undefined, LinkAccountStatus>()("link-account:connect"),
+    cancel: request<undefined, LinkAccountStatus>()("link-account:cancel"),
+    disconnect: request<undefined, LinkAccountStatus>()("link-account:disconnect"),
+    changed: event<LinkAccountStatus>()("link-account:changed"),
+  },
   // The Vault of this computer. Lists carry no password, card number or security code: `reveal`
   // returns one when the user asks, and `copy` writes one to the clipboard in main. The `host*`
   // endpoints do the same for one server: a joined server answers through `vault-v1`, to an owner
@@ -1427,6 +1445,10 @@ export const IPC_ENDPOINTS = {
     deleteChannel: scopedRequest<string, void>()("agent:channels:delete"),
     getSidebarLayout: scopedQuery<SidebarLayoutSnapshot>()("agent:get-sidebar-layout"),
     mutateSidebarLayout: scopedRequest<SidebarLayoutAction, SidebarLayoutSnapshot>()("agent:mutate-sidebar-layout"),
+    // The user's own pinned chats. A joined server answers through `sidebar-pins-v1`.
+    getSidebarPins: scopedQuery<SidebarPinsSnapshot>()("agent:sidebar-pins:get"),
+    setSidebarPins: scopedRequest<SetSidebarPinsInput, SidebarPinsSnapshot>()("agent:sidebar-pins:set"),
+    seedSidebarPins: scopedRequest<SetSidebarPinsInput, SidebarPinsSnapshot>()("agent:sidebar-pins:seed"),
     // A joined server answers through `agent-hidden-v1`. A server without it has no hidden agents.
     listHiddenAgents: scopedQuery<HiddenAgentsSnapshot>()("agent:hidden:list"),
     setAgentHidden: scopedRequest<SetAgentHiddenInput, HiddenAgentsSnapshot>()("agent:hidden:set"),
@@ -1588,6 +1610,17 @@ export const IPC_ENDPOINTS = {
     /** Makes a new signing secret for a webhook trigger; the first one also makes its address. */
     rotateWebhookSecret: scopedRequest<WorkflowTriggerInput, WorkflowWebhookSecret>()(
       "workflows:rotate-webhook-secret",
+    ),
+    /** The repositories of the host's GitHub connection. A joined server gives them only to an owner or admin. */
+    githubCatalog: scopedQuery<WorkflowGitHubCatalog>()("workflows:github-catalog"),
+    /** The labels and people of one repository. A joined server gives them only to an owner or admin. */
+    githubOptions: scopedRequest<WorkflowGitHubRepositoryInput, WorkflowGitHubRepositoryOptions>()(
+      "workflows:github-options",
+    ),
+    githubHistory: scopedRequest<string, WorkflowGitHubHistory>()("workflows:github-history"),
+    /** Runs a GitHub trigger with the newest item that matches it, as GitHub has it now. */
+    githubRunLastEvent: scopedRequest<WorkflowGitHubLastEventInput, WorkflowRunDetail>()(
+      "workflows:github-run-last-event",
     ),
   },
   /**
@@ -1962,6 +1995,7 @@ export const IPC_GROUP_PATHS = {
   appPages: "appPages",
   attendance: "attendance",
   bitwardenConnector: "bitwardenConnector",
+  linkAccount: "linkAccount",
   vault: "vault",
   hostedSites: "hostedSites",
   routineFeed: "routineFeed",

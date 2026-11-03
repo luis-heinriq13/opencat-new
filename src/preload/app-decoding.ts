@@ -86,6 +86,7 @@ import {
   isVoiceModelId,
   isVoiceServerProbe,
   isVoiceServerSettings,
+  type LinkAccountStatus,
   type LocalUpdateInfo,
   type MobileConnectedDevice,
   type MobileConnectLink,
@@ -96,6 +97,7 @@ import {
   type ProviderDetectionSettings,
   parseGitHubConnectorRepositories,
   parseGitHubConnectorStatus,
+  parseLinkAccountStatus,
   parseOnePasswordConnectorStatus,
   type RemoteDesktopSetupStatus,
   type RemoteDesktopTestStatus,
@@ -146,17 +148,20 @@ import {
 
 export function decodeAppInfo(value: unknown): AppInfo {
   const info = decodeRecord(value, "app info");
-  const { platform, variant, analyticsCaptureUrl } = info;
+  const { platform, variant, analyticsCaptureUrl, analyticsInstallId } = info;
   if (!isOneOf(["darwin", "win32", "linux"] as const, platform)) throw new Error("Invalid platform.");
   if (!isOneOf(["production", "dev", "preview"] as const, variant)) throw new Error("Invalid variant.");
   if (analyticsCaptureUrl !== undefined && !isString(analyticsCaptureUrl))
     throw new Error("Invalid analytics capture URL.");
+  if (analyticsInstallId !== undefined && !isString(analyticsInstallId))
+    throw new Error("Invalid analytics install ID.");
   return {
     name: requiredString(info, "name"),
     version: requiredString(info, "version"),
     platform,
     variant,
     ...(analyticsCaptureUrl === undefined ? {} : { analyticsCaptureUrl }),
+    ...(analyticsInstallId === undefined ? {} : { analyticsInstallId }),
   };
 }
 
@@ -586,6 +591,12 @@ export function decodeGitHubConnectorRepositories(value: unknown): GitHubConnect
   const repositories = parseGitHubConnectorRepositories(value);
   if (!repositories) throw new Error("Invalid GitHub repository list response.");
   return repositories;
+}
+
+export function decodeLinkAccountStatus(value: unknown): LinkAccountStatus {
+  const status = parseLinkAccountStatus(value);
+  if (!status) throw new Error("Invalid Link account response.");
+  return status;
 }
 
 export function decodeOnePasswordConnectorStatus(value: unknown): OnePasswordConnectorStatus {

@@ -15,6 +15,7 @@ import { RoutineFlowStore } from "../backend/routine-flows/routine-flow-store";
 import { createRoutineFlows, type RoutineFlowsHandle } from "../backend/routine-flows/routine-flows";
 import { RoutineResultStore } from "../backend/routine-results/routine-result-store";
 import { createRoutineResults, type RoutineResultsHandle } from "../backend/routine-results/routine-results";
+import { WorkflowGitHubStore } from "../backend/workflows/workflow-github-store";
 import { WorkflowRunStore } from "../backend/workflows/workflow-run-store";
 import { WorkflowStore } from "../backend/workflows/workflow-store";
 import { WorkflowTriggers, workflowScheduleDueAt } from "../backend/workflows/workflow-triggers";
@@ -92,6 +93,7 @@ import { decodeRecord, requiredString } from "@openbot/contracts/ipc-decoding";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, toLogValue } from "@openbot/logging";
 import { REMOTE_ACCOUNT_CHECK_INTERVAL_MS } from "@openbot/team-client";
+import { installRemoteSyncProfileSink } from "@openbot/team-client/sync-profile";
 import {
   app,
   BrowserWindow,
@@ -143,6 +145,7 @@ import {
 import { AgentNotificationLevelStore, OWNER_NOTIFICATION_KEY } from "./agent-notification-level-store";
 import { AgentTemplateService } from "./agent-template-service";
 import { HostAnalytics } from "./analytics";
+import { readAnalyticsInstallId } from "./analytics-install-id";
 import { analyticsInventoryDayStore, collectAnalyticsInventory } from "./analytics-inventory";
 import { catalogPluginSlug, isReportedMcpServerName, loadCatalogPluginServers } from "./analytics-plugin-catalog";
 import { AnalyticsPreferenceService } from "./analytics-preference-service";
@@ -185,6 +188,7 @@ import { shouldAutoStartHost } from "./development-profile";
 import {
   applyDevelopmentRemoteAccount,
   type DevelopmentRemoteRole,
+  readDevelopmentClientTransport,
   startDevelopmentRemoteRole,
 } from "./development-remote-bootstrap";
 import { performDynamicIslandCriticalAction } from "./dynamic-island-actions";
@@ -197,6 +201,8 @@ import {
 import { githubAppConfig } from "./github-connector-config";
 import { GitHubConnectorService } from "./github-connector-service";
 import { GitHubConnectorStore } from "./github-connector-store";
+import { GitHubRelay, receiveGitHubDelivery } from "./github-relay";
+import { createGitHubRest, type WorkflowGitHubDirectory, workflowGitHubDirectory } from "./github-rest";
 import { HermesImportService } from "./hermes-import-service";
 import { HostEventsRuntime } from "./host-events-runtime";
 import { agentWebhookRoutineWriter, HostEventsService } from "./host-events-service";
@@ -213,6 +219,8 @@ import { InstanceTransferService } from "./instance-transfer-service";
 import { InterfaceSizeService } from "./interface-size-service";
 import { prepareToolRuntimeForTest } from "./ipc/mcp-server-handlers";
 import { LanguageService } from "./language-service";
+import { LinkAccountService } from "./link-account-service";
+import { LinkAccountStore } from "./link-account-store";
 import { localRoutineFeedDocument } from "./local-routine-calendar";
 import { type LocalServerChildEnvironment, startLocalServerChild } from "./local-server-child";
 import { LOCAL_SERVERS_FILE } from "./local-servers/local-server-registry";
@@ -297,6 +305,7 @@ import {
   createRemoteSessionReusePreferenceStore,
   type RemoteSessionReusePreferenceStore,
 } from "./remote-session-reuse-preference-store";
+import { remoteSyncProfileFile } from "./remote-sync-profile-file";
 import { sendToRenderer } from "./renderer-ipc";
 import { RequestedUpdate, RequestedUpdateRefusal } from "./requested-update";
 import { ResourceMonitor } from "./resource-monitor";
@@ -313,6 +322,7 @@ import {
   configureServerLogoProtocols,
 } from "./session-configuration";
 import { readSetupState, writeSetupState } from "./setup-store";
+import { SidebarPinStore } from "./sidebar-pin-store";
 import { SignInRelayClient } from "./sign-in-relay-client";
 import { agentPrintedLink, SignInRelayHost } from "./sign-in-relay-host";
 import { SignalIngress } from "./signal-ingress";
@@ -358,6 +368,7 @@ const logger = createOpenBotLogger("application-services");
 const SETUP_FILE = "openbot-setup-v2.json";
 const ANALYTICS_PREFERENCE_FILE = "openbot-analytics-preference-v1.json";
 const ANALYTICS_INVENTORY_FILE = "openbot-analytics-inventory-v1.json";
+const ANALYTICS_INSTALL_ID_FILE = "openbot-analytics-install-id-v1.json";
 const APPROVAL_AUTOMATION_FILE = "openbot-approval-automation-v3.json";
 const V2_APPROVAL_AUTOMATION_FILE = "openbot-approval-automation-v2.json";
 const ROUTINE_FEED_FILE = "openbot-routine-feed-v1.json";
@@ -375,6 +386,7 @@ const AGENT_DEFAULTS_PREFERENCE_FILE = "openbot-agent-defaults-v1.json";
 const AGENT_MEMORY_LIMIT_PREFERENCE_FILE = "openbot-agent-memory-limit-v1.json";
 const MEMORY_REVIEW_PREFERENCE_FILE = "openbot-memory-review-v1.json";
 const AGENT_NOTIFICATION_LEVELS_FILE = "openbot-agent-notification-levels-v1.json";
+const SIDEBAR_PINS_FILE = "openbot-sidebar-pins-v1.json";
 const SERVER_TIMEZONE_PREFERENCE_FILE = "openbot-server-timezone-v1.json";
 const PROMPT_CACHE_TTL_PREFERENCE_FILE = "openbot-prompt-cache-ttl-v1.json";
 const REMOTE_SESSION_REUSE_PREFERENCE_FILE = "openbot-remote-session-reuse-preference-v1.json";
@@ -401,6 +413,7 @@ const MCP_OAUTH_FILE = "openbot-mcp-oauth-v1.json";
 const MCP_OAUTH_PROXY_FILE = "openbot-mcp-oauth-proxy-v1.json";
 /** The one GitHub sign-in of this computer, with the same cipher as the MCP sign-ins. */
 const GITHUB_CONNECTOR_FILE = "openbot-github-connector-v1.json";
+const LINK_ACCOUNT_FILE = "openbot-link-account-v1.json";
 /** The 1Password service account token of this computer, with the same cipher. */
 const ONEPASSWORD_CONNECTOR_FILE = "openbot-onepassword-connector-v1.json";
 /** The Bitwarden API key and master password of a host connection (`bitwarden-connector-v1`), with the same cipher. */
@@ -480,6 +493,8 @@ const TEARDOWN_ORDER = {
   bitwardenConnector: 106.5,
   // Before the agent service, so no agent is handed a token file that is being removed.
   githubConnector: 107,
+  // Before the agent service, so no payment wait outlives the agents that asked for it.
+  linkAccount: 107.5,
   // Before the agent service, so no script starts a run while the service stops.
   automation: 108,
   storageUsage: 109,
@@ -544,11 +559,15 @@ export interface ApplicationServices {
   service: AgentService;
   routineFlows: RoutineFlowsHandle;
   workflows: WorkflowsHandle;
+  /** The repositories, labels and people that the workflow editor offers from the GitHub connection. */
+  workflowGitHub: WorkflowGitHubDirectory;
   routineResults: RoutineResultsHandle;
   providerRuntimes: ProviderRuntimeManager;
   providerCredentials: ProviderCredentialStore;
   /** The Slack and Telegram connections of the agents on this host. */
   messaging: MessagingService;
+  /** The WebRTC peers of this host and of its joined servers. */
+  teamWebRtcBridge: TeamWebRtcBridge;
   /** Reached by the entry point for one thing only: handing a returning grant to its sign-in. */
   mcpOAuth: McpOAuth;
   /** The sign-ins of joined servers that wait in this computer's browser, and the callbacks they take. */
@@ -556,6 +575,8 @@ export interface ApplicationServices {
   /** The Slack and Discord installs that this computer opened for a joined server. */
   relayedMessagingInstalls: RelayedMessagingInstalls;
   githubConnector: GitHubConnectorService;
+  /** The Link account (link.com) that agents ask for one-time cards. */
+  linkAccount: LinkAccountService;
   onePasswordConnector: OnePasswordConnectorService;
   bitwardenConnector: BitwardenConnectorService;
   vault: VaultService;
@@ -577,6 +598,8 @@ export interface ApplicationServices {
   setupFile: string;
   /** The analytics answer of this computer, kept the same as the account's latest answer. */
   analyticsPreferences: AnalyticsPreferenceService;
+  /** The random analytics ID of this install. Null when analytics is not built in or it cannot be saved. */
+  analyticsInstallId: string | null;
   updatePreferenceFile: string;
   approvalAutomation: ApprovalAutomation;
   agentAdminSettings: AgentAdminSettingsService;
@@ -594,6 +617,7 @@ export interface ApplicationServices {
   agentMemoryLimit: AgentMemoryLimitSetting;
   memoryReview: MemoryReviewPreferenceStore;
   agentNotificationLevels: AgentNotificationLevelStore;
+  sidebarPins: SidebarPinStore;
   agentAccess: AgentAccessStore;
   serverTimezone: ServerTimezonePreferenceStore;
   promptCacheTtl: PromptCacheTtlPreferenceStore;
@@ -692,6 +716,8 @@ interface MessagingServicesContext {
   sidebarLayout: SidebarLayoutStore;
   /** Read on each call: the team store that names this host is built after messaging. */
   readHostId: () => string | null;
+  /** The GitHub route ticket of the ingress socket; the GitHub relay holds the repository list. */
+  issueGitHubRoute: (hostId: string) => Effect.Effect<string, RemoteWorkflowError>;
   openLink: (url: string) => Promise<void>;
 }
 
@@ -706,6 +732,7 @@ async function createMessagingServices({
   service,
   sidebarLayout,
   readHostId,
+  issueGitHubRoute,
   openLink,
 }: MessagingServicesContext): Promise<{ messaging: MessagingService; signalIngress: SignalIngress }> {
   /*
@@ -738,6 +765,7 @@ async function createMessagingServices({
     issueDiscordRoute: (hostId) => centralAuth.issueDiscordRoute(hostId).pipe(toRemoteWorkflowError),
     issueWebhookRoute: (hostId) => centralAuth.issueWebhookRoute(hostId).pipe(toRemoteWorkflowError),
     issueTelegramRoute: (hostId) => centralAuth.issueTelegramRoute(hostId).pipe(toRemoteWorkflowError),
+    issueGitHubRoute,
     queueKey: () => loadIngressQueueKey(join(app.getPath("userData"), INGRESS_QUEUE_KEY_FILE), secretCipher),
   });
   teardown.push(TEARDOWN_ORDER.signalIngress, "the Signal ingress socket", () =>
@@ -1216,6 +1244,8 @@ export async function createApplicationServices({
     join(app.getPath("userData"), AGENT_NOTIFICATION_LEVELS_FILE),
   );
   await runCauseEffect(agentNotificationLevels.load());
+  const sidebarPins = new SidebarPinStore(join(app.getPath("userData"), SIDEBAR_PINS_FILE));
+  await runCauseEffect(sidebarPins.load());
   await runCauseEffect(memoryReview.load());
   const agentAccess = new AgentAccessStore(join(app.getPath("userData"), AGENT_ACCESS_FILE));
   if (!(await runCauseEffect(agentAccess.load())))
@@ -1243,7 +1273,8 @@ export async function createApplicationServices({
       appVariant,
       server: Boolean(hostedServer || serverModeEnvironment || localServerChild),
     }),
-    offersBackground: process.platform !== "darwin" && !hostedServer && !serverModeEnvironment && !localServerChild,
+    offersBackground: !hostedServer && !serverModeEnvironment && !localServerChild,
+    menuBar: process.platform === "darwin",
     offersKeepAwake: process.platform !== "linux" && !hostedServer && !serverModeEnvironment && !localServerChild,
   });
   await runCauseEffect(appBehavior.load());
@@ -1491,6 +1522,13 @@ export async function createApplicationServices({
   teardown.push(TEARDOWN_ORDER.githubConnector, "the GitHub connection", () =>
     runCauseEffect(githubConnector.dispose()),
   );
+  /* The Link account. Agents ask it for one-time cards that the user approves in Link. */
+  const linkAccount = new LinkAccountService({
+    store: new LinkAccountStore(join(app.getPath("userData"), LINK_ACCOUNT_FILE), secretCipher),
+    openExternal: openLink,
+  });
+  await Effect.runPromise(linkAccount.load());
+  teardown.push(TEARDOWN_ORDER.linkAccount, "the Link account", () => Effect.runPromise(linkAccount.dispose()));
   /*
    * The Bitwarden connection. A host connection's API key and master password are stored, so the
    * host unlocks again after a restart; its CLI data and OpenBot's copy of `bw` stay outside every
@@ -1814,6 +1852,7 @@ export async function createApplicationServices({
       { prefix: "openbot:", vault: vault.logins },
     ]),
     vaultItems: vault.items,
+    linkWallet: linkAccount,
     agentApiKeys,
     localSkillTools: () => localSkillTools(skills),
     routineFlowTools: () => routineFlowRuntime,
@@ -1906,10 +1945,21 @@ export async function createApplicationServices({
     database: store.database,
     nextDueAt: workflowScheduleDueAt(() => serverTimezone.effective()),
   });
+  // The workflow calls to GitHub. The editor reads the labels and people of a repository through it.
+  const githubRest = createGitHubRest({
+    fetch: (url, init) => fetch(url, init),
+    tokens: (repository) => githubConnector.repositoryTokens(repository),
+  });
+  const workflowGitHub = workflowGitHubDirectory(() => githubConnector.workflowCatalog(), githubRest);
   const workflowRuntime = await Effect.runPromise(
     createWorkflows({
       store: workflowStore,
       runs: new WorkflowRunStore({ database: store.database }),
+      github: new WorkflowGitHubStore({ database: store.database }),
+      githubApp: () => githubAppConfig()?.slug ?? null,
+      // The relay is made with the ingress socket, below; a graph changes only after start.
+      watchGitHub: (repositories) => githubRelay.setRepositories(repositories),
+      githubApi: githubRest,
       delivery: (deliveryId) => {
         const found = mailbox.getDelivery(deliveryId)?.delivery;
         return found ? { status: found.status, turnId: found.turnId, error: found.error } : null;
@@ -1933,6 +1983,7 @@ export async function createApplicationServices({
       notify: forwardWorkflowNotice,
       connectionOn: (connectionId) => service.messaging.store.connection(connectionId)?.enabled === true,
       post: (connectionId, placeId, markdown) => service.messaging.deliver(connectionId, placeId, markdown),
+      discordSend: (connectionId, send) => service.messaging.discordSend(connectionId, send),
       // An agent event, so this window, joined clients and the web app hear it the same way.
       changed: (workflowId) => service.notifyWorkflowsChanged(workflowId),
       rearm: () => service.armRoutines(),
@@ -1951,7 +2002,22 @@ export async function createApplicationServices({
   vault.onChanged(() => service.notifyVaultChanged());
   // A changed or deleted Vault API key reaches the file that an agent reads at once.
   vault.onChanged(() => void Effect.runPromise(agentApiKeys.syncVault().pipe(Effect.ignore)));
-  teardown.push(TEARDOWN_ORDER.workflows, "the workflows", () => Effect.runPromise(workflowRuntime.close()));
+  // A Discord mention goes to the workflows' Discord triggers before an agent. When the workflows fail to
+  // read, the agent answers it, as it did before the trigger.
+  service.messaging.setMentionHandler((mention) =>
+    workflowRuntime.receiveDiscord(mention).pipe(
+      Effect.catch((failure) =>
+        Effect.sync(() => {
+          logger.warn("A Discord mention could not reach the workflows.", { cause: String(failure.cause) });
+          return "none" as const;
+        }),
+      ),
+    ),
+  );
+  teardown.push(TEARDOWN_ORDER.workflows, "the workflows", () => {
+    service.messaging.setMentionHandler(null);
+    return Effect.runPromise(workflowRuntime.close());
+  });
   // An agent routine's answer sent on to a messaging place; see `routine-results.ts`.
   const routineResultRuntime = await Effect.runPromise(
     createRoutineResults({
@@ -1992,6 +2058,13 @@ export async function createApplicationServices({
   // it starts as "no name yet".
   let ingressHostId: () => string | null = () => null;
   performance.mark("openbot:services.routines");
+  // The repositories that the saved GitHub triggers watch. It holds the GitHub route of the ingress
+  // socket, which is made next.
+  const githubRelay = new GitHubRelay({
+    account: centralAuth,
+    githubToken: () => githubConnector.accessToken(),
+    ingress: () => signalIngress,
+  });
   const { messaging, signalIngress } = await createMessagingServices({
     teardown,
     secretCipher,
@@ -1999,6 +2072,7 @@ export async function createApplicationServices({
     service,
     sidebarLayout,
     readHostId: () => ingressHostId(),
+    issueGitHubRoute: (hostId) => githubRelay.issueRoute(hostId),
     openLink,
   });
   // A connect, a disconnect or an expiry changes the tools and the `gh` sign-in of every agent.
@@ -2194,8 +2268,30 @@ export async function createApplicationServices({
   });
   const eventsRuntime = new HostEventsRuntime(events);
   signalIngress.handleWebhooks((input) => events.receive(input));
+  githubRelay.handle({
+    deliver: (delivery) => receiveGitHubDelivery(workflowRuntime, delivery),
+    offline: (from, to) =>
+      workflowRuntime
+        .githubOffline(new Date(from), new Date(to))
+        .pipe(
+          Effect.catch((failure) =>
+            Effect.sync(() =>
+              logger.warn("The time without GitHub events was not recorded.", { cause: String(failure.cause) }),
+            ),
+          ),
+        ),
+  });
+  await Effect.runPromise(
+    workflowRuntime.githubRepositories().pipe(
+      Effect.tap((repositories) => Effect.sync(() => githubRelay.setRepositories(repositories))),
+      Effect.catch((failure) =>
+        Effect.sync(() => logger.warn("The GitHub triggers were not read.", { cause: String(failure.cause) })),
+      ),
+    ),
+  );
   teardown.push(TEARDOWN_ORDER.hostEvents, "the event service", async () => {
     webhookRelay.stop();
+    githubRelay.stop();
     await Effect.runPromise(eventsRuntime.stop());
   });
   // After `teamStore.initialize()` and before `HostService`, which reads the account it activates.
@@ -2204,6 +2300,7 @@ export async function createApplicationServices({
       applyDevelopmentRemoteAccount({
         role: developmentRemoteRole,
         testClientEnabled: developmentTestClientEnabled,
+        clientTransport: readDevelopmentClientTransport(process.env.OPENBOT_DEV_CLIENT_TRANSPORT),
         centralAuth,
         teamStore,
         setupFile,
@@ -2254,8 +2351,10 @@ export async function createApplicationServices({
     browser,
     onChanged: () => service.notifyBrowserProfilesChanged(),
   });
-  const customProviderChanges = createCustomProviderChanges({ service, customProviders });
+  const customProviderChanges = createCustomProviderChanges({ service, customProviders, providerRuntimes });
+
   antigravityGateway?.watchModels(customProviderChanges);
+
   const customAgentChanges = createCustomAgentChanges({ service, customAgents });
   const acpRegistry = createAcpRegistry({
     directory: app.getPath("userData"),
@@ -2389,7 +2488,7 @@ export async function createApplicationServices({
     store: teamStore,
     agents: service,
     // Defined below with the startup it waits for; a request runs only after this returns.
-    agentsReady: () => agentInitialization.awaitSettled(),
+    agentsReady: () => agentInitialization.awaitRoster(),
     events,
     skills,
     sidebarLayout,
@@ -2435,11 +2534,17 @@ export async function createApplicationServices({
     // Present, so the host advertises `routine-flows-v1`. Any member who can see the agents.
     routineFlows: routineFlowRuntime,
     // Present, so the host advertises `workflows-v1`. Any member who can see and talk to the agents.
-    workflows: { ...workflowRuntime, rotateWorkflowSecret: (input) => events.rotateWorkflowSecret(input) },
+    workflows: {
+      ...workflowRuntime,
+      rotateWorkflowSecret: (input) => events.rotateWorkflowSecret(input),
+      github: workflowGitHub,
+    },
     // Present, so the host advertises `agent-hidden-v1`. Any member can hide or restore an agent that they can see.
     hiddenAgents: service,
     // Present, so the host advertises `agent-notification-levels-v1`. Each member sets their own levels.
     agentNotificationLevels,
+    // Present, so the host advertises `sidebar-pins-v1`. Each member saves their own pins.
+    sidebarPins,
     // Present, so the host advertises `agent-access-v1`. Only owners and admins change the roles.
     agentAccess,
     // Present, so the host advertises `agent-tasks-v1`. Any member who can send a message to the agent.
@@ -2652,6 +2757,11 @@ export async function createApplicationServices({
   }
   performance.mark("openbot:services.remote-desktop");
   const analyticsEnabled = (app.isPackaged && appVariant === "production") || analyticsCaptureUrl !== null;
+  const analyticsInstallId = analyticsEnabled
+    ? await Effect.runPromise(
+        readAnalyticsInstallId(join(app.getPath("userData"), ANALYTICS_INSTALL_ID_FILE), Date.now()),
+      )
+    : null;
   const failureReports = analyticsEnabled
     ? new ReportQueue(
         fileReportStorage(join(app.getPath("userData"), "openbot-error-reports-v1.json")),
@@ -2686,6 +2796,7 @@ export async function createApplicationServices({
     enabled: analyticsEnabled,
     ...(analyticsCaptureUrl ? { apiUrl: analyticsCaptureUrl } : {}),
     trackingEnabled: analyticsPreference.enabled,
+    installId: analyticsInstallId,
     appVersion: app.getVersion(),
     platform: analyticsPlatform,
     // A function for a lifetime reason, not an ordering one: the signed-in account changes
@@ -2751,6 +2862,16 @@ export async function createApplicationServices({
   service.on("failure", (failure) => analytics.handleFailure(failure));
   resourceMonitor.start(() => analytics.checkResources());
   const connectTrace = new RemoteConnectTrace((span) => trace.record(span));
+  // Development only: a network round trip added to the WebRTC client, for `bun run perf:remote`.
+  const developmentRoundTripMs = app.isPackaged ? 0 : Math.max(0, Number(process.env.OPENBOT_DEV_RTT_MS) || 0);
+  installRemoteSyncProfileSink(
+    remoteSyncProfileFile({
+      isPackaged: app.isPackaged,
+      setting: process.env.OPENBOT_DEV_SYNC_PROFILE,
+      userData: app.getPath("userData"),
+      roundTripMs: developmentRoundTripMs,
+    }),
+  );
   const remoteServers = new RemoteServerManager(
     join(app.getPath("userData"), REMOTE_SERVERS_FILE),
     safeStorageCipher("error.app.macSecureStorageUnavailable"),
@@ -2803,6 +2924,7 @@ export async function createApplicationServices({
         transferDirectory: join(app.getPath("userData"), "remote-transfers"),
         connectTrace,
         sessionCache: remoteSessionCache,
+        developmentRoundTripMs,
       }),
     },
   );
@@ -2852,6 +2974,7 @@ export async function createApplicationServices({
       startDevelopmentRemoteRole({
         role: developmentRemoteRole,
         testClientEnabled: developmentTestClientEnabled,
+        clientTransport: readDevelopmentClientTransport(process.env.OPENBOT_DEV_CLIENT_TRANSPORT),
         host,
         remoteServers,
       }),
@@ -3135,10 +3258,12 @@ export async function createApplicationServices({
     localUpdateSource.start();
     teardown.push(TEARDOWN_ORDER.updater, "the local update source", () => localUpdateSource.stop());
   }
-  const agentInitialization = new AgentInitializationGate(() =>
-    Effect.gen(function* () {
+  const agentInitialization = new AgentInitializationGate((rosterLoaded) =>
+      Effect.gen(function* () {
       yield* Fiber.join(computerUseWarmUp);
       yield* service.initialize({ heldRoutines: takeRoutineHold(routineHoldFile, (message) => logger.warn(message)) });
+      // A client's agent list waits only until here. The steps below do not change the roster.
+      yield* rosterLoaded;
       yield* eventsRuntime.start();
       yield* automation.sync();
       // Picks up the flows a restart stopped between one agent's answer and the next agent's message.
@@ -3341,14 +3466,17 @@ export async function createApplicationServices({
     service,
     routineFlows: routineFlowRuntime,
     workflows: workflowRuntime,
+    workflowGitHub,
     routineResults: routineResultRuntime,
     providerRuntimes,
     providerCredentials,
     messaging,
+    teamWebRtcBridge,
     mcpOAuth,
     signInRelayClient,
     relayedMessagingInstalls: new RelayedMessagingInstalls(remoteServers),
     githubConnector,
+    linkAccount,
     onePasswordConnector,
     bitwardenConnector,
     vault,
@@ -3362,6 +3490,7 @@ export async function createApplicationServices({
     updater,
     setupFile,
     analyticsPreferences,
+    analyticsInstallId,
     updatePreferenceFile,
     approvalAutomation,
     agentAdminSettings,
@@ -3378,6 +3507,7 @@ export async function createApplicationServices({
     agentMemoryLimit: agentMemoryLimitSetting,
     memoryReview,
     agentNotificationLevels,
+    sidebarPins,
     agentAccess,
     serverTimezone,
     promptCacheTtl,

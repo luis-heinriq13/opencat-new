@@ -112,6 +112,7 @@ import {
   decodeRoutineRuns,
   decodeRoutines,
   decodeSidebarLayout,
+  decodeSidebarPinsFromMain,
   decodeSideQuestionAnswer,
   decodeTables,
 } from "./agent-decoding";
@@ -158,6 +159,7 @@ import {
   decodeHostedSite,
   decodeHostedSiteList,
   decodeLicenseState,
+  decodeLinkAccountStatus,
   decodeMobileConnectedDevices,
   decodeMobileConnectLink,
   decodeMobileConnectTicket,
@@ -311,6 +313,9 @@ import {
 import { decodeVaultImportResult, decodeVaultSecret, decodeVaultState } from "./vault-decoding";
 import {
   decodeWorkflowDetail,
+  decodeWorkflowGitHubCatalog,
+  decodeWorkflowGitHubHistory,
+  decodeWorkflowGitHubOptions,
   decodeWorkflowGraph,
   decodeWorkflowRunDetail,
   decodeWorkflowRunPage,
@@ -532,6 +537,9 @@ const agentGroup = bridgeGroup(IPC_ENDPOINTS.agent, {
   deleteChannel: decodeVoid,
   getSidebarLayout: decodeSidebarLayout,
   mutateSidebarLayout: decodeSidebarLayout,
+  getSidebarPins: decodeSidebarPinsFromMain,
+  setSidebarPins: decodeSidebarPinsFromMain,
+  seedSidebarPins: decodeSidebarPinsFromMain,
   generateProfile: decodeAgentProfileDraft,
   saveProfile: decodeSaveAgentProfileResult,
   askSideQuestion: decodeSideQuestionAnswer,
@@ -782,6 +790,10 @@ const openbotApi: OpenBotDesktopApi = {
     runs: decodeWorkflowRunPage,
     run: decodeWorkflowRunDetail,
     rotateWebhookSecret: decodeWorkflowWebhookSecret,
+    githubCatalog: decodeWorkflowGitHubCatalog,
+    githubOptions: decodeWorkflowGitHubOptions,
+    githubHistory: decodeWorkflowGitHubHistory,
+    githubRunLastEvent: decodeWorkflowRunDetail,
   }),
   routineResults: bridgeGroup(IPC_ENDPOINTS.routineResults, {
     options: decodeRoutineResultOptions,
@@ -906,6 +918,13 @@ const openbotApi: OpenBotDesktopApi = {
   attendance: bridgeGroup(IPC_ENDPOINTS.attendance, {
     report: decodeAttendanceReport,
     resumeConversation: decodeVoid,
+  }),
+  linkAccount: bridgeGroup(IPC_ENDPOINTS.linkAccount, {
+    status: decodeLinkAccountStatus,
+    connect: decodeLinkAccountStatus,
+    cancel: decodeLinkAccountStatus,
+    disconnect: decodeLinkAccountStatus,
+    changed: decodeLinkAccountStatus,
   }),
   bitwardenConnector: bridgeGroup(IPC_ENDPOINTS.bitwardenConnector, {
     status: decodeBitwardenConnectorStatus,

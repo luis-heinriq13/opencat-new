@@ -74,6 +74,8 @@ import { ROUTINE_RECOVERY_CODECS } from "./routine-recovery-v1";
 import { ROUTINE_RESULTS_CODECS } from "./routine-results-v1";
 import { SHARED_TABLES_CODECS } from "./shared-tables-v1";
 import { SIDE_QUESTION_CODECS } from "./side-question-v1";
+import { SIDEBAR_FOLDERS_CODECS } from "./sidebar-folders-v1";
+import { SIDEBAR_PINS_CODECS } from "./sidebar-pins-v1";
 import { SIGN_IN_RELAY_CODECS } from "./sign-in-relay-v1";
 import { SKILLS_ADMIN_CODECS } from "./skills-admin-v1";
 import { STORAGE_DISK_CODECS } from "./storage-disk-v1";
@@ -81,6 +83,7 @@ import { VAULT_IMPORT_CODECS } from "./vault-import-v1";
 import { VAULT_CODECS } from "./vault-v1";
 import { VAULT_V2_CODECS } from "./vault-v2";
 import { WEBHOOK_TESTS_CODECS } from "./webhook-tests-v1";
+import { WORKFLOWS_GITHUB_CODECS } from "./workflows-github-v1";
 import { WORKFLOWS_CODECS } from "./workflows-v1";
 import { WORKSPACE_DIRECTORY_CODECS } from "./workspace-directory-v1";
 
@@ -152,6 +155,7 @@ const CODECS: ReadonlyMap<string, OptionalRouteCodec> = new Map([
   ...AGENT_ACCESS_CODECS,
   ...AGENT_HIDDEN_CODECS,
   ...AGENT_NOTIFICATION_LEVELS_CODECS,
+  ...SIDEBAR_PINS_CODECS,
   ...AGENT_PLAN_CARD_CODECS,
   ...BROWSER_USER_CONTROL_CODECS,
   ...BROWSER_PAGE_STATE_CODECS,
@@ -164,6 +168,8 @@ const CODECS: ReadonlyMap<string, OptionalRouteCodec> = new Map([
   ...SIDE_QUESTION_CODECS,
   ...BROWSER_PROFILES_CODECS,
   ...WORKFLOWS_CODECS,
+  ...WORKFLOWS_GITHUB_CODECS,
+  ...SIDEBAR_FOLDERS_CODECS,
   ...VAULT_CODECS,
   ...BROWSER_SECRET_VAULT_CODECS,
   ...VAULT_IMPORT_CODECS,

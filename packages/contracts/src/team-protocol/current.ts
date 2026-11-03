@@ -88,11 +88,14 @@ import { ANDROID_PUSH_NOTIFICATIONS_CAPABILITY } from "./push-notifications-andr
 import { PUSH_NOTIFICATIONS_CAPABILITY } from "./push-notifications-v1";
 import { TEAM_QUEUE_EDIT_CAPABILITY } from "./queue-edit-v1";
 import { QUIET_TURN_CAPABILITY } from "./quiet-turn-v1";
+import { TEAM_REASONING_EFFORTS_CAPABILITY } from "./reasoning-efforts-v1";
 import { ROUTINE_FLOWS_CAPABILITY } from "./routine-flows-v1";
 import { ROUTINE_RECOVERY_CAPABILITY } from "./routine-recovery-v1";
 import { ROUTINE_RESULTS_CAPABILITY } from "./routine-results-v1";
 import { SHARED_TABLES_CAPABILITY } from "./shared-tables-v1";
 import { SIDE_QUESTION_CAPABILITY } from "./side-question-v1";
+import { SIDEBAR_FOLDERS_CAPABILITY } from "./sidebar-folders-v1";
+import { SIDEBAR_PINS_CAPABILITY } from "./sidebar-pins-v1";
 import { SIGN_IN_RELAY_CAPABILITY } from "./sign-in-relay-v1";
 import { SKILLS_ADMIN_CAPABILITY } from "./skills-admin-v1";
 import { SKILLS_EVENTS_CAPABILITY } from "./skills-events-v1";
@@ -106,6 +109,7 @@ import { VAULT_IMPORT_CAPABILITY } from "./vault-import-v1";
 import { VAULT_CAPABILITY } from "./vault-v1";
 import { VAULT_V2_CAPABILITY } from "./vault-v2";
 import { WEBHOOK_TESTS_CAPABILITY } from "./webhook-tests-v1";
+import { WORKFLOWS_GITHUB_CAPABILITY } from "./workflows-github-v1";
 import { WORKFLOWS_CAPABILITY } from "./workflows-v1";
 import { WORKSPACE_DIRECTORY_CAPABILITY } from "./workspace-directory-v1";
 
@@ -123,6 +127,13 @@ export const TEAM_MEDIA_ATTACHMENTS_CAPABILITY = "media-attachments";
 export const TEAM_EML_ATTACHMENTS_CAPABILITY = "eml-attachments";
 export const TEAM_ZIP_ATTACHMENTS_CAPABILITY = "zip-attachments";
 export const TEAM_MP4_ATTACHMENTS_CAPABILITY = "mp4-attachments";
+export const TEAM_SVG_ATTACHMENTS_CAPABILITY = "svg-attachments";
+/**
+ * A host that keeps a separate MCP sign-in for each row whose URL ends in an `#account-…` fragment.
+ * An older host files every row on one URL under one sign-in, so the client offers "Add account"
+ * for a listing only when the host advertises this.
+ */
+export const MCP_ACCOUNTS_CAPABILITY = "mcp-accounts-v1";
 /**
  * Frozen optional member-leave-v1 contract: a bodyless `POST /v1/team/leave` answered with 204. The
  * caller, a member or an admin, removes their own membership with the same effects as an admin's
@@ -221,6 +232,8 @@ export {
   ROUTINE_RESULTS_CAPABILITY,
   SHARED_TABLES_CAPABILITY,
   SIDE_QUESTION_CAPABILITY,
+  SIDEBAR_FOLDERS_CAPABILITY,
+  SIDEBAR_PINS_CAPABILITY,
   SIGN_IN_RELAY_CAPABILITY,
   SKILLS_ADMIN_CAPABILITY,
   SKILLS_EVENTS_CAPABILITY,
@@ -238,6 +251,7 @@ export {
   TEAM_HISTORY_EXTENT_CAPABILITY,
   TEAM_MESSAGE_CLIENT_ID_CAPABILITY,
   TEAM_PROMPT_MULTI_SELECT_CAPABILITY,
+  TEAM_REASONING_EFFORTS_CAPABILITY,
   TEAM_SUBAGENTS_CAPABILITY,
   TEAM_UI_BLOCK_AUTO_ANSWER_CAPABILITY,
   TEAM_UI_BLOCKS_CAPABILITY,
@@ -246,6 +260,7 @@ export {
   VAULT_V2_CAPABILITY,
   WEBHOOK_TESTS_CAPABILITY,
   WORKFLOWS_CAPABILITY,
+  WORKFLOWS_GITHUB_CAPABILITY,
   WORKSPACE_DIRECTORY_CAPABILITY,
 };
 
@@ -374,6 +389,12 @@ export const TEAM_CURRENT_CAPABILITIES = [
   AGENT_THREAD_BRANCHES_CAPABILITY,
   CUSTOM_AGENTS_CAPABILITY,
   CHANNEL_TASK_CANCEL_CAPABILITY,
+  WORKFLOWS_GITHUB_CAPABILITY,
+  TEAM_SVG_ATTACHMENTS_CAPABILITY,
+  MCP_ACCOUNTS_CAPABILITY,
+  SIDEBAR_PINS_CAPABILITY,
+  SIDEBAR_FOLDERS_CAPABILITY,
+  TEAM_REASONING_EFFORTS_CAPABILITY,
 ] as const;
 
 export type TeamCurrentCapability = (typeof TEAM_CURRENT_CAPABILITIES)[number];
@@ -516,7 +537,13 @@ export const TEAM_BOOTSTRAP_CAPABILITIES = TEAM_CURRENT_CAPABILITIES.filter(
     capability !== HOST_KEY_ROTATION_CAPABILITY &&
     capability !== AGENT_THREAD_BRANCHES_CAPABILITY &&
     capability !== CUSTOM_AGENTS_CAPABILITY &&
-    capability !== CHANNEL_TASK_CANCEL_CAPABILITY,
+    capability !== CHANNEL_TASK_CANCEL_CAPABILITY &&
+    capability !== WORKFLOWS_GITHUB_CAPABILITY &&
+    capability !== TEAM_SVG_ATTACHMENTS_CAPABILITY &&
+    capability !== MCP_ACCOUNTS_CAPABILITY &&
+    capability !== SIDEBAR_PINS_CAPABILITY &&
+    capability !== SIDEBAR_FOLDERS_CAPABILITY &&
+    capability !== TEAM_REASONING_EFFORTS_CAPABILITY,
 );
 /**
  * The capabilities that only a protocol 9 peer sends and gets. Protocols 7 and 8 read at most 128
@@ -535,6 +562,12 @@ export const TEAM_PROTOCOL_V9_ONLY_CAPABILITIES: ReadonlySet<string> = new Set<T
   AGENT_THREAD_BRANCHES_CAPABILITY,
   CUSTOM_AGENTS_CAPABILITY,
   CHANNEL_TASK_CANCEL_CAPABILITY,
+  WORKFLOWS_GITHUB_CAPABILITY,
+  TEAM_SVG_ATTACHMENTS_CAPABILITY,
+  MCP_ACCOUNTS_CAPABILITY,
+  SIDEBAR_PINS_CAPABILITY,
+  SIDEBAR_FOLDERS_CAPABILITY,
+  TEAM_REASONING_EFFORTS_CAPABILITY,
 ]);
 // A v8 host reads at most 128 capabilities, so a client sends the protocol 9 ones only after it
 // negotiates protocol 9.
@@ -636,6 +669,12 @@ export function legacyTeamCapabilities(capabilities: readonly string[]): string[
       capability !== TEAM_LONG_CAPABILITY_LISTS_CAPABILITY &&
       capability !== AGENT_THREAD_BRANCHES_CAPABILITY &&
       capability !== CUSTOM_AGENTS_CAPABILITY &&
-      capability !== CHANNEL_TASK_CANCEL_CAPABILITY,
+      capability !== CHANNEL_TASK_CANCEL_CAPABILITY &&
+      capability !== WORKFLOWS_GITHUB_CAPABILITY &&
+      capability !== TEAM_SVG_ATTACHMENTS_CAPABILITY &&
+      capability !== MCP_ACCOUNTS_CAPABILITY &&
+      capability !== SIDEBAR_PINS_CAPABILITY &&
+      capability !== SIDEBAR_FOLDERS_CAPABILITY &&
+      capability !== TEAM_REASONING_EFFORTS_CAPABILITY,
   );
 }

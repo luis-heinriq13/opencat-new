@@ -11,6 +11,7 @@ import type { AgentTemplateService } from "../agent-template-service";
 import type { BrowserProfileService } from "../browser-profile-service";
 import type { CustomAgentChanges } from "../custom-agent-changes";
 import type { PeerCustomProviderChanges } from "../custom-provider-changes";
+import type { WorkflowGitHubDirectory } from "../github-rest";
 import type { HostEventsApi } from "../host-events-api";
 import type { HostEventsService } from "../host-events-service";
 import type { HostReleaseService } from "../host-release-service";
@@ -49,6 +50,8 @@ import type {
   SetAgentNotificationLevelInput,
   SetRoutineResultDestinationInput,
   SidebarLayoutSnapshot,
+  SidebarPin,
+  SidebarPinsSnapshot,
   TeamPresenceSnapshot,
   UpdateHostIdentityInput,
 } from "@openbot/contracts/ipc";
@@ -258,6 +261,26 @@ export interface TeamApiAgentNotificationLevels {
 }
 
 /**
+ * `sidebar-pins-v1`: the chats that each member pinned on this server, in their order. The host keeps
+ * the pins of the owner under one key, so its desktop app and its phones read the same pins.
+ */
+export interface TeamApiSidebarPins {
+  snapshot(memberId: string, hidden: ReadonlySet<string>): SidebarPinsSnapshot;
+  set(
+    memberId: string,
+    items: SidebarPin[],
+    hidden: ReadonlySet<string>,
+  ): Effect.Effect<SidebarPinsSnapshot, PreferenceFileFailure>;
+  seed(
+    memberId: string,
+    items: SidebarPin[],
+    hidden: ReadonlySet<string>,
+  ): Effect.Effect<SidebarPinsSnapshot, PreferenceFileFailure>;
+  /** Calls `listener` with the member after each change of their pins, from any of their devices. */
+  subscribe(listener: (memberId: string) => void): () => void;
+}
+
+/**
  * Its presence is what `#protocolSupport` advertises `agent-tasks-v1` and `agent-threads-v1` on. A member
  * who can send a message to the agent can use it. Moving a queued message into a task stays local.
  */
@@ -327,8 +350,16 @@ export type TeamApiWorkflows = Pick<
   | "runs"
   | "run"
   | "workflowOf"
+  | "githubHistory"
+  | "githubLastEvent"
 > &
-  Pick<HostEventsService, "rotateWorkflowSecret">;
+  Pick<HostEventsService, "rotateWorkflowSecret"> & {
+    /**
+     * Its presence is what `#protocolSupport` advertises `workflows-github-v1` on; see
+     * `workflows-github-v1.ts` for the grant.
+     */
+    github?: WorkflowGitHubDirectory;
+  };
 
 /** The setup choice of this computer: the same file and the same service step as the local Settings save. */
 interface TeamApiDefaultProvider {
@@ -537,6 +568,7 @@ export interface TeamApiOptions {
   workflows?: TeamApiWorkflows;
   hiddenAgents?: TeamApiHiddenAgents;
   agentNotificationLevels?: TeamApiAgentNotificationLevels;
+  sidebarPins?: TeamApiSidebarPins;
   /** `agent-access-v1`: the roles that limit what a member can do with each agent. */
   agentAccess?: TeamApiAgentAccess;
   agentTasks?: TeamApiAgentTasks;
@@ -546,8 +578,9 @@ export interface TeamApiOptions {
   store: TeamStore;
   agents: TeamApiAgents;
   /**
-   * Waits for the agent initialization in progress. A host that wakes publishes before its agents
-   * load, and an empty roster then would tell a peer that the server has no agents.
+   * Waits until the agent initialization in progress has loaded the agents. A host that wakes
+   * publishes before its agents load, and an empty roster then would tell a peer that the server has
+   * no agents. The later startup steps, such as the routine sweeps, do not hold the list.
    */
   agentsReady?: (() => Effect.Effect<void>) | undefined;
   skills?: Pick<SkillMarketplaceService, "listInstalledForChatTags"> | undefined;
