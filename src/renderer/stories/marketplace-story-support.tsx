@@ -15,8 +15,8 @@ import { Marketplace } from "@openbot/ui/features/marketplace/Marketplace";
 import { AgentsDialog } from "@openbot/ui/features/marketplace/MarketplaceAgentsDialog";
 import type {
   MarketplaceApp,
-  MarketplaceAppAgent,
   MarketplaceAppAccount,
+  MarketplaceAppAgent,
   MarketplaceAppConnection,
   MarketplaceModel,
 } from "@openbot/ui/features/marketplace/marketplace-model";
@@ -350,7 +350,8 @@ export function MarketplaceStory(props: StoryProps) {
       ...[...STORY_MARKETPLACE_PLUGINS, ...(macOS ? APPLE_APPS : []), ...(whatsapp ? WHATSAPP_APP : [])].map(
         (plugin): MarketplaceApp => {
           const listed = accounts?.[plugin.slug];
-          const state = plugin.slug === "whatscat" ? "connected" : (held[plugin.slug] ?? (listed ? "connected" : undefined));
+          const state =
+            plugin.slug === "whatscat" ? "connected" : (held[plugin.slug] ?? (listed ? "connected" : undefined));
           return {
             kind: "plugin",
             id: plugin.slug,

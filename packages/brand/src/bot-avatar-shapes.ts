@@ -62,8 +62,9 @@ export const OPENCAT_BOT_PRESETS: Readonly<Record<OpenCatMascotId, OpenCatBotPre
   hedgehog: { label: "Hedgehog", faceX: 50, faceY: 52.4, faceScale: 0.95 },
 };
 
-/** Map from library/stored silhouette ID to OpenCat mascot ID. */
-export const SILHOUETTE_TO_MASCOT_ID: Readonly<Record<SupportedAvatarSilhouetteId, OpenCatMascotId>> = {
+/** Map from library/stored silhouette ID to OpenCat mascot ID. Shapes the library added later
+    (carre, losange, pentagone) hold no mascot and fall back to the OpenCat face. */
+export const SILHOUETTE_TO_MASCOT_ID: Readonly<Partial<Record<SupportedAvatarSilhouetteId, OpenCatMascotId>>> = {
   opencat: "opencat",
   bear: "bear",
   bunny: "bunny",
@@ -82,9 +83,8 @@ function isSupportedSilhouette(id: string): id is SupportedAvatarSilhouetteId {
 }
 
 export function resolveOpenCatMascot(id: string): OpenCatMascotId {
-  if (isSupportedSilhouette(id)) {
-    return SILHOUETTE_TO_MASCOT_ID[id];
-  }
+  const mapped = isSupportedSilhouette(id) ? SILHOUETTE_TO_MASCOT_ID[id] : undefined;
+  if (mapped) return mapped;
   const match = OPENCAT_MASCOT_IDS.find((m) => m === id);
   if (match) return match;
   return "opencat";

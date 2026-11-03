@@ -3259,7 +3259,7 @@ export async function createApplicationServices({
     teardown.push(TEARDOWN_ORDER.updater, "the local update source", () => localUpdateSource.stop());
   }
   const agentInitialization = new AgentInitializationGate((rosterLoaded) =>
-      Effect.gen(function* () {
+    Effect.gen(function* () {
       yield* Fiber.join(computerUseWarmUp);
       yield* service.initialize({ heldRoutines: takeRoutineHold(routineHoldFile, (message) => logger.warn(message)) });
       // A client's agent list waits only until here. The steps below do not change the roster.

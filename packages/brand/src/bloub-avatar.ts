@@ -45,7 +45,7 @@ export interface BloubAvatarProfile {
 
 const AUTOMATIC_COLORS = ["rouge", "orange", "ambre", "vert", "turquoise", "bleu", "violet", "rose"] as const;
 const UNSUPPORTED_AVATAR_SILHOUETTE = "goutte" as const satisfies ShapeId;
-const SUPPORTED_AVATAR_SILHOUETTES = SHAPES.map((option) => option.id).filter(
+export const SUPPORTED_AVATAR_SILHOUETTES = SHAPES.map((option) => option.id).filter(
   (silhouette): silhouette is BuiltInAvatarSilhouetteId => silhouette !== UNSUPPORTED_AVATAR_SILHOUETTE,
 );
 

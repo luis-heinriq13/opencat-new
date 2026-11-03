@@ -1817,13 +1817,14 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
               }}
               onMarketplace={workspace.state.status === "online" ? openMarketplace : undefined}
               onSettings={openAccountSettings}
-              help={
+              help={(expanded) => (
                 <RailHelpMenu
+                  expanded={expanded}
                   version={null}
                   onOpenWhatsNew={() => void openWebDestination("changelog")}
                   onOpenLink={(destination) => void openWebDestination(destination)}
                 />
-              }
+              )}
             />
             <WorkspaceFrame
               class="web-app-frame"
