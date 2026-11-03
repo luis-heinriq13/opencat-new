@@ -1064,13 +1064,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                   }
                 >
                   <Popover.Trigger class="agent-settings-avatar" aria-label={t("agentSettings.avatar.edit")}>
-                    <AgentAvatar
-                      seed={draft.avatar.seed}
-                      hue={draft.avatar.hue}
-                      url={avatarUrl()}
-                      motion="always"
-                      renderCanvas
-                    />
+                    <AgentAvatar seed={draft.avatar.seed} hue={draft.avatar.hue} url={avatarUrl()} motion="always" />
                     <span class="agent-settings-avatar-badge" aria-hidden="true">
                       <Pencil class="agent-settings-avatar-badge-icon" />
                     </span>

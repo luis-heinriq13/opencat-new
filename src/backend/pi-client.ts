@@ -6,7 +6,7 @@ import { agentProviderName, type KeyOnlyProviderId } from "@openbot/contracts/ag
 import { type DynamicRecord, isBoolean, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { redactText } from "@openbot/logging";
-import { Effect, Exit, Schema, Scope, Semaphore } from "effect";
+import { Effect, Exit, Option, Schema, Scope, Semaphore } from "effect";
 import { secretElicitationField } from "./agent/prompts";
 import { type AgentClient, type DiagnosticOrigin, MissingPiSessionError, RequestTimeoutError } from "./agent-client";
 import { type AgentCliInfo, cliPathEnvironment, cliSpawnTarget } from "./cli";
@@ -60,7 +60,6 @@ import type {
   ProviderHistoryRequest,
   ReadProviderHistory,
 } from "./provider-history";
-import { hasLiveChildProcesses } from "./windows-process-tree";
 
 /**
  * How long a turn may send nothing, with no tool call or compaction open and no question to the
@@ -77,6 +76,15 @@ const PiSessionUsage = Schema.Struct({
     cacheRead: Schema.Number,
     cacheWrite: Schema.Number,
   }),
+});
+
+/**
+ * The context fill of `get_session_stats`. Pi omits it with no model or window, and its `tokens` is
+ * null after a compaction until the next model answer.
+ */
+const PiContextUsage = Schema.Struct({
+  tokens: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
+  contextWindow: Schema.Finite.check(Schema.isGreaterThan(0)),
 });
 
 export interface PiProviderOptions {
@@ -387,11 +395,15 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
                 .filter(isString)
                 .map((level) => (level === "off" ? "none" : level));
             }
-            const preferred = getString(state, "thinkingLevel");
+            const thinkingLevel = getString(state, "thinkingLevel");
+            const preferred = thinkingLevel === "off" ? "none" : thinkingLevel;
+            const defaultLevel = preferred && levels.includes(preferred) ? preferred : levels[0];
             models.push({
               model: keyProvider ? id : `${provider}/${id}`,
               displayName: getString(model, "name") ?? id,
-              defaultReasoningEffort: preferred && levels.includes(preferred) ? preferred : (levels[0] ?? "none"),
+              // A model without reasoning has no level. The catalog then gives it the `medium` of every
+              // model that cannot change its effort.
+              ...(defaultLevel === undefined ? {} : { defaultReasoningEffort: defaultLevel }),
               supportedReasoningEfforts: levels.map((reasoningEffort) => ({ reasoningEffort })),
               reasoningEffortConfigurable: levels.length > 0,
             });
@@ -675,20 +687,11 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
     // A stopped turn ends by its stop, as interrupted, and not as a stall.
     while (thread.turn === turn && !turn.finishing && !turn.stopped) {
       const silentFor = Date.now() - turn.lastActivityAt;
-      const pid = thread.rpc.pid;
-      const processAlive = thread.rpc.running;
-      const hasChildren = pid ? yield* Effect.promise(() => hasLiveChildProcesses(pid)) : false;
-      const toolActive = turn.openTools.size > 0 && hasChildren;
-
-      if (silentFor < PI_TURN_STALL_MS || toolActive || turn.waitingOnUser > 0 || turn.compacting) {
-        yield* Effect.sleep(Math.min(PI_TURN_STALL_MS - silentFor, 5_000));
+      if (silentFor < PI_TURN_STALL_MS || turn.openTools.size > 0 || turn.waitingOnUser > 0 || turn.compacting) {
+        yield* Effect.sleep(silentFor < PI_TURN_STALL_MS ? PI_TURN_STALL_MS - silentFor : PI_TURN_STALL_MS);
         continue;
       }
-
-      this.emit(
-        "diagnostic",
-        `Pi sent nothing for ${silentFor} ms (openTools: ${turn.openTools.size}, processAlive: ${processAlive}); ending turn ${turn.id}.`,
-      );
+      this.emit("diagnostic", `Pi sent nothing for ${silentFor} ms; ending turn ${turn.id}.`);
       const failure = sourceText("error.agent.turnStalled", { provider: agentProviderName(this.provider) });
       turn.stalled = failure;
       // Stop Pi before the turn ends, so that the stop cannot reach the next turn. Pi answers
@@ -756,7 +759,10 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
 
   #notify(method: string, thread: PiThread, params: DynamicRecord): void {
     // Usage contains only validated numeric counters. Generic secret-name matching masks `*Tokens`.
-    const safe = method === "openbot/usage" ? params : redactMcpRecord(params, this.#secretValues());
+    const safe =
+      method === "openbot/usage" || method === "thread/tokenUsage/updated"
+        ? params
+        : redactMcpRecord(params, this.#secretValues());
     this.emit("notification", {
       method,
       params: {
@@ -856,7 +862,19 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
     if (failure) this.#notify("error", thread, { error: { message: this.#redact(failure) }, willRetry: false });
     // Native totals survive process release/resume. Per-message usage is not a cumulative counter.
     yield* thread.rpc.request({ type: "get_session_stats" }, 2_000).pipe(
-      Effect.flatMap((stats) => providerSync(() => Schema.decodeUnknownSync(PiSessionUsage)(stats))),
+      Effect.flatMap((stats) => {
+        // The meter and the automatic compaction read this. A bad fill must not drop the totals.
+        const context = Schema.decodeUnknownOption(PiContextUsage)(getRecord(stats, "contextUsage"));
+        if (Option.isSome(context))
+          this.#notify("thread/tokenUsage/updated", thread, {
+            tokenUsage: {
+              last: { totalTokens: context.value.tokens },
+              modelContextWindow: context.value.contextWindow,
+              estimated: true,
+            },
+          });
+        return providerSync(() => Schema.decodeUnknownSync(PiSessionUsage)(stats));
+      }),
       Effect.map(({ tokens }) =>
         this.#notify("openbot/usage", thread, {
           usage: {

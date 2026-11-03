@@ -1,9 +1,7 @@
-import { randomUUID } from "node:crypto";
 import {
   type AgentEvent,
   type AgentSummary,
   agentProviderDescriptor,
-  agentProviderName,
   type BrowserControlState,
   type BrowserTab,
   CONVERSATION_PLAN_ITEM_TYPE,
@@ -23,7 +21,7 @@ import {
 import { type DynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger } from "@openbot/logging";
-import { type CauseCode, classifyFailure, FAILOVER_CAUSES, isRetiredModelNotice } from "@openbot/telemetry";
+import { type CauseCode, classifyFailure } from "@openbot/telemetry";
 import { Cause, Deferred, Effect, Exit, Schema, Scope } from "effect";
 import type { AgentClient } from "../agent-client";
 import type { AgentStore } from "../agent-store";
@@ -37,14 +35,12 @@ import {
   type DynamicToolCallParams,
   type DynamicToolResult,
   decodeAccountLoginCompletedResult,
-  decodeRecordResponse,
   getArray,
   getRecord,
   getString,
   isRecord,
   type ThreadItem,
 } from "../protocol";
-import { hasLiveChildProcesses } from "../windows-process-tree";
 import type { AgentMemories } from "./agent-memories";
 import { answerFilePaths } from "./answer-file-paths";
 import type { AttentionBrowserHost, AttentionRegistry } from "./attention-registry";
@@ -86,60 +82,25 @@ import { TurnTraces, traceMessage } from "./turn-traces";
 import { collectProviderUsage } from "./usage-collection";
 import { USAGE_LIMIT_METHOD, type UsageLimitGate } from "./usage-limit-gate";
 
-export function isExternalActionItem(item: ThreadItem | null | undefined): boolean {
-  if (!item) return false;
-  const toolName = (getString(item, "name") ?? getString(item, "tool") ?? "").toLowerCase();
-  const command = (getString(item, "command") ?? "").toLowerCase();
-
-  // 1. Messaging / External communication:
-  if (
-    toolName.includes("send_message") ||
-    toolName.includes("teams_enviar_mensagem") ||
-    toolName.includes("send_text") ||
-    toolName.includes("send_attachment") ||
-    toolName.includes("messaging_post") ||
-    toolName.includes("post_message") ||
-    toolName.includes("send_mail")
-  ) {
-    return true;
-  }
-
-  // 2. Deploy / publishing / push:
-  if (
-    toolName.includes("publish_site") ||
-    toolName.includes("deploy") ||
-    command.includes("git push") ||
-    command.includes("npm publish") ||
-    command.includes("cargo publish") ||
-    command.includes("docker push")
-  ) {
-    return true;
-  }
-
-  // 3. Financial / Purchases:
-  if (
-    toolName.includes("fill_card") ||
-    toolName.includes("pay") ||
-    toolName.includes("checkout") ||
-    toolName.includes("stripe")
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function formatInactivityDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes} min`;
-}
-
 const logger = createOpenBotLogger("turn-lifecycle");
 const ENDED_TURN_LIMIT = 256;
 /** How long before a turn's start its usage records can be, as in host analytics. */
 const TURN_USAGE_MARGIN_MS = 60 * 60 * 1_000;
+/**
+ * The provider errors that move an agent set to switch without asking to its next backup model. Each
+ * one can pass on another provider, account or model; a request the model refuses fails on each.
+ * A usage limit that the usage-limit gate does not hold comes here too, such as a spent Gemini quota (#4368).
+ */
+const FAILOVER_CAUSES: ReadonlySet<CauseCode> = new Set([
+  "billing",
+  "usage_limit",
+  "provider_unavailable",
+  "rate_limit",
+  "authentication",
+  "network",
+  "timeout",
+]);
+
 /** A provider error held until the end of its turn, which runs the turn again on a backup model or shows it. */
 interface HeldProviderError {
   message: string;
@@ -316,14 +277,8 @@ export class TurnLifecycle {
       firstOutputAt: number | null;
       produced: boolean;
       acted: boolean;
-      lastActivityAt: number;
-      lastProgressAt: number;
-      openTools: Map<string, { name: string; startedAt: number }>;
-      inactivityWarningShown: boolean;
-      hasExternalAction: boolean;
     }
   >();
-  readonly #stallRetries = new Map<string, number>();
   /** Running turns a provider plan refused, with the reset in epoch seconds when the provider gave it. */
   readonly #limitedTurns = new Map<string, number | null>();
   /**
@@ -610,13 +565,7 @@ export class TurnLifecycle {
           firstOutputAt: null,
           produced: false,
           acted: false,
-          lastActivityAt: Date.now(),
-          lastProgressAt: Date.now(),
-          openTools: new Map(),
-          inactivityWarningShown: false,
-          hasExternalAction: false,
         });
-        Effect.runFork(this.#watchRunningTurn(agentId, threadId, turnId).pipe(Effect.forkIn(this.#scope)));
         this.#traces.begin(turnId, new Date().toISOString());
         const publicThreadId = this.#conversation.publicThreadId(agentId, threadId);
         const snapshot = this.#conversation.ensureSnapshot(agentId, publicThreadId);
@@ -652,21 +601,6 @@ export class TurnLifecycle {
         const itemId = getString(item, "id");
         if (itemId) this.#itemTurns.set(itemId, turnId);
         this.#markProduced(turnId, isRepeatedWork(item));
-        const runningItem = this.#runningTurns.get(turnId);
-        const parsedThreadItem = toThreadItem(item);
-        if (runningItem) {
-          runningItem.lastActivityAt = Date.now();
-          runningItem.lastProgressAt = Date.now();
-          if (itemId && parsedThreadItem && isToolItem(parsedThreadItem)) {
-            if (notification.method === "item/started") {
-              const toolName = getString(parsedThreadItem, "name") ?? getString(parsedThreadItem, "tool") ?? "tool";
-              runningItem.openTools.set(itemId, { name: toolName, startedAt: Date.now() });
-              if (isExternalActionItem(parsedThreadItem)) runningItem.hasExternalAction = true;
-            } else {
-              runningItem.openTools.delete(itemId);
-            }
-          }
-        }
         if (item.type === "contextCompaction") {
           if (this.#conversation.loadedClientFor(threadId) !== source) return;
           if (notification.method === "item/started") this.#observedCompactions.set(threadId, turnId);
@@ -713,11 +647,6 @@ export class TurnLifecycle {
           notification.method === "item/agentMessage/delta" && delta.trim() !== "" && message.itemType !== "commentary",
           delta.trim() !== "",
         );
-        const runningDelta = this.#runningTurns.get(turnId);
-        if (runningDelta) {
-          runningDelta.lastActivityAt = Date.now();
-          runningDelta.lastProgressAt = Date.now();
-        }
         // A delta can come before its `item/started`, so it can start the step.
         this.#traces.observe(
           turnId,
@@ -915,14 +844,12 @@ export class TurnLifecycle {
         };
         // A provider error moves an agent set to switch without asking to its next backup model. The
         // error waits for the end of the turn: a turn that did nothing yet runs again there instead.
-        // Gemini's spent model quota counts: the usage reading can still show room, so no usage notice
-        // moves the agent, and the error text names no plan window to wait for.
         if (
           notification.method === "error" &&
           agentId &&
           errorTurnId !== null &&
           this.#runningTurns.has(errorTurnId) &&
-          (FAILOVER_CAUSES.has(context.causeCode) || context.causeCode === "usage_limit") &&
+          FAILOVER_CAUSES.has(context.causeCode) &&
           this.#hooks.mayFailOver(agentId)
         ) {
           this.#failoverTurns.set(errorTurnId, { message, context });
@@ -976,8 +903,7 @@ export class TurnLifecycle {
   }
 
   readonly #completeTurn = Effect.fn("TurnLifecycle.completeTurn")(
-    function* (this: TurnLifecycle, agentId: string, threadId: string, turnId: string, endStatus: string) {
-      let status = endStatus;
+    function* (this: TurnLifecycle, agentId: string, threadId: string, turnId: string, status: string) {
       const running = this.#runningTurns.get(turnId);
       this.#runningTurns.delete(turnId);
       this.#markEnded(turnId);
@@ -1011,53 +937,8 @@ export class TurnLifecycle {
       const limited = status === "failed" && this.#limitedTurns.has(turnId);
       const resetsAt = this.#limitedTurns.get(turnId) ?? null;
       this.#limitedTurns.delete(turnId);
-      let failover = this.#failoverTurns.get(turnId);
+      const failover = this.#failoverTurns.get(turnId);
       this.#failoverTurns.delete(turnId);
-      if (
-        status === "failed" &&
-        running !== undefined &&
-        failover === undefined &&
-        !limited &&
-        this.#hooks.mayFailOver(agentId)
-      ) {
-        const errText = reportedError ?? reportedFailure;
-        if (errText) {
-          const cause = classifyFailure(errText);
-          if (FAILOVER_CAUSES.has(cause) || cause === "usage_limit") {
-            failover = {
-              message: errText,
-              context: {
-                causeCode: cause,
-                provider: running.client.provider,
-                model: this.#hooks.turnModel(agentId, turnId),
-                turnId,
-                severity: "error",
-              },
-            };
-          }
-        }
-      }
-      // A provider can answer a retired model with a notice as a normal final answer. That is an outage:
-      // the notice is not kept as an answer, and the turn fails over like a held provider error.
-      if (status === "completed" && running !== undefined && failover === undefined && !limited) {
-        const answers = this.#conversation.ensureSnapshot(agentId, threadId).messages;
-        const notice = latestTurnAnswer(answers, turnId);
-        if (notice !== undefined && isRetiredModelNotice(notice.text)) {
-          answers.splice(answers.indexOf(notice), 1);
-          status = "failed";
-          if (!trace?.steps.some((step) => step.kind === "tool")) running.acted = false;
-          failover = {
-            message: notice.text,
-            context: {
-              causeCode: "provider_unavailable",
-              provider: running.client.provider,
-              model: this.#hooks.turnModel(agentId, turnId),
-              turnId,
-              severity: "error",
-            },
-          };
-        }
-      }
       this.#deltas.flushTurn(turnId);
       yield* this.#images.waitForOperations(threadId, turnId);
       const association = this.#turnAssociations.get(turnId);
@@ -1070,23 +951,12 @@ export class TurnLifecycle {
       // A routine run's own session closes after this turn, so it is not compacted either. Nor is a
       // turn that a provider error ended before it did work: it can run again on a backup model.
       const routineSession = this.#conversation.isRoutineSession(threadId);
-      const mayRunAgain = failover !== undefined && !limited && status === "failed" && running !== undefined;
-      const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
-      // Fork: a provider error in a channel or task thread can continue on a backup model, also after work started.
-      const channelProviderError =
-        failover !== undefined &&
-        !limited &&
-        status === "failed" &&
-        running !== undefined &&
-        (this.#conversation.isTaskThread(snapshot.threadId) || this.#conversation.isExecutionThread(snapshot.threadId));
+      const mayRunAgain =
+        failover !== undefined && !limited && status === "failed" && running !== undefined && !running.acted;
       const shouldCompact =
-        !refused &&
-        !limited &&
-        !mayRunAgain &&
-        !channelProviderError &&
-        !routineSession &&
-        this.#compaction.reserve(agentId, threadId);
+        !refused && !limited && !mayRunAgain && !routineSession && this.#compaction.reserve(agentId, threadId);
       this.#browser.endControl(this.#conversation.publicThreadId(agentId, threadId), turnId);
+      const snapshot = this.#conversation.ensureSnapshot(agentId, threadId);
       snapshot.activeTurnId = null;
       const deliveries = this.#mailbox.findDeliveriesByTurn(agentId, turnId);
       // A task turn ends as a turn of the agent's own chat does, in the task's own lane.
@@ -1102,51 +972,6 @@ export class TurnLifecycle {
         yield* this.#retryRefusedTurn(agentId, threadId, turnId, snapshot, deliveries);
         return;
       }
-      const isStallFailure =
-        status === "failed" &&
-        running !== undefined &&
-        (classifyFailure(reportedError ?? reportedFailure) === "timeout" ||
-          (Boolean(reportedError) && String(reportedError).includes("parou de responder")));
-
-      if (isStallFailure && running) {
-        if (running.hasExternalAction) {
-          const safetyNotice = newAssistantMessage(randomUUID(), turnId);
-          safetyNotice.text =
-            "O agente parou de responder após executar uma ação externa. Para sua segurança, a tarefa não foi continuada automaticamente. Deseja continuar de onde parou?";
-          safetyNotice.status = "completed";
-          snapshot.messages.push(safetyNotice);
-          this.#conversation.emitConversation(snapshot);
-          failover = undefined;
-        } else {
-          const stallDelivery = deliveries[0]?.delivery.id;
-          const retryCount = stallDelivery ? (this.#stallRetries.get(stallDelivery) ?? 0) : 0;
-
-          if (retryCount === 0 && deliveries.length > 0) {
-            if (stallDelivery) this.#stallRetries.set(stallDelivery, 1);
-            const retryNotice = newAssistantMessage(randomUUID(), turnId);
-            retryNotice.text = "Sem resposta do provedor. Continuando de onde parou na mesma sessão…";
-            retryNotice.status = "completed";
-            snapshot.messages.push(retryNotice);
-            this.#conversation.emitConversation(snapshot);
-
-            yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries, {
-              turnId,
-              previousTurnIds: [turnId],
-              workSteps: "Continue de onde parou.",
-            });
-            this.#hooks.scheduleDrain(agentId);
-            return;
-          } else if (retryCount >= 1 && deliveries.length > 0) {
-            if (stallDelivery) this.#stallRetries.delete(stallDelivery);
-            const failoverNotice = newAssistantMessage(randomUUID(), turnId);
-            failoverNotice.text = "O provedor parou de responder novamente. Alternando para o modelo reserva…";
-            failoverNotice.status = "completed";
-            snapshot.messages.push(failoverNotice);
-            this.#conversation.emitConversation(snapshot);
-          }
-        }
-      }
-
       const channelTurn = !taskTurn && this.#conversation.isExecutionThread(snapshot.threadId);
       // After work started, only a ready automatic backup continues it. A turn refused before
       // work still waits for the reset when no backup is ready. A continuation that a backup refused
@@ -1180,30 +1005,12 @@ export class TurnLifecycle {
         !channelTurn &&
         deliveries.every(({ delivery }) => !this.#failoverRetries.get(delivery.id)?.has(failedKey)) &&
         this.#hooks.mayFailOver(agentId);
-      // Fork: the assignment stays for the backup. Each model is tried once for a delivery, so this ends.
-      let channelFailedOver =
-        channelProviderError &&
-        failedKey !== null &&
-        deliveries.length > 0 &&
-        deliveries.every(({ delivery }) => !this.#failoverRetries.get(delivery.id)?.has(failedKey)) &&
-        this.#hooks.mayFailOver(agentId);
-      if (channelFailedOver) {
-        for (const { delivery, channelId } of deliveries) {
-          // A task keeps its delivery in its own lane: only a channel execution thread gives it back.
-          if (!taskTurn && channelId && !(yield* this.#hooks.requeueChannelDelivery(delivery.id, true))) {
-            channelFailedOver = false;
-            break;
-          }
-        }
-      }
       // A foreground subagent ends with its turn. A background one works on and reports later.
       const subagents = snapshot.messages.find((message) => message.id === `${turnId}:subagents`);
       stopRunningSubagents(subagents?.subagents, new Date().toISOString(), { background: false });
       for (const message of snapshot.messages) {
         if (this.#itemTurns.get(message.id) !== turnId || message.status !== "streaming") continue;
-        message.status = normalizeCompletionStatus(
-          repeatable || failedOver || channelFailedOver ? "interrupted" : status,
-        );
+        message.status = normalizeCompletionStatus(repeatable || failedOver ? "interrupted" : status);
         markIncompleteImageGeneration(message, message.status);
       }
       // Only this loop reads the map, so the finished turn's items go, or it holds every item ever seen.
@@ -1255,93 +1062,18 @@ export class TurnLifecycle {
         this.#hooks.scheduleDrain(agentId);
         return;
       }
-      if (failover && channelFailedOver && failedKey !== null && running) {
-        this.#hooks.emitFailure?.({ code: "agent_error", agentId, ...failover.context });
-        for (const { delivery } of deliveries) {
-          const failed = this.#failoverRetries.get(delivery.id) ?? new Set<string>();
-          this.#failoverRetries.set(delivery.id, failed.add(failedKey));
-        }
-        let continuation: UsageLimitContinuation | undefined;
-        if (running.acted) {
-          const workSteps = yield* readCapturedSteps(running.client, threadId, turnId).pipe(
-            Effect.timeout("2 seconds"),
-            Effect.map((steps) => steps.get(turnId) ?? ""),
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                logger.warn("Could not read the interrupted turn's work steps.", { error });
-                return "";
-              }),
-            ),
-          );
-          if (trace) this.#attachTrace(snapshot.messages, agentId, turnId, trace);
-          const traceSteps = trace
-            ? trace.steps
-                .filter((step) => step.kind === "tool")
-                .map(
-                  (step) =>
-                    `${step.command ?? step.text ?? "tool"} (${step.endedAt === null ? "interrupted" : step.failed ? "failed" : "completed"})`,
-                )
-                .join("\n")
-            : "";
-          continuation = {
-            turnId,
-            previousTurnIds: [turnId],
-            workSteps: this.#hooks.redactMcp(
-              workSteps ||
-                (traceSteps ? `Full tool results are unavailable. Verify the saved work.\n${traceSteps}` : ""),
-            ),
-          };
-        }
-        yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries, continuation);
-        this.#usageLimits.failed(agentId, model);
-        this.#hooks.scheduleDrain(agentId);
-        return;
-      }
       if (failover && failedOver && failedKey !== null) {
         this.#hooks.emitFailure?.({ code: "agent_error", agentId, ...failover.context });
         for (const { delivery } of deliveries) {
           const failed = this.#failoverRetries.get(delivery.id) ?? new Set<string>();
           this.#failoverRetries.set(delivery.id, failed.add(failedKey));
         }
-        let continuation: UsageLimitContinuation | undefined;
-        if (running?.acted) {
-          const workSteps = yield* readCapturedSteps(running.client, threadId, turnId).pipe(
-            Effect.timeout("2 seconds"),
-            Effect.map((steps) => steps.get(turnId) ?? ""),
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                logger.warn("Could not read the interrupted turn's work steps.", { error });
-                return "";
-              }),
-            ),
-          );
-          if (trace) this.#attachTrace(snapshot.messages, agentId, turnId, trace);
-          const traceSteps = trace
-            ? trace.steps
-                .filter((step) => step.kind === "tool")
-                .map(
-                  (step) =>
-                    `${step.command ?? step.text ?? "tool"} (${step.endedAt === null ? "interrupted" : step.failed ? "failed" : "completed"})`,
-                )
-                .join("\n")
-            : "";
-          continuation = {
-            turnId,
-            previousTurnIds: [turnId],
-            workSteps: this.#hooks.redactMcp(
-              workSteps ||
-                (traceSteps ? `Full tool results are unavailable. Verify the saved work.\n${traceSteps}` : ""),
-            ),
-          };
-        }
-        yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries, continuation);
+        yield* this.#requeueTurn(agentId, threadId, turnId, snapshot, deliveries);
         this.#usageLimits.failed(agentId, model);
         this.#hooks.scheduleDrain(agentId);
         return;
       }
       // The turn did work, or nothing waits to run again: the error shows as it does with no backup.
-      // The model still failed, so other agents on it go to their backups at once instead of failing too.
-      if (failover && failedKey !== null) this.#usageLimits.failed(agentId, model);
       if (failover) this.#showFailoverError(agentId, threadId, failover);
       if (limited) yield* this.#usageLimits.reached(agentId, resetsAt, model);
       else if (status === "completed") yield* this.#usageLimits.completed(agentId, model);
@@ -1932,131 +1664,6 @@ export class TurnLifecycle {
     }
     message.trace = usage ? { ...trace, tokens: usage.tokens, costUsd: usage.costUsd } : trace;
     return message;
-  }
-
-  readonly #watchRunningTurn = Effect.fn("TurnLifecycle.watchRunningTurn")(function* (
-    this: TurnLifecycle,
-    agentId: string,
-    threadId: string,
-    turnId: string,
-  ) {
-    const WARNING_LIMIT_MS = 3 * 60_000;
-    const STALL_LIMIT_MS = 10 * 60_000;
-    const publicThreadId = this.#conversation.publicThreadId(agentId, threadId);
-
-    while (this.#runningTurns.has(turnId)) {
-      yield* Effect.sleep(2_000);
-      const running = this.#runningTurns.get(turnId);
-      if (!running) break;
-
-      // Check if waiting on user (e.g. ask_user, approval, takeover)
-      if (this.#attention.isWaitingOnUser(threadId, turnId)) {
-        running.lastActivityAt = Date.now();
-        running.lastProgressAt = Date.now();
-        continue;
-      }
-
-      // Check if open tools have live child processes (e.g. long build command)
-      if (running.openTools.size > 0) {
-        const pid = running.client.pid ?? null;
-        const hasChildren = pid ? yield* Effect.promise(() => hasLiveChildProcesses(pid)) : false;
-        if (hasChildren) {
-          running.lastProgressAt = Date.now();
-        }
-      }
-
-      const now = Date.now();
-      const silentFor = now - running.lastActivityAt;
-      const noProgressFor = now - running.lastProgressAt;
-
-      // Status update visible in UI
-      if (silentFor >= 10_000) {
-        this.#emitTurnProgress(
-          agentId,
-          publicThreadId,
-          turnId,
-          `Sem atividade há ${formatInactivityDuration(silentFor)}`,
-        );
-      } else if (running.openTools.size > 0) {
-        const lastTool = [...running.openTools.values()].at(-1);
-        const elapsed = now - (lastTool?.startedAt ?? now);
-        this.#emitTurnProgress(
-          agentId,
-          publicThreadId,
-          turnId,
-          `Usando ferramenta ${lastTool?.name ?? "ferramenta"} há ${formatInactivityDuration(elapsed)}`,
-        );
-      } else if (!running.firstOutputAt) {
-        this.#emitTurnProgress(agentId, publicThreadId, turnId, "Pensando no assunto…");
-      }
-
-      // 3 min warning: show prompt in conversation with Continuar and Parar
-      if (silentFor >= WARNING_LIMIT_MS && !running.inactivityWarningShown) {
-        running.inactivityWarningShown = true;
-        logger.warn("Turn has no activity for 3 min.", { agentId, turnId, silentFor });
-        this.#surfaceInactivityPrompt(agentId, threadId, turnId, silentFor);
-      }
-
-      // 10 min cutoff: end turn as stalled
-      if (noProgressFor >= STALL_LIMIT_MS) {
-        logger.warn("Turn stalled with no progress for 10 min. Ending turn.", { agentId, turnId, noProgressFor });
-        this.#turnErrors.set(
-          turnId,
-          sourceText("error.agent.turnStalled", { provider: agentProviderName(running.client.provider) }),
-        );
-        yield* running.client.releaseThread?.(threadId).pipe(Effect.ignore) ?? Effect.void;
-        yield* this.#completeTurn(agentId, threadId, turnId, "failed");
-        break;
-      }
-    }
-  });
-
-  #surfaceInactivityPrompt(agentId: string, threadId: string, turnId: string, silentFor: number): void {
-    const running = this.#runningTurns.get(turnId);
-    if (!running) return;
-    const self = this;
-    const promptClient: AgentClient = Object.assign(Object.create(running.client), {
-      respond: (_id: unknown, response: unknown) => {
-        const record = isRecord(response) ? response : null;
-        const answersObj = getRecord(record, "answers");
-        const actionObj = getRecord(answersObj, "action");
-        const answers = getArray(actionObj, "answers");
-        if (answers?.includes("Parar")) {
-          Effect.runFork(
-            Effect.gen(function* () {
-              yield* running.client
-                .request("turn/interrupt", { threadId, turnId }, decodeRecordResponse)
-                .pipe(Effect.ignore);
-              yield* self.#completeTurn(agentId, threadId, turnId, "interrupted");
-            }).pipe(Effect.forkIn(self.#scope)),
-          );
-        } else {
-          const current = self.#runningTurns.get(turnId);
-          if (current) {
-            current.lastActivityAt = Date.now();
-            current.lastProgressAt = Date.now();
-            current.inactivityWarningShown = false;
-          }
-        }
-      },
-    });
-
-    this.#attention.surfacePrompt(promptClient, {
-      id: `inactivity:${turnId}`,
-      method: "item/tool/requestUserInput",
-      params: {
-        threadId,
-        turnId,
-        questions: [
-          {
-            id: "action",
-            header: "Inatividade",
-            question: `Sem atividade há ${formatInactivityDuration(silentFor)}`,
-            options: [{ label: "Continuar" }, { label: "Parar" }],
-          },
-        ],
-      },
-    });
   }
 
   #emitTurnProgress(agentId: string, threadId: string, turnId: string, text: string): void {

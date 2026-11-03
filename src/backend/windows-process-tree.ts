@@ -74,35 +74,3 @@ export const stopProcessTree = Effect.fn("ProcessTree.stop")(function* (child: C
   if (process.platform === "win32") yield* stopWindowsProcessTree(child);
   else yield* Effect.try({ try: () => child.kill("SIGTERM"), catch: (cause) => new ProcessTreeFailed({ cause }) });
 });
-
-export function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function hasLiveChildProcesses(pid: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (!pid || !isProcessAlive(pid)) return resolve(false);
-    if (process.platform === "win32") {
-      execFile(
-        "wmic",
-        ["process", "where", `(ParentProcessId=${pid})`, "get", "ProcessId"],
-        { windowsHide: true },
-        (err, stdout) => {
-          if (err) return resolve(false);
-          const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
-          resolve(lines.length > 1);
-        },
-      );
-    } else {
-      execFile("pgrep", ["-P", String(pid)], (err, stdout) => {
-        if (err) return resolve(false);
-        resolve(stdout.trim().length > 0);
-      });
-    }
-  });
-}

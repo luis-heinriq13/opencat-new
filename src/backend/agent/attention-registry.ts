@@ -1704,27 +1704,6 @@ export class AttentionRegistry {
    * emits its resolved event: a compaction turn sends no `turn-completed`, so a client learns about
    * the removal only from that event.
    */
-  isWaitingOnUser(threadId: string, turnId: string): boolean {
-    for (const pending of this.#prompts.values()) {
-      if (String(pending.id).startsWith("inactivity:")) continue;
-      const pendingThreadId = getString(pending.params, "threadId") ?? pending.publicThreadId;
-      const pendingTurnId = getString(pending.params, "turnId") ?? pending.turnId;
-      if (pendingThreadId === threadId && pendingTurnId === turnId) return true;
-    }
-    for (const pending of this.#approvals.values()) {
-      const pendingThreadId =
-        getString(pending.params, "threadId") ??
-        getString(pending.params, "conversationId") ??
-        pending.approval.threadId;
-      const pendingTurnId = getString(pending.params, "turnId") ?? pending.approval.turnId;
-      if (pendingThreadId === threadId && pendingTurnId === turnId) return true;
-    }
-    for (const pending of this.#takeovers.values()) {
-      if (pending.params.threadId === threadId && pending.params.turnId === turnId) return true;
-    }
-    return false;
-  }
-
   clearForTurn(threadId: string, turnId: string): void {
     for (const [requestId, pending] of this.#prompts) {
       const pendingThreadId = getString(pending.params, "threadId");

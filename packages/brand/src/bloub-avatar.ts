@@ -3,39 +3,12 @@ import {
   type ColorId,
   EXPRESSIONS,
   type ExpressionId,
-  SHAPE_BY_ID,
   SHAPES,
   type ShapeId,
 } from "@norbert_bodziony/bloub";
 import type { AvatarHue } from "@openbot/contracts/ipc";
-import {
-  CREATURE_BY_RELEASED_SILHOUETTE,
-  CREATURE_SILHOUETTE_RADII,
-  EXTRA_SILHOUETTE_IDS,
-  EXTRA_SILHOUETTE_RADII,
-  type ExtraSilhouetteId,
-} from "./bloub-extra-shapes";
 
-export type BuiltInAvatarSilhouetteId = Exclude<ShapeId, "goutte">;
-export type SupportedAvatarSilhouetteId = BuiltInAvatarSilhouetteId | ExtraSilhouetteId;
-export { EXTRA_SILHOUETTE_IDS, type ExtraSilhouetteId };
-
-// The engine reads only `radii` of an entry and looks it up by string, so an extra silhouette is one
-// more entry in the same map. `SHAPES` stays the released list: a seed picks its shape by index in it,
-// and a longer list would change the look of every stored avatar.
-for (const id of EXTRA_SILHOUETTE_IDS) {
-  SHAPE_BY_ID.set(id, { id: "cercle", radii: [...EXTRA_SILHOUETTE_RADII[id]] });
-}
-
-// A released slot keeps its id, so a stored seed picks the same slot; only the radii behind it change.
-// A new array has no entry in the library eye-offset table, so the eyes get no offset: the creatures keep
-// the face margin inside the outline (radius >= 0.6 around the eyes).
-for (const [id, creature] of Object.entries(CREATURE_BY_RELEASED_SILHOUETTE)) {
-  const entry = SHAPE_BY_ID.get(id);
-  if (entry) SHAPE_BY_ID.set(id, { id: entry.id, radii: [...CREATURE_SILHOUETTE_RADII[creature]] });
-}
-
-const SHAPE_TAG = ":shape-";
+export type SupportedAvatarSilhouetteId = Exclude<ShapeId, "goutte">;
 
 export interface BloubAvatarProfile {
   shape: SupportedAvatarSilhouetteId;
@@ -46,20 +19,8 @@ export interface BloubAvatarProfile {
 const AUTOMATIC_COLORS = ["rouge", "orange", "ambre", "vert", "turquoise", "bleu", "violet", "rose"] as const;
 const UNSUPPORTED_AVATAR_SILHOUETTE = "goutte" as const satisfies ShapeId;
 export const SUPPORTED_AVATAR_SILHOUETTES = SHAPES.map((option) => option.id).filter(
-  (silhouette): silhouette is BuiltInAvatarSilhouetteId => silhouette !== UNSUPPORTED_AVATAR_SILHOUETTE,
+  (silhouette): silhouette is SupportedAvatarSilhouetteId => silhouette !== UNSUPPORTED_AVATAR_SILHOUETTE,
 );
-
-/** A seed that names an extra silhouette ends with `:shape-<id>` (the seed pattern allows only a-z, 0-9, ":" and "-"). Every older seed has no tag. */
-export function avatarSeedWithExtraShape(seed: string, shape: ExtraSilhouetteId): string {
-  return `${seed}${SHAPE_TAG}${shape}`;
-}
-
-function taggedExtraShape(seed: string): ExtraSilhouetteId | undefined {
-  const at = seed.lastIndexOf(SHAPE_TAG);
-  if (at < 0) return undefined;
-  const id = seed.slice(at + SHAPE_TAG.length);
-  return EXTRA_SILHOUETTE_IDS.find((candidate) => candidate === id);
-}
 
 const HUE_COLORS: Readonly<Record<AvatarHue, ColorId>> = {
   0: "rouge",
@@ -108,7 +69,7 @@ export function bloubAvatarProfile(seed: string, hue: AvatarHue | null): BloubAv
   const expression = requiredItem(EXPRESSIONS, stableIndex(`${seed}:expression`, EXPRESSIONS.length)).id;
 
   return {
-    shape: taggedExtraShape(seed) ?? silhouette,
+    shape: silhouette,
     expression,
     color:
       hue === null
@@ -141,12 +102,6 @@ export function avatarCandidateSeeds(agentId: string, currentSeed: string, batch
     if (!unseenSilhouetteIds.delete(profile.shape)) continue;
     candidates.push(candidate);
     usedExpressions.add(profile.expression);
-  }
-
-  // One candidate for each extra silhouette, after the released ones.
-  for (const shape of EXTRA_SILHOUETTE_IDS) {
-    if (firstProfile.shape === shape) continue;
-    candidates.push(avatarSeedWithExtraShape(`${agentId}:avatar:${batch}:${shape}`, shape));
   }
 
   while (candidates.length < 12) {

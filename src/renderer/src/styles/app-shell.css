@@ -2579,10 +2579,7 @@ textarea {
   overflow: visible;
 }
 
-.agent-avatar > svg,
-.agent-avatar > canvas,
-.agent-avatar .bloub-avatar-svg,
-.agent-avatar .bot-canvas-avatar {
+.agent-avatar > svg {
   display: block;
   width: 128%;
   height: 128%;
@@ -2657,20 +2654,6 @@ textarea {
   .agent-avatar[data-breathe] {
     animation: none;
   }
-}
-
-/* The rings reach 1.4 ball radii, which is the margin the Bloub viewBox carries
-   past its body: 316 units drawn over the 200 the image fills, so the layer is
-   158% of the avatar box and sits (158% - 100%) / 2 outside it on each side. */
-.agent-avatar > .agent-avatar-arcs {
-  position: absolute;
-  z-index: 0;
-  inset: -29%;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  translate: none;
-  pointer-events: none;
 }
 
 .agent-row .agent-avatar {

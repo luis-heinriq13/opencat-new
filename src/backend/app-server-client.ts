@@ -92,10 +92,6 @@ export class CodexAppServerClient extends EventEmitter<ClientEvents> {
     return this.#process !== null && this.#process.exitCode === null;
   }
 
-  get pid(): number | null {
-    return this.#process?.pid ?? null;
-  }
-
   start(): void {
     if (this.running) return;
 

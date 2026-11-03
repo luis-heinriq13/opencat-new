@@ -3016,7 +3016,6 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         provider,
         backup ? backup.providerAccountId : lead.providerAccountId,
       );
-      const held = backup ? usageLimitOf(backup) : null;
       return yield* this.#profileClients
         .run(client, (cancelled) =>
           generateTextWithoutTools(
@@ -3032,9 +3031,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           // turn does, and a refused lead model keeps the channel's task queued for the reset.
           Effect.tapError((failure) =>
             failure instanceof GenerationUsageLimitError
-              ? this.#usageLimits.reached(lead.id, failure.resetsAt, lead.model, held)
+              ? this.#usageLimits.reached(lead.id, failure.resetsAt, lead.model)
               : failure.cause instanceof Error && isPlanLimitDiagnostic(failure.cause.message)
-                ? this.#usageLimits.reached(lead.id, null, lead.model, held)
+                ? this.#usageLimits.reached(lead.id, null, lead.model)
                 : Effect.void,
           ),
         );
@@ -3067,7 +3066,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         if (next instanceof ProfileGenerationFailed) {
           if (next.cause instanceof Error && isPlanLimitDiagnostic(next.cause.message)) continue;
           if (!routingFailsOver(next)) return yield* next;
-          this.#usageLimits.failed(lead.id, lead.model, usageLimitOf(backup));
+          this.#usageLimits.failed(lead.id, lead.model);
         }
         shown = next;
       }

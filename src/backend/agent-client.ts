@@ -21,7 +21,6 @@ export interface AgentClient {
    */
   readonly contextCompaction?: "events" | "request" | "native" | "handoff" | "unsupported";
   readonly running: boolean;
-  readonly pid?: number | null;
   readonly readHistory?: ReadProviderHistory;
   /** False when stopping this client would lose a live provider session with no recovery path. */
   readonly canReleaseProcess?: () => boolean;
