@@ -6,6 +6,12 @@ All notable changes to OpenBot will be documented here. The project follows
 
 ## [Unreleased]
 
+## [0.59.5] - 2026-11-03
+
+### Changed
+- Refinamento visual do modal Adicionar Servidor: fidelidade total ao mockup com remoção das setas chevrons, bordas sutis e badge no tom coral.
+- Remoção dos ícones 3D flutuantes e anéis decorativos do cabeçalho da página de Atendimento, normalizando o layout e o espaçamento.
+
 ## [0.59.4] - 2026-11-03
 
 ### Added
