@@ -301,7 +301,22 @@ export function createMetaAdsDashboard({ environment, loadTools, now = Date.now 
     // 2. Business Manager (BM) accounts
     try {
       const bizPage = await pages(active, "/me/businesses", { fields: "id,name" });
-      for (const biz of bizPage.list) {
+      const businessList: DynamicRecord[] = [...bizPage.list];
+
+      // System user tokens often return empty on /me/businesses, but their Pages reveal their Business Manager!
+      try {
+        const pagesList = await pages(active, "/me/accounts", { fields: "id,name,business" });
+        for (const p of pagesList.list) {
+          if (isDynamicRecord(p.business) && p.business.id) {
+            const bId = textOf(p.business.id);
+            if (!businessList.some((b) => textOf(b.id) === bId)) {
+              businessList.push(p.business);
+            }
+          }
+        }
+      } catch {}
+
+      for (const biz of businessList) {
         const bizId = textOf(biz.id);
         const bizName = textOf(biz.name);
         if (!bizId) continue;

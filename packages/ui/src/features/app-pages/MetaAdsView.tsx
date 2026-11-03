@@ -30,7 +30,7 @@ import {
 } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
 import { createMemo, createStore, createUniqueId, For, Show } from "solid-js";
-import { AppAgentsSection, type AppPageAgent } from "./AppAgentsSection";
+import type { AppPageAgent } from "./AppAgentsSection";
 import {
   currenciesOf,
   filterRows,
@@ -384,7 +384,6 @@ export function MetaAdsView(props: MetaAdsViewProps) {
     return item.phase === "failed" ? t("appPages.meta.children.failed") : t("appPages.meta.children.empty");
   };
 
-  const rangeLabel = () => t(RANGE_LABELS[props.range]);
   const noticeText = (): string => {
     const notice = state.notice;
     if (!notice) return "";
@@ -799,15 +798,7 @@ export function MetaAdsView(props: MetaAdsViewProps) {
           )}
         </Show>
 
-        <AppAgentsSection
-          title={t("appPages.agents.title")}
-          guideTitle={t("appPages.meta.guide.title")}
-          guideBody={t("appPages.meta.guide.body")}
-          draft={t("appPages.meta.guide.draft", { period: rangeLabel().toLowerCase() })}
-          agents={props.agents}
-          onAsk={props.onAsk}
-          onOpenTasks={props.onOpenTasks}
-        />
+        {/* AppAgentsSection removed for clean ads dashboard */}
       </div>
 
       <ConfirmDialog
