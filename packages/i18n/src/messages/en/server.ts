@@ -653,4 +653,15 @@ export const messages = defineMessages("server", {
   "server.restartNotice.restartingTitle": "{name} is restarting to install an update",
   "server.restartNotice.restartingDescription": "OpenBot connects again automatically when {name} is back.",
   "server.restartNotice.backTitle": "{name} is back online",
+  "server.freeAdd.title": "Add server",
+  "server.freeAdd.description": "Choose how you want to configure or connect your environment",
+  "server.freeAdd.localTitle": "New server on this computer",
+  "server.freeAdd.localBadge": "Recommended",
+  "server.freeAdd.localDesc":
+    "Create an isolated instance on this Mac with separate agents and database. Up to 5 local servers.",
+  "server.freeAdd.selfHostTitle": "Host on your own server (VPS / Docker)",
+  "server.freeAdd.selfHostDesc":
+    "Install on your Linux virtual machine to keep agents active 24/7 with no monthly plan.",
+  "server.freeAdd.joinTitle": "Join with an invite",
+  "server.freeAdd.joinDesc": "Connect to an existing remote server using a code or link.",
 });

@@ -585,4 +585,15 @@ export const messages = {
   "server.restartNotice.restartingTitle": "{name} está reiniciando para instalar uma atualização",
   "server.restartNotice.restartingDescription": "O OpenBot se reconecta automaticamente quando {name} volta.",
   "server.restartNotice.backTitle": "{name} está online novamente",
+  "server.freeAdd.title": "Adicionar servidor",
+  "server.freeAdd.description": "Escolha como deseja configurar ou conectar seu novo ambiente",
+  "server.freeAdd.localTitle": "Novo servidor neste computador",
+  "server.freeAdd.localBadge": "Recomendado",
+  "server.freeAdd.localDesc":
+    "Crie uma instância isolada neste Mac com seus próprios agentes e banco de dados. Até 5 servidores locais.",
+  "server.freeAdd.selfHostTitle": "Hospedar em servidor próprio (VPS / Docker)",
+  "server.freeAdd.selfHostDesc":
+    "Instale na sua máquina virtual Linux para manter agentes ativos 24/7 sem mensalidade.",
+  "server.freeAdd.joinTitle": "Entrar com um convite",
+  "server.freeAdd.joinDesc": "Conecte-se a outro servidor remoto existente usando um código ou link.",
 } as const satisfies PartialTranslation<typeof source>;
