@@ -6,6 +6,14 @@ All notable changes to OpenBot will be documented here. The project follows
 
 ## [Unreleased]
 
+## [0.59.2] - 2026-11-03
+
+### Changed
+
+- Restauração dos avatares oficiais do OpenBot v0.59 (PlushBot).
+- Restauração do ciclo de vida e provedores oficiais da versão 0.59.
+- Preservação do tema visual OpenCat e conectores (WhatsCat, Teams, Meta Ads, Cakto).
+
 ## [0.59.1] - 2026-11-03
 
 ### Added
