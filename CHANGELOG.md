@@ -6,6 +6,13 @@ All notable changes to OpenBot will be documented here. The project follows
 
 ## [Unreleased]
 
+## [0.57.1] - 2026-11-03
+
+### Added
+
+- Proteção contra fechamento acidental no macOS (fechar via Cmd+Q ao segurar ou pressionar duas vezes).
+- Feed de atualização contínua apontando para luis-heinriq13/opencat-new.
+
 ## [0.57.0] - 2026-10-31
 
 ### Added

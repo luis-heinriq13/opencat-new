@@ -872,7 +872,7 @@ function macQuitItem(translate: AppTranslate, quit: (source: MenuQuitSource) => 
       if (!event.triggeredByAccelerator) return quit("menu");
       // A second press while the question is open does not open another one, and a quit that has
       // started hid every window and needs no question.
-      if (quitConfirmationOpen || windowsKeptHidden) return;
+      if (quitConfirmationOpen || windowsHiddenForQuit) return;
       quitConfirmationOpen = true;
       void dialog
         .showMessageBox({
