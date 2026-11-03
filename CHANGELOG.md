@@ -6,6 +6,12 @@ All notable changes to OpenBot will be documented here. The project follows
 
 ## [Unreleased]
 
+## [0.59.4] - 2026-11-03
+
+### Added
+- Novo diálogo interativo de Adicionar Servidor com cartões visuais (Novo servidor neste computador, Hospedar em VPS próprio e Entrar com convite) no design system oficial do OpenBot v0.59.
+- Feed público autônomo de atualizações para exibição automática do botão de atualização na barra lateral.
+
 ## [0.59.3] - 2026-11-03
 
 ### Fixed

@@ -3119,6 +3119,7 @@ export async function createApplicationServices({
       const realAdapter = updaterModule.autoUpdater ?? updaterModule.default?.autoUpdater ?? updaterModule.default;
       if (realAdapter) {
         updateAdapter = realAdapter;
+        updaterEnabled = true;
         updaterCacheDirectory = join(electronUpdaterCacheRoot(), "openbot-updater");
       } else {
         updaterEnabled = false;
