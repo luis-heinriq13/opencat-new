@@ -15,8 +15,6 @@ export interface HelpMenuProps {
   news: readonly HelpMenuNews[];
   /** The class of the button that opens the menu, so it matches the buttons around it. */
   triggerClass?: string;
-  /** The name of the row on the open page rail, beside the icon. Absent on an icon-only rail. */
-  railLabel?: string | undefined;
   /** Called when the menu opens, so the caller can load the news. */
   onOpen?: () => void;
   onOpenWhatsNew: () => void;
@@ -46,13 +44,8 @@ export function HelpMenu(props: HelpMenuProps) {
       }}
     >
       <MotionTooltip content={t("app.help.label")} suppressed={open()}>
-        <DropdownMenu.Trigger class={props.triggerClass} aria-label={props.railLabel ?? t("app.help.label")}>
+        <DropdownMenu.Trigger class={props.triggerClass} aria-label={t("app.help.label")}>
           <CircleQuestionMark aria-hidden="true" />
-          <Show when={props.railLabel}>
-            <span class="window-rail-text">
-              <span class="window-rail-label">{props.railLabel}</span>
-            </span>
-          </Show>
         </DropdownMenu.Trigger>
       </MotionTooltip>
       <DropdownMenu.Portal>

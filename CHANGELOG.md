@@ -6,6 +6,13 @@ All notable changes to OpenBot will be documented here. The project follows
 
 ## [Unreleased]
 
+## [0.59.3] - 2026-11-03
+
+### Fixed
+- Correção de assinatura de código e entitlements no macOS (eliminando aviso "O aplicativo OpenCat não pode ser aberto").
+- Remoção do botão/modo de expansão do PageRail da barra lateral, restaurando o comportamento nativo do OpenBot v0.59.
+- Garantia de notificação de atualização autônoma e exibição da ilha de update na barra lateral.
+
 ## [0.59.2] - 2026-11-03
 
 ### Changed

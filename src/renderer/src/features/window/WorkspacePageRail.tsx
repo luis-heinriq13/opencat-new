@@ -144,14 +144,13 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       onSettings={(button) => (updateNotice() ? openAppSettings(button, "updates") : windowPage.openSettings(button))}
       settingsNotice={updateNotice()}
       logo={logo()}
-      help={(expanded) => (
+      help={
         <RailHelpMenu
-          expanded={expanded}
           version={whatsNew.state.version}
           onOpenWhatsNew={whatsNew.reopen}
           onOpenLink={(destination) => void appPort().openExternal(destination)}
         />
-      )}
+      }
     />
   );
 }

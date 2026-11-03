@@ -77,24 +77,22 @@ function RailPreview(props: {
           onAgents={() => setCurrent("agents")}
           onRoutines={() => setCurrent("routines")}
           onSchedule={() => setCurrent("schedule")}
-          onAttendance={() => setCurrent("attendance")}
           onUsage={() => setCurrent("usage")}
           onMarketplace={fn()}
           onSettings={() => setCurrent("settings")}
           settingsNotice={props.updateReady ? t("account.update.ready") : undefined}
           logo={props.logo}
-          help={(expanded) => (
+          help={
             <HelpMenu
               news={[]}
               triggerClass="window-rail-button"
-              railLabel={expanded ? t("app.help.label") : undefined}
               onOpenWhatsNew={fn()}
               onOpenChangelog={fn()}
               onOpenGuides={fn()}
               onOpenDiscord={fn()}
               onSendFeedback={fn()}
             />
-          )}
+          }
         />
       </div>
     </div>

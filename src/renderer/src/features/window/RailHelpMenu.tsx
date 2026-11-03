@@ -1,6 +1,5 @@
 import { HelpMenu, type HelpMenuNews } from "@openbot/ui/features/updates/HelpMenu";
 import { whatsNewEntry } from "@openbot/ui/features/updates/whats-new";
-import { useText } from "@openbot/ui/text";
 import { createSignal } from "solid-js";
 import { desktopAnalytics } from "../../analytics";
 import { compareReleaseVersions } from "../updates/whats-new-history";
@@ -16,12 +15,9 @@ const HELP_NEWS_COUNT = 3;
  */
 export function RailHelpMenu(props: {
   version: string | null;
-  /** The open page rail shows the name beside the icon. */
-  expanded?: boolean | undefined;
   onOpenWhatsNew: () => void;
   onOpenLink: (destination: "changelog" | "guides" | "discord" | "feedback") => void;
 }) {
-  const { t } = useText();
   const [news, setNews] = createSignal<readonly HelpMenuNews[]>([]);
   const openLink = (destination: "changelog" | "guides" | "discord" | "feedback") => {
     desktopAnalytics.track("help_link_opened", { destination });
@@ -56,7 +52,6 @@ export function RailHelpMenu(props: {
     <HelpMenu
       news={news()}
       triggerClass="window-rail-button"
-      railLabel={props.expanded ? t("app.help.label") : undefined}
       onOpen={() => void loadNews()}
       onOpenWhatsNew={props.onOpenWhatsNew}
       onOpenChangelog={() => openLink("changelog")}
