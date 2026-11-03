@@ -39,8 +39,8 @@ export function FreeAddServerDialog(props: {
   return (
     <Dialog.Root open={props.open} onOpenChange={(open) => !open && props.onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay class="join-server-backdrop" data-motion="open">
-          <Dialog.Content as="section" class="free-add-server-dialog t-modal is-open">
+        <Dialog.Overlay>
+          <Dialog.Content as="section" class="free-add-server-dialog">
             <header class="free-add-server-header">
               <div class="free-add-server-titles">
                 <Dialog.Title as={Heading} class="free-add-server-title">
@@ -63,7 +63,7 @@ export function FreeAddServerDialog(props: {
             <div class="free-add-server-cards">
               <Show when={props.onCreateLocal}>
                 {(create) => (
-                  <Button class="free-add-server-card" onClick={() => create()()}>
+                  <Button variant="ghost" class="free-add-server-card" onClick={() => create()()}>
                     <div class="free-add-server-card-icon">
                       <Monitor aria-hidden="true" />
                     </div>
@@ -78,7 +78,7 @@ export function FreeAddServerDialog(props: {
                 )}
               </Show>
 
-              <Button class="free-add-server-card" onClick={() => props.onOpenSelfHostGuide()}>
+              <Button variant="ghost" class="free-add-server-card" onClick={() => props.onOpenSelfHostGuide()}>
                 <div class="free-add-server-card-icon">
                   <CloudServerIcon />
                 </div>
@@ -92,7 +92,7 @@ export function FreeAddServerDialog(props: {
 
               <Show when={props.onJoinWithInvite}>
                 {(join) => (
-                  <Button class="free-add-server-card" onClick={() => join()()}>
+                  <Button variant="ghost" class="free-add-server-card" onClick={() => join()()}>
                     <div class="free-add-server-card-icon">
                       <Link2 aria-hidden="true" />
                     </div>

@@ -1047,9 +1047,9 @@
 /* Free Add Server Dialog */
 .free-add-server-dialog {
   position: relative;
-  width: min(520px, calc(100vw - var(--openbot-space-6) * 2));
+  width: min(540px, calc(100vw - var(--openbot-space-6) * 2));
   max-height: calc(100dvh - 48px);
-  background: var(--openbot-bg-host-inset);
+  background: var(--openbot-bg-surface);
   border: 1px solid var(--openbot-dialog-ring);
   border-radius: var(--openbot-radius-2xl);
   padding: var(--openbot-space-6);
@@ -1057,6 +1057,7 @@
   flex-direction: column;
   gap: var(--openbot-space-5);
   box-shadow: var(--openbot-shadow-raised);
+  color: var(--openbot-text-primary);
   outline: 0;
   overflow: hidden;
   animation: create-local-server-dialog-in var(--openbot-duration-slow) var(--openbot-ease-out) both;
@@ -1111,7 +1112,7 @@
   height: auto;
   min-height: var(--openbot-control-xl);
   appearance: none;
-  background: var(--openbot-glass-surface);
+  background: color-mix(in srgb, var(--openbot-text-primary) 5%, var(--openbot-bg-surface));
   border: 1px solid var(--openbot-dialog-ring);
   border-radius: var(--openbot-radius-xl);
   padding: var(--openbot-space-4) var(--openbot-space-5);
@@ -1126,6 +1127,7 @@
   text-decoration: none;
   outline: none;
   box-sizing: border-box;
+  white-space: normal;
   transition:
     background-color var(--openbot-duration-fast) var(--openbot-ease-out),
     border-color var(--openbot-duration-fast) var(--openbot-ease-out),
@@ -1134,8 +1136,8 @@
 
 .free-add-server-card.ui-button:hover,
 .free-add-server-card:hover {
-  background: var(--openbot-glass-surface-hover);
-  border-color: var(--openbot-glass-border);
+  background: color-mix(in srgb, var(--openbot-text-primary) 9%, var(--openbot-bg-surface));
+  border-color: var(--openbot-cat-accent);
   transform: translateY(-1px);
 }
 
@@ -1148,6 +1150,7 @@
 .free-add-server-card:focus-visible {
   border-color: var(--openbot-cat-accent);
   box-shadow: 0 0 0 2px var(--openbot-cat-accent-soft);
+  outline: none;
 }
 
 .free-add-server-card-icon {
@@ -1187,7 +1190,7 @@
 }
 
 .free-add-server-badge {
-  background: var(--openbot-cat-accent-hover);
+  background: var(--openbot-cat-accent);
   color: var(--openbot-cat-on-accent);
   font-size: var(--openbot-text-xs);
   font-weight: var(--openbot-weight-bold);
