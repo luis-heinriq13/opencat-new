@@ -1,8 +1,32 @@
-import { Badge, Button, Dialog, Heading, IconButton, Link2, Monitor, Server, Text, X } from "@openbot/ui";
+import { Button, Dialog, Heading, IconButton, Link2, Monitor, Text, X } from "@openbot/ui";
 import { Show } from "solid-js";
 import { useText } from "../../text";
 
-/** OpenCat: adds a server with no plans or payment. A server runs here or on the user\x27s own machine. */
+function CloudServerIcon() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 13a4.5 4.5 0 0 1-.5-8.9A7 7 0 0 1 18 6.5a5 5 0 0 1 1.8 9.5" />
+      <rect x="7" y="11" width="10" height="3.5" rx="0.75" />
+      <rect x="7" y="15.5" width="10" height="3.5" rx="0.75" />
+      <rect x="7" y="20" width="10" height="3.5" rx="0.75" />
+      <line x1="9.5" y1="12.75" x2="10.5" y2="12.75" />
+      <line x1="9.5" y1="17.25" x2="10.5" y2="17.25" />
+      <line x1="9.5" y1="21.75" x2="10.5" y2="21.75" />
+    </svg>
+  );
+}
+
+/** OpenCat: adds a server with no plans or payment. A server runs here or on the user's own machine. */
 export function FreeAddServerDialog(props: {
   open: boolean;
   onClose: () => void;
@@ -16,7 +40,7 @@ export function FreeAddServerDialog(props: {
     <Dialog.Root open={props.open} onOpenChange={(open) => !open && props.onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay class="join-server-backdrop" data-motion="open">
-          <Dialog.Content as="section" class="join-server-dialog free-add-server-dialog t-modal is-open">
+          <Dialog.Content as="section" class="free-add-server-dialog t-modal is-open">
             <header class="free-add-server-header">
               <div class="free-add-server-titles">
                 <Dialog.Title as={Heading} class="free-add-server-title">
@@ -39,16 +63,14 @@ export function FreeAddServerDialog(props: {
             <div class="free-add-server-cards">
               <Show when={props.onCreateLocal}>
                 {(create) => (
-                  <Button variant="outline" class="free-add-server-card" onClick={() => create()()}>
+                  <Button class="free-add-server-card" onClick={() => create()()}>
                     <div class="free-add-server-card-icon">
                       <Monitor aria-hidden="true" />
                     </div>
                     <div class="free-add-server-card-body">
                       <div class="free-add-server-card-header">
                         <span class="free-add-server-card-title">{t("server.freeAdd.localTitle")}</span>
-                        <Badge variant="new" class="free-add-server-badge">
-                          {t("server.freeAdd.localBadge")}
-                        </Badge>
+                        <span class="free-add-server-badge">{t("server.freeAdd.localBadge")}</span>
                       </div>
                       <p class="free-add-server-card-desc">{t("server.freeAdd.localDesc")}</p>
                     </div>
@@ -56,9 +78,9 @@ export function FreeAddServerDialog(props: {
                 )}
               </Show>
 
-              <Button variant="outline" class="free-add-server-card" onClick={() => props.onOpenSelfHostGuide()}>
+              <Button class="free-add-server-card" onClick={() => props.onOpenSelfHostGuide()}>
                 <div class="free-add-server-card-icon">
-                  <Server aria-hidden="true" />
+                  <CloudServerIcon />
                 </div>
                 <div class="free-add-server-card-body">
                   <div class="free-add-server-card-header">
@@ -70,7 +92,7 @@ export function FreeAddServerDialog(props: {
 
               <Show when={props.onJoinWithInvite}>
                 {(join) => (
-                  <Button variant="outline" class="free-add-server-card" onClick={() => join()()}>
+                  <Button class="free-add-server-card" onClick={() => join()()}>
                     <div class="free-add-server-card-icon">
                       <Link2 aria-hidden="true" />
                     </div>

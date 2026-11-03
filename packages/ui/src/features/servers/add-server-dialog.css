@@ -1046,15 +1046,19 @@
 
 /* Free Add Server Dialog */
 .free-add-server-dialog {
-  width: min(560px, calc(100vw - var(--openbot-space-6) * 2));
-  background: var(--openbot-bg-control);
-  border: 1px solid var(--openbot-border-subtle);
+  position: relative;
+  width: min(520px, calc(100vw - var(--openbot-space-6) * 2));
+  max-height: calc(100dvh - 48px);
+  background: var(--openbot-bg-host-inset);
+  border: 1px solid var(--openbot-dialog-ring);
   border-radius: var(--openbot-radius-2xl);
   padding: var(--openbot-space-6);
   display: flex;
   flex-direction: column;
   gap: var(--openbot-space-5);
   box-shadow: var(--openbot-shadow-raised);
+  outline: 0;
+  overflow: hidden;
   animation: create-local-server-dialog-in var(--openbot-duration-slow) var(--openbot-ease-out) both;
 }
 
@@ -1087,8 +1091,12 @@
 }
 
 .free-add-server-close {
-  color: var(--openbot-text-secondary);
+  color: var(--openbot-text-muted);
   flex-shrink: 0;
+}
+
+.free-add-server-close:hover {
+  color: var(--openbot-text-primary);
 }
 
 .free-add-server-cards {
@@ -1102,28 +1110,32 @@
   width: 100%;
   height: auto;
   min-height: var(--openbot-control-xl);
+  appearance: none;
+  background: var(--openbot-glass-surface);
+  border: 1px solid var(--openbot-dialog-ring);
+  border-radius: var(--openbot-radius-xl);
+  padding: var(--openbot-space-4) var(--openbot-space-5);
   display: flex;
   align-items: center;
   justify-content: flex-start;
   text-align: left;
   gap: var(--openbot-space-4);
-  padding: var(--openbot-space-4) var(--openbot-space-5);
-  background: var(--openbot-bg-subtle);
-  border: 1px solid var(--openbot-border-subtle);
-  border-radius: var(--openbot-radius-xl);
   cursor: pointer;
-  transition: all var(--openbot-duration-fast) var(--openbot-ease-out);
-  color: inherit;
+  color: var(--openbot-text-primary);
   font-family: inherit;
   text-decoration: none;
   outline: none;
   box-sizing: border-box;
+  transition:
+    background-color var(--openbot-duration-fast) var(--openbot-ease-out),
+    border-color var(--openbot-duration-fast) var(--openbot-ease-out),
+    transform var(--openbot-duration-fast) var(--openbot-ease-out);
 }
 
 .free-add-server-card.ui-button:hover,
 .free-add-server-card:hover {
-  background: var(--openbot-bg-hover);
-  border-color: var(--openbot-border-medium);
+  background: var(--openbot-glass-surface-hover);
+  border-color: var(--openbot-glass-border);
   transform: translateY(-1px);
 }
 
@@ -1132,16 +1144,24 @@
   transform: translateY(0);
 }
 
+.free-add-server-card.ui-button:focus-visible,
+.free-add-server-card:focus-visible {
+  border-color: var(--openbot-cat-accent);
+  box-shadow: 0 0 0 2px var(--openbot-cat-accent-soft);
+}
+
 .free-add-server-card-icon {
-  width: var(--openbot-control-md);
-  height: var(--openbot-control-md);
-  border-radius: var(--openbot-radius-lg);
-  background: var(--openbot-bg-control);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--openbot-text-primary);
+  color: var(--openbot-text-secondary);
+}
+
+.free-add-server-card-icon svg {
+  width: 32px;
+  height: 32px;
+  display: block;
 }
 
 .free-add-server-card-body {
@@ -1155,13 +1175,28 @@
 .free-add-server-card-header {
   display: flex;
   align-items: center;
-  gap: var(--openbot-space-2);
+  gap: var(--openbot-space-2-5);
+  flex-wrap: wrap;
 }
 
 .free-add-server-card-title {
   font-size: var(--openbot-text-base);
   font-weight: var(--openbot-weight-semibold);
   color: var(--openbot-text-primary);
+  line-height: var(--openbot-leading-tight);
+}
+
+.free-add-server-badge {
+  background: var(--openbot-cat-accent-hover);
+  color: var(--openbot-cat-on-accent);
+  font-size: var(--openbot-text-xs);
+  font-weight: var(--openbot-weight-bold);
+  padding: 2px var(--openbot-space-2-5);
+  border-radius: var(--openbot-radius-pill);
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
 }
 
 .free-add-server-card-desc {
@@ -1170,13 +1205,4 @@
   color: var(--openbot-text-secondary);
   line-height: var(--openbot-leading-normal);
   white-space: normal;
-}
-
-.free-add-server-badge {
-  background: var(--openbot-badge-new-soft);
-  color: var(--openbot-badge-new);
-  font-size: var(--openbot-text-xs);
-  font-weight: var(--openbot-weight-medium);
-  padding: 2px var(--openbot-space-2);
-  border-radius: var(--openbot-radius-full);
 }
