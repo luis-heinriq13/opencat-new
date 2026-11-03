@@ -1,4 +1,4 @@
-import { Badge, Button, ChevronRight, Dialog, Heading, IconButton, Link2, Monitor, Server, Text, X } from "@openbot/ui";
+import { Badge, Button, Dialog, Heading, IconButton, Link2, Monitor, Server, Text, X } from "@openbot/ui";
 import { Show } from "solid-js";
 import { useText } from "../../text";
 
@@ -39,29 +39,24 @@ export function FreeAddServerDialog(props: {
             <div class="free-add-server-cards">
               <Show when={props.onCreateLocal}>
                 {(create) => (
-                  <Button
-                    variant="ghost"
-                    class="free-add-server-card free-add-server-card-featured"
-                    onClick={() => create()()}
-                  >
+                  <Button variant="outline" class="free-add-server-card" onClick={() => create()()}>
                     <div class="free-add-server-card-icon">
                       <Monitor aria-hidden="true" />
                     </div>
                     <div class="free-add-server-card-body">
                       <div class="free-add-server-card-header">
                         <span class="free-add-server-card-title">{t("server.freeAdd.localTitle")}</span>
-                        <Badge variant="new">{t("server.freeAdd.localBadge")}</Badge>
+                        <Badge variant="new" class="free-add-server-badge">
+                          {t("server.freeAdd.localBadge")}
+                        </Badge>
                       </div>
                       <p class="free-add-server-card-desc">{t("server.freeAdd.localDesc")}</p>
-                    </div>
-                    <div class="free-add-server-card-arrow" aria-hidden="true">
-                      <ChevronRight />
                     </div>
                   </Button>
                 )}
               </Show>
 
-              <Button variant="ghost" class="free-add-server-card" onClick={() => props.onOpenSelfHostGuide()}>
+              <Button variant="outline" class="free-add-server-card" onClick={() => props.onOpenSelfHostGuide()}>
                 <div class="free-add-server-card-icon">
                   <Server aria-hidden="true" />
                 </div>
@@ -71,14 +66,11 @@ export function FreeAddServerDialog(props: {
                   </div>
                   <p class="free-add-server-card-desc">{t("server.freeAdd.selfHostDesc")}</p>
                 </div>
-                <div class="free-add-server-card-arrow" aria-hidden="true">
-                  <ChevronRight />
-                </div>
               </Button>
 
               <Show when={props.onJoinWithInvite}>
                 {(join) => (
-                  <Button variant="ghost" class="free-add-server-card" onClick={() => join()()}>
+                  <Button variant="outline" class="free-add-server-card" onClick={() => join()()}>
                     <div class="free-add-server-card-icon">
                       <Link2 aria-hidden="true" />
                     </div>
@@ -87,9 +79,6 @@ export function FreeAddServerDialog(props: {
                         <span class="free-add-server-card-title">{t("server.freeAdd.joinTitle")}</span>
                       </div>
                       <p class="free-add-server-card-desc">{t("server.freeAdd.joinDesc")}</p>
-                    </div>
-                    <div class="free-add-server-card-arrow" aria-hidden="true">
-                      <ChevronRight />
                     </div>
                   </Button>
                 )}

@@ -1097,7 +1097,9 @@
   gap: var(--openbot-space-3);
 }
 
-.free-add-server-card.ui-button {
+.free-add-server-card.ui-button,
+.free-add-server-card {
+  width: 100%;
   height: auto;
   min-height: var(--openbot-control-xl);
   display: flex;
@@ -1115,21 +1117,19 @@
   font-family: inherit;
   text-decoration: none;
   outline: none;
+  box-sizing: border-box;
 }
 
-.free-add-server-card.ui-button:hover {
+.free-add-server-card.ui-button:hover,
+.free-add-server-card:hover {
   background: var(--openbot-bg-hover);
   border-color: var(--openbot-border-medium);
   transform: translateY(-1px);
 }
 
-.free-add-server-card.ui-button:active {
+.free-add-server-card.ui-button:active,
+.free-add-server-card:active {
   transform: translateY(0);
-}
-
-.free-add-server-card-featured.ui-button {
-  background: var(--openbot-bg-subtle);
-  border-color: var(--openbot-brand-primary);
 }
 
 .free-add-server-card-icon {
@@ -1142,10 +1142,6 @@
   justify-content: center;
   flex-shrink: 0;
   color: var(--openbot-text-primary);
-}
-
-.free-add-server-card-featured .free-add-server-card-icon {
-  color: var(--openbot-brand-primary);
 }
 
 .free-add-server-card-body {
@@ -1176,15 +1172,11 @@
   white-space: normal;
 }
 
-.free-add-server-card-arrow {
-  color: var(--openbot-text-tertiary);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  transition: transform var(--openbot-duration-fast) ease;
-}
-
-.free-add-server-card.ui-button:hover .free-add-server-card-arrow {
-  color: var(--openbot-text-primary);
-  transform: translateX(2px);
+.free-add-server-badge {
+  background: var(--openbot-badge-new-soft);
+  color: var(--openbot-badge-new);
+  font-size: var(--openbot-text-xs);
+  font-weight: var(--openbot-weight-medium);
+  padding: 2px var(--openbot-space-2);
+  border-radius: var(--openbot-radius-full);
 }

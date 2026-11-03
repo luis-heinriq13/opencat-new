@@ -189,85 +189,6 @@
   width: 72px;
 }
 
-/* The soft tiles and the dotted rings. They stay behind the text, and a narrow page has no room for them. */
-.attendance-hero-art {
-  display: none;
-}
-.attendance-hero-ring {
-  position: absolute;
-  border: 1.5px dotted var(--openbot-cat-dot);
-  border-radius: var(--openbot-radius-pill);
-  aspect-ratio: 1;
-}
-.attendance-hero-ring[data-place="left"] {
-  top: 50%;
-  left: 7%;
-  width: 62%;
-  translate: -18% -50%;
-}
-.attendance-hero-ring[data-place="right"] {
-  top: 50%;
-  right: -6%;
-  width: 40%;
-  translate: 0 -50%;
-}
-.attendance-hero-tile {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--openbot-cat-tile);
-  box-shadow: var(--openbot-cat-shadow-tile);
-  color: var(--openbot-cat-accent);
-}
-.attendance-hero-tile svg {
-  stroke-width: 2;
-}
-.attendance-hero-tile[data-place="left"] {
-  top: 50%;
-  left: var(--openbot-space-8);
-  width: calc(var(--openbot-space-8) * 3);
-  height: calc(var(--openbot-space-8) * 3);
-  border-radius: var(--openbot-cat-radius-tile-large);
-  rotate: -9deg;
-  translate: 0 -50%;
-}
-.attendance-hero-tile[data-place="left"] svg {
-  width: var(--openbot-space-8);
-  height: var(--openbot-space-8);
-  fill: currentcolor;
-}
-.attendance-hero-tile[data-place="center"] {
-  top: 32%;
-  left: 54%;
-  width: calc(var(--openbot-space-8) * 2);
-  height: calc(var(--openbot-space-8) * 2);
-  border-radius: var(--openbot-cat-radius-tile);
-  rotate: 9deg;
-}
-.attendance-hero-tile[data-place="center"] svg {
-  width: var(--openbot-space-8);
-  height: var(--openbot-space-8);
-  stroke-width: 3.25;
-}
-.attendance-hero-tile[data-place="right"] {
-  top: 50%;
-  right: var(--openbot-space-8);
-  width: calc(var(--openbot-space-8) * 2 + var(--openbot-space-2));
-  height: calc(var(--openbot-space-8) * 2 + var(--openbot-space-2));
-  border-radius: var(--openbot-cat-radius-tile);
-  rotate: 10deg;
-  translate: 0 -50%;
-}
-.attendance-hero-tile[data-place="right"] svg {
-  width: var(--openbot-space-8);
-  height: var(--openbot-space-8);
-  fill: currentcolor;
-}
-.attendance-hero-tile[data-place="right"] svg circle {
-  fill: var(--openbot-cat-surface);
-}
-
 /* A wide chart beside the funnel, then two hour views, then the lists. */
 .attendance-grid {
   display: grid;
@@ -628,18 +549,6 @@ time.attendance-attention-meta {
   }
   .attendance-grid-attention {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
-@container (min-width: 1040px) {
-  .attendance-hero-art {
-    position: absolute;
-    inset: 0;
-    display: block;
-    pointer-events: none;
-  }
-  .attendance-hero {
-    padding-left: calc(var(--openbot-space-8) * 5 + var(--openbot-space-2));
-    padding-right: calc(var(--openbot-space-8) * 4 + var(--openbot-space-2));
   }
 }
 @container (max-width: 480px) {

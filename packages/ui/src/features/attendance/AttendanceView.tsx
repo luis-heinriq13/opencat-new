@@ -17,10 +17,8 @@ import {
   Hand,
   IconButton,
   Input,
-  MessageCircle,
   Pause,
   Play,
-  Settings,
   TriangleAlert,
   Zap,
 } from "@openbot/ui";
@@ -366,19 +364,6 @@ function AttendanceReportBody(props: {
   return (
     <>
       <section class="attendance-hero" aria-label={t("attendance.hero.label")}>
-        <div class="attendance-hero-art" aria-hidden="true">
-          <span class="attendance-hero-ring" data-place="left" />
-          <span class="attendance-hero-ring" data-place="right" />
-          <span class="attendance-hero-tile" data-place="left">
-            <MessageCircle />
-          </span>
-          <span class="attendance-hero-tile" data-place="center">
-            <ChartNoAxesColumnIncreasing />
-          </span>
-          <span class="attendance-hero-tile" data-place="right">
-            <Settings />
-          </span>
-        </div>
         <div class="attendance-hero-main">
           <p class="attendance-kicker">{t("attendance.hero.label")}</p>
           <p class="attendance-hero-number">{format.number(totals().answered)}</p>
