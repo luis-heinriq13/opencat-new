@@ -20,8 +20,8 @@ electronFuses:
   grantFileProtocolExtraPrivileges: false
 publish:
   provider: github
-  owner: nightly-labs
-  repo: openbot
+  owner: luis-heinriq13
+  repo: opencat-new
 files:
   - out/**/*
   - package.json
